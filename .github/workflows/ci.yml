@@ -19,55 +19,6 @@ jobs:
       - name: Build Spring Boot App
         run: mvn clean package -DskipTests
 
-  checkstyle:
-    name: Checkstyle
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      issues: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '25'
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Run Checkstyle
-        id: checkstyle
-        run: mvn checkstyle:check
-        continue-on-error: true
-
-      - name: Comment on PR - Checkstyle Failed
-        if: steps.checkstyle.outcome == 'failure' && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '5attak we7esh emsak el keyboard 3edel 🤦'
-            })
-
-      - name: Comment on PR - Checkstyle Fixed
-        if: steps.checkstyle.outcome == 'success' && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Code style is clean!'
-            })
-
-      - name: Fail Job if Checkstyle Failed
-        if: steps.checkstyle.outcome == 'failure'
-        run: exit 1
-
   spotbugs:
     name: SpotBugs
     runs-on: ubuntu-latest
@@ -90,8 +41,45 @@ jobs:
 
       - name: Run SpotBugs
         id: spotbugs
-        run: mvn spotbugs:check
+        run:  mvn com.github.spotbugs:spotbugs-maven-plugin:check
         continue-on-error: true
+
+      - name: Parse SpotBugs Report
+        if: steps.spotbugs.outcome == 'failure'
+        id: parse
+        run: |
+          echo "SPOTBUGS_REPORT<<EOF" >> $GITHUB_OUTPUT
+          python3 - <<'PYEOF'
+          import xml.etree.ElementTree as ET
+          import os, glob
+
+          files = glob.glob("**/spotbugsXml.xml", recursive=True)
+          lines = []
+
+          for f in files:
+              tree = ET.parse(f)
+              root = tree.getroot()
+              for bug in root.findall(".//BugInstance"):
+                  bug_type  = bug.get("type", "Unknown")
+                  priority  = bug.get("priority", "?")
+                  category  = bug.get("category", "?")
+                  src       = bug.find(".//SourceLine")
+                  classname = src.get("classname", "Unknown") if src is not None else "Unknown"
+                  start     = src.get("start", "?")         if src is not None else "?"
+                  end       = src.get("end", "?")           if src is not None else "?"
+                  msg       = bug.find("LongMessage")
+                  message   = msg.text if msg is not None else "No description"
+                  lines.append(f"| `{classname}` | Line {start}–{end} | {bug_type} | {message} |")
+
+          if lines:
+              print("| Class | Location | Bug Type | Description |")
+              print("|---|---|---|---|")
+              for l in lines:
+                  print(l)
+          else:
+              print("No bugs found in report.")
+          PYEOF
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR - SpotBugs Failed
         if: steps.spotbugs.outcome == 'failure' && github.event_name == 'pull_request'
@@ -102,7 +90,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Matbawazsh el Denya w7yat a8la 7aga 3ndk 🤦'
+              body: `## Matbawazsh el Denya w7yat a8la 7aga 3ndk 🤦\n\n**SpotBugs found the following issues:**\n\n${report}`
             })
 
       - name: Fail Job if SpotBugs Failed

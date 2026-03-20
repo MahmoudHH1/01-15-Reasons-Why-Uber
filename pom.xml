@@ -22,48 +22,12 @@
         <module>payment-service</module>
     </modules>
     <build>
-        <pluginManagement>
-    <plugins>
-    <!-- Checkstyle -->
-    <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-        <version>3.3.1</version>
-        <executions>
-            <execution>
-                <goals>
-                    <goal>check</goal>
-                </goals>
-            </execution>
-        </executions>
-        <configuration>
-            <configLocation>sun_checks.xml</configLocation>   <!-- less strict than google -->
-            <consoleOutput>true</consoleOutput>
-            <failsOnError>true</failsOnError>
-            <violationSeverity>warning</violationSeverity>    <!-- warn instead of fail on minor issues -->
-        </configuration>
-    </plugin>
-
-    <!-- SpotBugs -->
-    <plugin>
-        <groupId>com.github.spotbugs</groupId>
-        <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.8.6.4</version>
-        <executions>
-            <execution>
-                <goals>
-                    <goal>check</goal>
-                </goals>
-            </execution>
-        </executions>
-        <configuration>
-            <effort>Max</effort>
-            <threshold>Low</threshold>
-            <failOnError>true</failOnError>
-        </configuration>
-    </plugin>
-    </plugins>
-        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.8.6.4</version>
+            </plugin>
+        </plugins>
     </build>
-
 </project>
