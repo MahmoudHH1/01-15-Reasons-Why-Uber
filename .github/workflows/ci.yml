@@ -1,0 +1,74 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      # ─── BUILD ───────────────────────────────────────────
+      - name: "🔨 Building Spring Boot App"
+        id: build
+        run: mvn clean package -DskipTests
+
+      - name: "❌ Build Failed"
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          echo "::error::Enta 3ayez twa22a3 uber ya sa7by, sha88al elsho8l 🤦"
+          echo "::error::Build failed — check your pom.xml and compilation errors above"
+
+      - name: "✅ Build Passed"
+        if: steps.build.outcome == 'success'
+        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Build passed!"
+
+      # ─── CHECKSTYLE ──────────────────────────────────────
+      - name: "🎨 Running Checkstyle"
+        id: checkstyle
+        run: mvn checkstyle:check
+
+      - name: "❌ Checkstyle Failed"
+        if: failure() && steps.checkstyle.outcome == 'failure'
+        run: |
+          echo "::error::5attak we7esh emsak el keyboard 3edel 🤦"
+          echo "::error::Checkstyle failed — your formatting is a mess, fix it!"
+
+      - name: "✅ Checkstyle Passed"
+        if: steps.checkstyle.outcome == 'success'
+        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Code style is clean!"
+
+      # ─── SPOTBUGS ────────────────────────────────────────
+      - name: "🐛 Running SpotBugs"
+        id: spotbugs
+        run: mvn spotbugs:check
+
+      - name: "❌ SpotBugs Failed"
+        if: failure() && steps.spotbugs.outcome == 'failure'
+        run: |
+          echo "::error::SpotBugs found bugs — check the report above and fix them"
+
+      - name: "✅ SpotBugs Passed"
+        if: steps.spotbugs.outcome == 'success'
+        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — No bugs found!"
+
+      # ─── DOCKER ──────────────────────────────────────────
+      - name: "🐳 Building Docker Image"
+        id: docker
+        run: docker compose build
+
+      - name: "❌ Docker Build Failed"
+        if: failure() && steps.docker.outcome == 'failure'
+        run: |
+          echo "::error::Mt3rafsh ya3ni ehh container allak ya sa7by! 🤦"
+          echo "::error::Docker build failed — check your Dockerfile and docker-compose.yml"
+
+      - name: "✅ Docker Build Passed"
+        if: steps.docker.outcome == 'success'
+        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Docker image built successfully!"
