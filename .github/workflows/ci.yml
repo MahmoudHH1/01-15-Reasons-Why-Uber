@@ -6,6 +6,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -48,28 +50,28 @@ jobs:
         if: steps.spotbugs.outcome == 'failure'
         id: parse
         run: |
-          echo "SPOTBUGS_REPORT<<EOF" >> $GITHUB_OUTPUT
-          python3 - <<'PYEOF'
+          python3 - <<'PYEOF' > /tmp/spotbugs_report.txt
           import xml.etree.ElementTree as ET
-          import os, glob
+          import glob
 
           files = glob.glob("**/spotbugsXml.xml", recursive=True)
           lines = []
 
           for f in files:
-              tree = ET.parse(f)
-              root = tree.getroot()
-              for bug in root.findall(".//BugInstance"):
-                  bug_type  = bug.get("type", "Unknown")
-                  priority  = bug.get("priority", "?")
-                  category  = bug.get("category", "?")
-                  src       = bug.find(".//SourceLine")
-                  classname = src.get("classname", "Unknown") if src is not None else "Unknown"
-                  start     = src.get("start", "?")         if src is not None else "?"
-                  end       = src.get("end", "?")           if src is not None else "?"
-                  msg       = bug.find("LongMessage")
-                  message   = msg.text if msg is not None else "No description"
-                  lines.append(f"| `{classname}` | Line {start}–{end} | {bug_type} | {message} |")
+              try:
+                  tree = ET.parse(f)
+                  root = tree.getroot()
+                  for bug in root.findall(".//BugInstance"):
+                      bug_type  = bug.get("type", "Unknown")
+                      src       = bug.find(".//SourceLine")
+                      classname = src.get("classname", "Unknown") if src is not None else "Unknown"
+                      start     = src.get("start", "?")         if src is not None else "?"
+                      end       = src.get("end", "?")           if src is not None else "?"
+                      msg       = bug.find("LongMessage")
+                      message   = msg.text if msg is not None else "No description"
+                      lines.append(f"| `{classname}` | Line {start}–{end} | {bug_type} | {message} |")
+              except Exception as e:
+                  print(f"Error parsing {f}: {e}")
 
           if lines:
               print("| Class | Location | Bug Type | Description |")
@@ -79,13 +81,20 @@ jobs:
           else:
               print("No bugs found in report.")
           PYEOF
+          
+          echo "SPOTBUGS_REPORT<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/spotbugs_report.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR - SpotBugs Failed
         if: steps.spotbugs.outcome == 'failure' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
+        continue-on-error: true
+        env:
+          SPOTBUGS_REPORT: ${{ steps.parse.outputs.SPOTBUGS_REPORT }}
         with:
           script: |
+            const report = process.env.SPOTBUGS_REPORT;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -101,6 +110,8 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
