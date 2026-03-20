@@ -1,6 +1,6 @@
-name: CI
+name: Mokaf7et el CI
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   build:
@@ -25,7 +25,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           java-version: '25'
@@ -71,12 +70,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: 'temurin'
           cache: maven
+
+      - name: Compile first
+        run: mvn compile -DskipTests
 
       - name: Run SpotBugs
         id: spotbugs

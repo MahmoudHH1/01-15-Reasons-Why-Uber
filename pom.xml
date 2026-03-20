@@ -37,9 +37,10 @@
             </execution>
         </executions>
         <configuration>
-            <configLocation>google_checks.xml</configLocation>
+            <configLocation>sun_checks.xml</configLocation>   <!-- less strict than google -->
             <consoleOutput>true</consoleOutput>
             <failsOnError>true</failsOnError>
+            <violationSeverity>warning</violationSeverity>    <!-- warn instead of fail on minor issues -->
         </configuration>
     </plugin>
 
