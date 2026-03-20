@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
@@ -13,62 +14,99 @@ jobs:
         with:
           java-version: '25'
           distribution: 'temurin'
+          cache: maven
 
-      # ─── BUILD ───────────────────────────────────────────
-      - name: "🔨 Building Spring Boot App"
-        id: build
+      - name: Build Spring Boot App
         run: mvn clean package -DskipTests
 
-      - name: "❌ Build Failed"
-        if: failure() && steps.build.outcome == 'failure'
-        run: |
-          echo "::error::Enta 3ayez twa22a3 uber ya sa7by, sha88al elsho8l 🤦"
-          echo "::error::Build failed — check your pom.xml and compilation errors above"
+  checkstyle:
+    name: Checkstyle
+    runs-on: ubuntu-latest
 
-      - name: "✅ Build Passed"
-        if: steps.build.outcome == 'success'
-        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Build passed!"
+    steps:
+      - uses: actions/checkout@v4
 
-      # ─── CHECKSTYLE ──────────────────────────────────────
-      - name: "🎨 Running Checkstyle"
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Checkstyle
         id: checkstyle
         run: mvn checkstyle:check
+        continue-on-error: true
 
-      - name: "❌ Checkstyle Failed"
-        if: failure() && steps.checkstyle.outcome == 'failure'
-        run: |
-          echo "::error::5attak we7esh emsak el keyboard 3edel 🤦"
-          echo "::error::Checkstyle failed — your formatting is a mess, fix it!"
+      - name: Comment on PR - Checkstyle Failed
+        if: steps.checkstyle.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '5attak we7esh emsak el keyboard 3edel 🤦'
+            })
 
-      - name: "✅ Checkstyle Passed"
-        if: steps.checkstyle.outcome == 'success'
-        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Code style is clean!"
+      - name: Comment on PR - Checkstyle Fixed
+        if: steps.checkstyle.outcome == 'success' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Code style is clean!'
+            })
 
-      # ─── SPOTBUGS ────────────────────────────────────────
-      - name: "🐛 Running SpotBugs"
+      - name: Fail Job if Checkstyle Failed
+        if: steps.checkstyle.outcome == 'failure'
+        run: exit 1
+
+  spotbugs:
+    name: SpotBugs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run SpotBugs
         id: spotbugs
         run: mvn spotbugs:check
+        continue-on-error: true
 
-      - name: "❌ SpotBugs Failed"
-        if: failure() && steps.spotbugs.outcome == 'failure'
-        run: |
-          echo "::error::SpotBugs found bugs — check the report above and fix them"
+      - name: Comment on PR - SpotBugs Failed
+        if: steps.spotbugs.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Matbawazsh el Denya w7yat a8la 7aga 3ndk 🤦'
+            })
 
-      - name: "✅ SpotBugs Passed"
-        if: steps.spotbugs.outcome == 'success'
-        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — No bugs found!"
+      - name: Fail Job if SpotBugs Failed
+        if: steps.spotbugs.outcome == 'failure'
+        run: exit 1
 
-      # ─── DOCKER ──────────────────────────────────────────
-      - name: "🐳 Building Docker Image"
-        id: docker
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
         run: docker compose build
 
-      - name: "❌ Docker Build Failed"
-        if: failure() && steps.docker.outcome == 'failure'
-        run: |
-          echo "::error::Mt3rafsh ya3ni ehh container allak ya sa7by! 🤦"
-          echo "::error::Docker build failed — check your Dockerfile and docker-compose.yml"
-
-      - name: "✅ Docker Build Passed"
-        if: steps.docker.outcome == 'success'
-        run: echo "::notice::Enta Tarsh el tarsh and an Uber Hero 🚗💨 — Docker image built successfully!"
