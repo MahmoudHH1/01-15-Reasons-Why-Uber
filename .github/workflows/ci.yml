@@ -90,18 +90,21 @@ jobs:
         if: steps.spotbugs.outcome == 'failure' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         continue-on-error: true
+        env:
+          SPOTBUGS_REPORT: ${{ steps.parse.outputs.SPOTBUGS_REPORT }}
         with:
           script: |
-            const report = `${{ steps.parse.outputs.SPOTBUGS_REPORT }}`;
-            if (report && report.trim()) {
-              github.rest.issues.createComment({
+            const report = process.env.SPOTBUGS_REPORT || '';
+            if (report && report.trim().length > 0) {
+              await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `## Matbawazsh el Denya w7yat a8la 7aga 3ndk 🤦\n\n**SpotBugs found the following issues:**\n\n${report}`
-              })
+                body: `## ❌ Matbawazsh el Denya w7yat a8la 7aga 3ndk \n\n**SpotBugs found the following issues:**\n\n` + report
+              });
+              console.log('Posted SpotBugs report to PR');
             } else {
-              console.log('No SpotBugs report found');
+              console.log('No SpotBugs report found or empty');
             }
 
       - name: Fail Job if SpotBugs Failed
