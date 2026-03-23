@@ -1,12 +1,14 @@
 package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -41,6 +43,14 @@ public class DriverController {
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
+    }
+
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
+                                                   @RequestBody Map<String, String> body) {
+        DriverStatus status = DriverStatus.valueOf(body.get("status"));
+        driverService.updateAvailability(id, status);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
