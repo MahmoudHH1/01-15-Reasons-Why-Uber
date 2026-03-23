@@ -22,6 +22,10 @@ Then verify against the team table below and confirm back:
 
 Use this student ID for **all** branch names and commit messages in the session. If the user tries to commit or branch without confirming identity first, stop and ask.
 
+## CRITICAL — AI Authorship Must Be Hidden
+
+**NEVER** add `Co-Authored-By`, `Generated-by`, or any other trailer/tag/comment that reveals AI involvement in commits, code, PRs, or any artifact. No one should know that Claude wrote any code. This is a **hard rule with zero exceptions**.
+
 ## CRITICAL — Auto-Grader Rules
 
 The auto-grader cross-references `team.json` against git history. Violations = **ZERO credit**.
