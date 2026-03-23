@@ -61,11 +61,16 @@ public class DriverService {
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
 
-        Object[] result = driverRepository.getEarningsSummary(driverId, startDate, endDate);
+        Object[] row = driverRepository.getEarningsSummary(driverId, startDate, endDate);
+        // native query returns a single-row result; each element is a column value
+        // Spring Data may wrap as Object[] where element 0 is itself an Object[] row
+        if (row.length > 0 && row[0] instanceof Object[]) {
+            row = (Object[]) row[0];
+        }
 
-        Long totalRides = ((Number) result[0]).longValue();
-        Double totalEarnings = ((Number) result[1]).doubleValue();
-        Double averageFare = ((Number) result[2]).doubleValue();
+        Long totalRides = ((Number) row[0]).longValue();
+        Double totalEarnings = ((Number) row[1]).doubleValue();
+        Double averageFare = ((Number) row[2]).doubleValue();
 
         return new DriverEarningsDTO(driver.getId(), driver.getName(), totalRides, totalEarnings, averageFare);
     }
