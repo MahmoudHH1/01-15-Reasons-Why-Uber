@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Prevent re-entry: git checkout - below would trigger this hook again
+if [ -n "$POST_CHECKOUT_RUNNING" ]; then
+  exit 0
+fi
+export POST_CHECKOUT_RUNNING=1
+
 # Only run on branch checkouts, not file checkouts
 if [ "$3" != "1" ]; then
   exit 0
