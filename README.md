@@ -22,11 +22,11 @@ feat/<service>/<feature-name>/<student-id>
 
 | Part | Example |
 |------|---------|
-| `<service>` | `user-service`, `ride-service`, `driver-service`, `location-service`, `payment-service` |
-| `<feature-name>` | `S1-F1`, `search-users`, `add-entity` |
+| `<service>` | `user`, `ride`, `driver`, `location`, `payment` |
+| `<feature-name>` | `S1-F1`, `S2-F3`, `S3-F2` |
 | `<student-id>` | `55-8078` |
 
-Full example: `feat/user-service/S1-F1/55-8078`
+Full example: `feat/user/S1-F1/55-8078`
 
 ### Commit Message Format
 
@@ -51,7 +51,7 @@ Allowed types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `bugfix`, `ho
 Once you have run `mvn install -DskipTests`, Git hooks are active on your machine and will automatically detect violations.
 
 ### Wrong branch name
-If you create a branch that does not follow the naming convention, the hook **immediately deletes the branch** and switches you back to your previous branch:
+If you create a branch that does not follow the naming convention, the hook switches you back to your previous branch and attempts to delete the bad branch:
 ```
 Branch 'my-feature' does not follow the required naming convention.
 
