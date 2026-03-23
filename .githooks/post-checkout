@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Prevent re-entry: git checkout - below would trigger this hook again
+if [ -n "$POST_CHECKOUT_RUNNING" ]; then
+  exit 0
+fi
+export POST_CHECKOUT_RUNNING=1
+
+# Only run on branch checkouts, not file checkouts
+if [ "$3" != "1" ]; then
+  exit 0
+fi
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+# Skip validation in detached HEAD state (e.g. checking out a tag or commit)
+if [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+  exit 0
+fi
+
+# Allow protected/base branches through without checks
+if echo "$BRANCH" | grep -qE "^(main|master|develop)$"; then
+  exit 0
+fi
+
+# Pattern: type/service/feature-name/student-id
+# e.g. feat/user/S1-F1/55-8078
+# e.g. feat/user-service/search-users/55-8078
+PATTERN="^(feat|fix|bugfix|hotfix|release|docs|refactor|test|chore)/[a-z][a-z0-9-]*/[A-Za-z0-9._-]+/[0-9]+-[0-9]+$"
+
+if ! echo "$BRANCH" | grep -qE "$PATTERN"; then
+  echo ""
+  echo "Branch '$BRANCH' does not follow the required naming convention."
+  echo ""
+  echo "   Required : feat/<service>/<feature-name>/<student-id>"
+  echo "   Example  : feat/user/S1-F1/55-8078"
+  echo "   Example  : feat/ride/S3-F2/55-8078"
+  echo ""
+  echo "   Allowed types : feat, fix, bugfix, hotfix, release, docs, refactor, test, chore"
+  echo ""
+  git checkout -
+  git branch -d "$BRANCH" 2>/dev/null
+  exit 1
+fi
