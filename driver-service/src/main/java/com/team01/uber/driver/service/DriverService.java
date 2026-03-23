@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DriverService {
@@ -47,6 +49,20 @@ public class DriverService {
         existing.setStatus(updated.getStatus());
         existing.setVehicleDetails(updated.getVehicleDetails());
         return driverRepository.save(existing);
+    }
+
+    public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
+        Driver driver = getDriverById(id);
+        if (updates == null || updates.isEmpty()) {
+            return driver;
+        }
+        Map<String, Object> existing = driver.getVehicleDetails();
+        if (existing == null) {
+            existing = new HashMap<>();
+        }
+        existing.putAll(updates);
+        driver.setVehicleDetails(existing);
+        return driverRepository.save(driver);
     }
 
     public void deleteDriver(Long id) {
