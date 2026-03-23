@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
@@ -7,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -54,5 +56,17 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
         driverRepository.deleteById(id);
+    }
+
+    public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
+        Driver driver = getDriverById(driverId);
+
+        Object[] result = driverRepository.getEarningsSummary(driverId, startDate, endDate);
+
+        Long totalRides = ((Number) result[0]).longValue();
+        Double totalEarnings = ((Number) result[1]).doubleValue();
+        Double averageFare = ((Number) result[2]).doubleValue();
+
+        return new DriverEarningsDTO(driver.getId(), driver.getName(), totalRides, totalEarnings, averageFare);
     }
 }
