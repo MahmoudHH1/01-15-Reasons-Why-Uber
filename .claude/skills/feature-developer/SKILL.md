@@ -21,14 +21,33 @@ Determine the service from the feature ID:
 - S4 = location-service (service shortname: `location`)
 - S5 = payment-service (service shortname: `payment`)
 
-## Step 2: Verify Clean State
+## Step 2: Verify Developer Identity
+
+Cross-check the student ID from Step 1 against the team table in CLAUDE.md:
+1. Look up the student ID in the Services & Team Assignment table.
+2. Confirm the student is a **real team member** (name + ID match).
+3. Confirm the student is **assigned to the service** that the feature belongs to (e.g., S2 = driver-service, so the student must be in the driver-service team).
+
+If either check fails, **STOP** and tell the user:
+- If the ID doesn't match any team member: "Student ID not found in team.json — cannot proceed."
+- If the student is assigned to a different service: "You (name, ID) are assigned to <their-service>, but this feature belongs to <feature-service>. Are you sure you want to proceed?"
+
+Only continue after identity is confirmed. Echo back to the user:
+```
+Developer: <full name> (<student ID>)
+Assigned service: <service-name>
+Feature service: <service-name>
+✓ Identity verified
+```
+
+## Step 3: Verify Clean State
 
 Run `git status` to check for uncommitted changes. If there are changes:
 - Warn the user
 - Ask if they want to stash or commit first
 - Do NOT proceed with dirty working directory
 
-## Step 3: Create Branch
+## Step 4: Create Branch
 
 Run these commands:
 ```
@@ -39,11 +58,11 @@ git checkout -b feat/<service-shortname>/<feature-ID>/<studentId>
 
 Example: `git checkout -b feat/driver/S2-F3/55-25085`
 
-## Step 4: Load Feature Spec
+## Step 5: Load Feature Spec
 
-Ask the user to paste the feature spec (from the assignment PDF) into the terminal. Store this for later reference in the workflow. Alternatively you can also ask for a source PDF for the featue description and parse the relevant details from it.
+Ask the user to paste the feature spec (from the assignment PDF) into the terminal. Store this for later reference in the workflow. Alternatively you can also ask for a source PDF for the feature description and parse the relevant details from it.
 
-## Step 5: Explore Dependencies
+## Step 6: Explore Dependencies
 
 Before planning the implementation, scan the codebase to understand what already exists:
 
@@ -80,7 +99,7 @@ External dependencies:
 
 Wait for the user to acknowledge before proceeding to the plan.
 
-## Step 6: Create Detailed Implementation Plan
+## Step 7: Create Detailed Implementation Plan
 
 Based on the feature spec and dependency check, create a **detailed plan** broken into individual commits. Each commit should be a small, logical, independently working step. A feature must NEVER be one-shotted in a single commit.
 
@@ -119,6 +138,6 @@ Do NOT delete the branch after merging.
 
 Each commit description should be specific to what is actually being done (not generic like "add query methods" — instead "add findByDriverIdAndStatus query for ride lookup").
 
-## Step 7: Confirm and Start
+## Step 8: Confirm and Start
 
 Ask the user to review the plan. Once they approve (or after incorporating feedback), tell them the branch is ready and start implementing commit by commit.

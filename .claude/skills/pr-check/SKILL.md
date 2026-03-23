@@ -1,5 +1,5 @@
 ---
-name: pr-check                                     
+name: pr-check                                
 description: Full pre-PR verification checklist. Run this before creating a pull request to catch all auto-grader-failing issues at once.
 ---
 
@@ -15,11 +15,11 @@ Run each check in order. Do NOT skip any check.
 
 Check the current branch name and all commits on this branch (vs main):
 - Branch matches `feat/<service>/<feature-ID>/<studentId>` pattern
-- All commit messages match `feat(<service-name>): <description> (<studentId>)` format
+- All commit messages match `<type>(<service-name>): <description> (<studentId>)` format, where `<type>` is one of: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`
 - Student ID is consistent across branch name and commits
 - Student ID matches a member in `team.json`
 - The service in the branch matches the member's assigned service
-- Not that the name of the Service in the branch is just the name of the entity (e.g., `driver`), not the full service name (e.g., `driver-service`). The full service name is only used within the commit message, not the branch name.
+- Note that the name of the Service in the branch is just the name of the entity (e.g., `driver`), not the full service name (e.g., `driver-service`). The full service name is only used within the commit message, not the branch name.
 
 ### 2. Incremental Commits
 
