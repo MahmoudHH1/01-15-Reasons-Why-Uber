@@ -16,7 +16,7 @@ public class Location {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // FK reference to the drivers table (not JPA-managed)
+    // Plain FK column — driverId refers to a driver in driver-service, no JPA relationship
     @Column(nullable = false)
     private Long driverId;
 
