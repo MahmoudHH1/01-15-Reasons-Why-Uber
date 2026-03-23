@@ -21,4 +21,28 @@
         <module>location-service</module>
         <module>payment-service</module>
     </modules>
+
+    <build>
+        <plugins>
+            <!-- Auto-installs git hooks from .githooks/ when anyone runs mvn install -->
+            <plugin>
+                <groupId>com.rudikershaw.gitbuildhook</groupId>
+                <artifactId>git-build-hook-maven-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <installHooks>
+                        <commit-msg>.githooks/commit-msg</commit-msg>
+                        <post-checkout>.githooks/post-checkout</post-checkout>
+                    </installHooks>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>install</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

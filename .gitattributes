@@ -1,0 +1,3 @@
+# Ensure hook scripts always use LF line endings on all platforms
+.githooks/commit-msg    text eol=lf
+.githooks/post-checkout text eol=lf
