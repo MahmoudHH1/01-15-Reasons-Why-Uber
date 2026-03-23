@@ -1,11 +1,13 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.service.DriverService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -47,5 +49,12 @@ public class DriverController {
     public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/earnings")
+    public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
+                                                @RequestParam LocalDate startDate,
+                                                @RequestParam LocalDate endDate) {
+        return driverService.getEarningsSummary(id, startDate, endDate);
     }
 }
