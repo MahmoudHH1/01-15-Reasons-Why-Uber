@@ -68,3 +68,47 @@ For each FAIL, show:
 - What the spec says
 - What the code actually has
 - The exact fix needed
+
+### 6. CRUD & Infrastructure Conventions
+
+When verifying entities, also check that the service has the following conventions in place. These are set up once per service alongside entity/CRUD creation. Reference implementation: **driver-service**.
+
+**pom.xml dependencies:**
+- `spring-boot-starter-validation` is present
+- `lombok` dependency with `<scope>provided</scope>` is present
+- `maven-compiler-plugin` has Lombok annotation processor configured
+
+**Entity conventions:**
+- `@Getter` and `@Setter` from Lombok (no hand-written getters/setters)
+- All `@Column(nullable = false)` String fields have `@NotBlank` with a message
+- All `@Column(nullable = false)` non-String fields have `@NotNull` with a message
+- Email fields have `@Email` with a message
+- Fields with Java-level defaults (e.g., `private Double rating = 0.0`) do NOT need redundant `.setX()` calls in the service create method
+
+**Controller conventions:**
+- All `@RequestBody` parameters on create and update endpoints have `@Valid`
+
+**Service conventions:**
+- All create methods call `entity.setId(null)` before saving to prevent client-supplied ID overwrites
+- All "not found" cases use `ResponseStatusException(HttpStatus.NOT_FOUND, "...")` — CRUD errors are strictly **404**
+- Validation failures are **400** (handled automatically by `@Valid` + `GlobalExceptionHandler`)
+
+**GlobalExceptionHandler:**
+- A `@RestControllerAdvice` class exists in `controller/` that catches `MethodArgumentNotValidException` and returns 400 with a `Map<String, String>` of field-level error messages
+
+**Nested resource ownership:**
+- If an entity is a child of another (e.g., DriverDocument under Driver), all get/update/delete operations query by BOTH child ID and parent ID (e.g., `findByIdAndDriverId`). Never use `findById` alone for nested resources.
+- Repository must have `findByIdAndParentId` and `existsByIdAndParentId` methods
+
+```
+CRUD Conventions: <ServiceName>
+──────────────────────────────
+  pom.xml deps:          [PASS/FAIL]
+  Lombok on entities:    [PASS/FAIL]
+  Validation annotations:[PASS/FAIL]
+  @Valid on controllers: [PASS/FAIL]
+  GlobalExceptionHandler:[PASS/FAIL]
+  setId(null) on create: [PASS/FAIL]
+  404 for not-found:     [PASS/FAIL]
+  Nested ownership:      [PASS/FAIL] (or N/A if no nested resources)
+```

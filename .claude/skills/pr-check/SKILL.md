@@ -69,6 +69,10 @@ For each entity in the service, verify that all 5 CRUD operations exist:
 - **Update:** PUT endpoint, update logic in service
 - **Delete:** DELETE endpoint, deleteById in service/repository
 
+### 5b. CRUD Conventions
+
+Run the CRUD & Infrastructure Conventions check from the **verify-entity** skill (Section 6). Report as a sub-table within the PR check output.
+
 ### 6. Build Verification
 
 Run `mvn clean package -DskipTests` from the project root and check for compilation errors.
@@ -92,6 +96,7 @@ Pre-PR Check: <branch-name>
 3. Architecture        [PASS/FAIL]
 4. Entity Compliance   [PASS/FAIL]
 5. CRUD Completeness   [PASS/FAIL]
+5b. CRUD Conventions   [PASS/FAIL]
 6. Build               [PASS/FAIL]
 7. Code Style          [PASS/WARN]
 

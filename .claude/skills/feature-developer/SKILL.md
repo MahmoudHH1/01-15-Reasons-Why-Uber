@@ -62,6 +62,8 @@ Example: `git checkout -b feat/driver/S2-F3/55-25085`
 
 Ask the user to paste the feature spec (from the assignment PDF) into the terminal. Store this for later reference in the workflow. Alternatively you can also ask for a source PDF for the feature description and parse the relevant details from it.
 
+**Error Code Extraction:** When reading the feature spec, identify the expected HTTP error code for error cases (e.g., 404, 400, 409). If the spec does not explicitly mention an error code, **STOP and ask the user** what error code to use before proceeding. Never assume an error code — it must come from the spec or the user.
+
 ## Step 6: Explore Dependencies
 
 Before planning the implementation, scan the codebase to understand what already exists:
@@ -110,6 +112,11 @@ Analyze the feature and break it down into the specific files and changes needed
 3. **Service layer** — specific business logic, validations, and orchestration
 4. **Controller layer** — specific REST endpoint(s)
 5. **Refinements** — edge cases, null handling, error responses, cleanup
+
+**Mandatory feature conventions:**
+
+- **Error codes:** Feature-specific error codes come from the spec (extracted in Step 5). Use `ResponseStatusException(HttpStatus.XXX, "message")` in the service layer.
+- **@Valid on controllers:** If the feature adds new endpoints with `@RequestBody`, add `@Valid` on the parameter.
 
 Present the plan as:
 
