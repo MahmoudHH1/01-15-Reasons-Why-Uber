@@ -3,11 +3,15 @@ package com.team01.uber.ride.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.team01.uber.ride.enums.RideStopStatus;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.util.Map;
 
+@Getter
+@Setter
 @Entity
 @Table(name = "ride_stops")
 public class RideStop {
@@ -41,68 +45,4 @@ public class RideStop {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ride_id", nullable = false)
     private Ride ride;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Integer getStopOrder() {
-        return stopOrder;
-    }
-
-    public void setStopOrder(Integer stopOrder) {
-        this.stopOrder = stopOrder;
-    }
-
-    public Double getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(Double latitude) {
-        this.latitude = latitude;
-    }
-
-    public Double getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(Double longitude) {
-        this.longitude = longitude;
-    }
-
-    public String getAddress() {
-        return address;
-    }
-
-    public void setAddress(String address) {
-        this.address = address;
-    }
-
-    public RideStopStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(RideStopStatus status) {
-        this.status = status;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
-    }
-
-    public void setMetadata(Map<String, Object> metadata) {
-        this.metadata = metadata;
-    }
-
-    public Ride getRide() {
-        return ride;
-    }
-
-    public void setRide(Ride ride) {
-        this.ride = ride;
-    }
 }
