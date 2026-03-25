@@ -2,6 +2,7 @@ package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.service.DriverService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +25,7 @@ public class DriverController {
     }
 
     @PostMapping
-    public ResponseEntity<Driver> createDriver(@RequestBody Driver driver) {
+    public ResponseEntity<Driver> createDriver(@Valid @RequestBody Driver driver) {
         return ResponseEntity.status(HttpStatus.CREATED).body(driverService.createDriver(driver));
     }
 
@@ -39,7 +40,7 @@ public class DriverController {
     }
 
     @PutMapping("/{id}")
-    public Driver updateDriver(@PathVariable Long id, @RequestBody Driver driver) {
+    public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
     }
 
