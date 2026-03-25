@@ -1,6 +1,6 @@
 package com.team01.uber.location.service;
 
-import com.team01.uber.location.entity.Location;
+import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

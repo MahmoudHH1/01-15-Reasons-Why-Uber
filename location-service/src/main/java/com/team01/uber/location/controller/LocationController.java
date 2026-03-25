@@ -1,6 +1,6 @@
 package com.team01.uber.location.controller;
 
-import com.team01.uber.location.entity.Location;
+import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +23,7 @@ public class LocationController {
     public String health() {
         return "OK";
     }
-    
+
     @PostMapping
     public ResponseEntity<Location> create(@RequestBody Location location) {
         return ResponseEntity.status(HttpStatus.CREATED).body(locationService.create(location));
