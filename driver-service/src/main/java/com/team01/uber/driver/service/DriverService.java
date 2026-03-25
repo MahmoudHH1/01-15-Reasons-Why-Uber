@@ -20,6 +20,7 @@ public class DriverService {
     }
 
     public Driver createDriver(Driver driver) {
+        driver.setId(null); // Ensure ID is null for new document
         driver.setRating(0.0);
         driver.setTotalRatings(0);
         driver.setCreatedAt(LocalDateTime.now());

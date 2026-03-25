@@ -23,6 +23,7 @@ public class DriverDocumentService {
 
     public DriverDocument createDocument(Long driverId, DriverDocument document) {
         Driver driver = driverService.getDriverById(driverId);
+        document.setId(null); // Ensure ID is null for new document
         document.setDriver(driver);
         document.setUploadedAt(LocalDateTime.now());
         document.setVerified(false);
