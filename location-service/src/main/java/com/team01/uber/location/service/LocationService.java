@@ -44,6 +44,9 @@ public class LocationService {
     }
 
     public void delete(Long id) {
+        if (!locationRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Error 404");
+        }
         locationRepository.deleteById(id);
     }
 }
