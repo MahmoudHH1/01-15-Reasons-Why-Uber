@@ -20,7 +20,6 @@ public class RideService {
     }
 
     public Ride createRide(Ride ride) {
-        // TODO: Add business Logic + Validations
         ride.setRequestedAt(LocalDateTime.now());
         if (ride.getStatus() == null) {
             ride.setStatus(RideStatus.REQUESTED);
