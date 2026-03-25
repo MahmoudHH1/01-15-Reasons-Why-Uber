@@ -3,6 +3,7 @@ package com.team01.uber.ride.service;
 import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
+import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,15 +15,16 @@ import java.util.List;
 public class RideStopService {
 
     private final RideStopRepository rideStopRepository;
-    private final RideService rideService;
+    private final RideRepository rideRepository;
 
-    public RideStopService(RideStopRepository rideStopRepository, RideService rideService) {
+    public RideStopService(RideStopRepository rideStopRepository, RideRepository rideRepository) {
         this.rideStopRepository = rideStopRepository;
-        this.rideService = rideService;
+        this.rideRepository = rideRepository;
     }
 
     public RideStop createStop(Long rideId, RideStop stop) {
-        Ride ride = rideService.getRideById(rideId);
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
         stop.setRide(ride);
         if (stop.getStatus() == null) {
             stop.setStatus(RideStopStatus.PENDING);
@@ -31,19 +33,16 @@ public class RideStopService {
     }
 
     public List<RideStop> getStopsByRideId(Long rideId) {
-        rideService.getRideById(rideId);
         return rideStopRepository.findByRideId(rideId);
     }
 
     public RideStop getStopById(Long rideId, Long stopId) {
-        rideService.getRideById(rideId);
-        return rideStopRepository.findById(stopId)
+        return rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
     }
 
     public RideStop updateStop(Long rideId, Long stopId, RideStop updated) {
-        rideService.getRideById(rideId);
-        RideStop existing = rideStopRepository.findById(stopId)
+        RideStop existing = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
         existing.setStopOrder(updated.getStopOrder());
         existing.setLatitude(updated.getLatitude());
@@ -55,10 +54,8 @@ public class RideStopService {
     }
 
     public void deleteStop(Long rideId, Long stopId) {
-        rideService.getRideById(rideId);
-        if (!rideStopRepository.existsById(stopId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found");
-        }
-        rideStopRepository.deleteById(stopId);
+        RideStop stop = rideStopRepository.findByIdAndRideId(stopId, rideId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
+        rideStopRepository.delete(stop);
     }
 }
