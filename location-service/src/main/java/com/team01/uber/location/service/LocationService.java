@@ -54,6 +54,9 @@ public class LocationService {
 
     @Transactional
     public long purgeOlderThanDays(int olderThanDays) {
+        if (olderThanDays < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "olderThanDays must be non-negative");
+        }
         LocalDateTime cutoff = LocalDateTime.now().minusDays(olderThanDays);
         long count = locationRepository.countOlderThan(cutoff);
         if (count == 0) {
