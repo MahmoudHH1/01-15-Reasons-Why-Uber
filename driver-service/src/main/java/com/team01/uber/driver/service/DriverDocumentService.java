@@ -36,14 +36,12 @@ public class DriverDocumentService {
     }
 
     public DriverDocument getDocumentById(Long driverId, Long docId) {
-        driverService.getDriverById(driverId);
-        return driverDocumentRepository.findById(docId)
+        return driverDocumentRepository.findByIdAndDriverId(docId, driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
     }
 
     public DriverDocument updateDocument(Long driverId, Long docId, DriverDocument updated) {
-        driverService.getDriverById(driverId);
-        DriverDocument existing = driverDocumentRepository.findById(docId)
+        DriverDocument existing = driverDocumentRepository.findByIdAndDriverId(docId, driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
         existing.setType(updated.getType());
         existing.setDocumentUrl(updated.getDocumentUrl());
@@ -53,8 +51,7 @@ public class DriverDocumentService {
     }
 
     public void deleteDocument(Long driverId, Long docId) {
-        driverService.getDriverById(driverId);
-        if (!driverDocumentRepository.existsById(docId)) {
+        if (!driverDocumentRepository.existsByIdAndDriverId(docId, driverId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
