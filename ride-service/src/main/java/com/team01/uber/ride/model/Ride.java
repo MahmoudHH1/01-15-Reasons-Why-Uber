@@ -1,4 +1,4 @@
-package com.team01.uber.ride.entity;
+package com.team01.uber.ride.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.team01.uber.ride.enums.RideStatus;
@@ -18,11 +18,9 @@ public class Ride {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Plain FK column — userId lives in user-service, no JPA relationship
     @Column(nullable = false)
     private Long userId;
 
-    // Plain FK column — driverId lives in driver-service, no JPA relationship
     private Long driverId;
 
     @Column(nullable = false)
@@ -37,18 +35,13 @@ public class Ride {
     @Column(nullable = false)
     private Double dropoffLongitude;
 
-    // Stored as a native PostgreSQL ENUM type (e.g. CREATE TYPE ridestatus AS ENUM (...))
-    // Hibernate derives the PostgreSQL type name from the enum class name in lowercase: "ridestatus"
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)
     private RideStatus status;
 
-    // Nullable — set when fare is calculated
     private Double fare;
 
-    // Stored as JSONB — keys: surgeMultiplier, estimatedDistanceKm, estimatedDurationMinutes,
-    //                         specialRequests, rideType (STANDARD, PREMIUM, etc.)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> metadata;
@@ -56,10 +49,8 @@ public class Ride {
     @Column(nullable = false)
     private LocalDateTime requestedAt;
 
-    // Nullable — set when ride is completed
     private LocalDateTime completedAt;
 
-    // Ride is the inverse side; RideStop is the owning side (holds the FK)
     @JsonIgnore
     @OneToMany(mappedBy = "ride", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RideStop> rideStops;

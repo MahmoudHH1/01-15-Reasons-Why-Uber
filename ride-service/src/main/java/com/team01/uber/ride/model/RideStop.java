@@ -1,4 +1,4 @@
-package com.team01.uber.ride.entity;
+package com.team01.uber.ride.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.team01.uber.ride.enums.RideStopStatus;
@@ -28,20 +28,15 @@ public class RideStop {
     @Column(nullable = false)
     private String address;
 
-    // Stored as a native PostgreSQL ENUM type: "rideStopStatus" → "ridestopstatus"
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)
     private RideStopStatus status;
 
-    // JSONB — keys: estimatedArrivalTime, actualArrivalTime, waitTimeMinutes,
-    //               contactName, contactPhone
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
-    // RideStop is the owning side — holds the FK column (ride_id)
-    // @JsonIgnore prevents infinite recursion: RideStop → Ride → rideStops → RideStop → ...
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ride_id", nullable = false)
