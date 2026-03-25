@@ -1,5 +1,6 @@
 package com.team01.uber.location.controller;
 
+import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
 import org.springframework.http.HttpStatus;
@@ -48,5 +49,11 @@ public class LocationController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         locationService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/purge")
+    public ResponseEntity<PurgeResponse> purgeOldLocations(@RequestParam int olderThanDays) {
+        long deletedCount = locationService.purgeOlderThanDays(olderThanDays);
+        return ResponseEntity.ok(new PurgeResponse(deletedCount));
     }
 }
