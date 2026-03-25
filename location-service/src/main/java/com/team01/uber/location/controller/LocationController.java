@@ -53,9 +53,6 @@ public class LocationController {
 
     @DeleteMapping("/purge")
     public ResponseEntity<PurgeResponse> purgeOldLocations(@RequestParam int olderThanDays) {
-        if (olderThanDays <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "olderThanDays must be greater than 0");
-        }
         long deletedCount = locationService.purgeOlderThanDays(olderThanDays);
         return ResponseEntity.ok(new PurgeResponse(deletedCount));
     }
