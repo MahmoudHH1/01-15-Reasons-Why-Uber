@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -12,6 +14,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+@Getter
+@Setter
 @Entity
 @Table(name = "drivers")
 public class Driver {
@@ -58,92 +62,4 @@ public class Driver {
     @JsonIgnore
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DriverDocument> driverDocuments;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public String getLicenseNumber() {
-        return licenseNumber;
-    }
-
-    public void setLicenseNumber(String licenseNumber) {
-        this.licenseNumber = licenseNumber;
-    }
-
-    public DriverStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(DriverStatus status) {
-        this.status = status;
-    }
-
-    public Double getRating() {
-        return rating;
-    }
-
-    public void setRating(Double rating) {
-        this.rating = rating;
-    }
-
-    public Integer getTotalRatings() {
-        return totalRatings;
-    }
-
-    public void setTotalRatings(Integer totalRatings) {
-        this.totalRatings = totalRatings;
-    }
-
-    public Map<String, Object> getVehicleDetails() {
-        return vehicleDetails;
-    }
-
-    public void setVehicleDetails(Map<String, Object> vehicleDetails) {
-        this.vehicleDetails = vehicleDetails;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public List<DriverDocument> getDriverDocuments() {
-        return driverDocuments;
-    }
-
-    public void setDriverDocuments(List<DriverDocument> driverDocuments) {
-        this.driverDocuments = driverDocuments;
-    }
 }
