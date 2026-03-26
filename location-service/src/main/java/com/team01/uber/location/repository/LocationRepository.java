@@ -62,4 +62,10 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     @Query(value = "SELECT * FROM locations WHERE (metadata->>:key)::numeric < CAST(:value AS numeric)", nativeQuery = true)
     List<Location> findByMetadataKeyLt(@Param("key") String key, @Param("value") String value);
 
+    @Query(value = "SELECT * FROM locations WHERE timestamp BETWEEN :startDate AND :endDate ORDER BY timestamp ASC", nativeQuery = true)
+    List<Location> findInDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = "SELECT * FROM locations WHERE timestamp BETWEEN :startDate AND :endDate AND driver_id = :driverId ORDER BY timestamp ASC", nativeQuery = true)
+    List<Location> findInDateRangeByDriver(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate, @Param("driverId") Long driverId);
+
 }
