@@ -38,14 +38,22 @@ public class RideService {
 
     public Ride updateRide(Long id, Ride updated) {
         Ride existing = getRideById(id);
+        existing.setDriverId(updated.getDriverId());
         existing.setPickupLatitude(updated.getPickupLatitude());
         existing.setPickupLongitude(updated.getPickupLongitude());
         existing.setDropoffLatitude(updated.getDropoffLatitude());
         existing.setDropoffLongitude(updated.getDropoffLongitude());
         existing.setStatus(updated.getStatus());
-        existing.setFare(updated.getFare());
-        existing.setMetadata(updated.getMetadata());
-        existing.setCompletedAt(updated.getCompletedAt());
+
+        if (updated.getFare() != null)
+            existing.setFare(updated.getFare()); // optional field on the DB
+
+        if (updated.getMetadata() != null)
+            existing.setMetadata(updated.getMetadata()); // optional field on the DB
+
+        if (updated.getCompletedAt() != null)
+            existing.setCompletedAt(updated.getCompletedAt()); // optional field on the DB
+
         return rideRepository.save(existing);
     }
 

@@ -33,6 +33,9 @@ public class RideStopService {
     }
 
     public List<RideStop> getStopsByRideId(Long rideId) {
+        if (!rideRepository.existsById(rideId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        }
         return rideStopRepository.findByRideId(rideId);
     }
 

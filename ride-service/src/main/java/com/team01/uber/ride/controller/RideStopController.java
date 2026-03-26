@@ -18,10 +18,10 @@ public class RideStopController {
         this.rideStopService = rideStopService;
     }
 
-    @PostMapping
-    public ResponseEntity<RideStop> createStop(@PathVariable Long rideId, @RequestBody RideStop stop) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(rideStopService.createStop(rideId, stop));
-    }
+//    @PostMapping
+//    public ResponseEntity<RideStop> createStop(@PathVariable Long rideId, @RequestBody RideStop stop) {
+//        return ResponseEntity.status(HttpStatus.CREATED).body(rideStopService.createStop(rideId, stop));
+//    }
 
     @GetMapping
     public List<RideStop> getStopsByRideId(@PathVariable Long rideId) {
