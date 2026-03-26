@@ -1,6 +1,8 @@
 package com.team01.uber.location.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -174,6 +176,15 @@ public class LocationService {
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
+    }
+
+    public List<Location> getLocationsInDateRange(String startDate, String endDate, Long driverId) {
+        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        if (driverId != null) {
+            return locationRepository.findInDateRangeByDriver(start, end, driverId);
+        }
+        return locationRepository.findInDateRange(start, end);
     }
 
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
