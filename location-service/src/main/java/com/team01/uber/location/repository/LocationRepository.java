@@ -32,4 +32,22 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     @Query(value = "DELETE FROM locations WHERE timestamp < :cutoff", nativeQuery = true)
     int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);
 
+    @Query(value = """
+            SELECT d.id as driver_id, d.name as driver_name, l.latitude, l.longitude,
+                   SQRT(POWER(l.latitude - :lat, 2) + POWER(l.longitude - :lon, 2)) * 111 AS distance_km
+            FROM locations l
+            JOIN (
+                SELECT driver_id, MAX(timestamp) AS latest
+                FROM locations
+                GROUP BY driver_id
+            ) latest_loc ON l.driver_id = latest_loc.driver_id AND l.timestamp = latest_loc.latest
+            JOIN drivers d ON l.driver_id = d.id
+            WHERE d.status = 'AVAILABLE'
+              AND SQRT(POWER(l.latitude - :lat, 2) + POWER(l.longitude - :lon, 2)) * 111 <= :radiusKm
+            ORDER BY distance_km ASC
+            """, nativeQuery = true)
+    List<Object[]> findNearbyAvailableDrivers(@Param("lat") Double lat,
+                                              @Param("lon") Double lon,
+                                              @Param("radiusKm") Double radiusKm);
+
 }
