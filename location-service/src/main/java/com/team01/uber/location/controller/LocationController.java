@@ -69,4 +69,12 @@ public class LocationController {
     public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
         return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
     }
+
+    @GetMapping("/metadata/search")
+    public ResponseEntity<List<Location>> searchByMetadata(
+            @RequestParam String key,
+            @RequestParam String operator,
+            @RequestParam String value) {
+        return ResponseEntity.ok(locationService.filterByMetadata(key, operator, value));
+    }
 }
