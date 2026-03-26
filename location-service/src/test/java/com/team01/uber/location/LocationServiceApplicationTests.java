@@ -158,6 +158,47 @@ class LocationServiceApplicationTests {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void historyReturnsLocationsInDateRangeOrderedAscending() {
+        LocalDateTime march1 = LocalDateTime.of(2026, 3, 1, 10, 0);
+        LocalDateTime march15 = LocalDateTime.of(2026, 3, 15, 10, 0);
+        LocalDateTime feb1 = LocalDateTime.of(2026, 2, 1, 10, 0);
+
+        locationRepository.save(buildLocation(march1));
+        locationRepository.save(buildLocation(march15));
+        locationRepository.save(buildLocation(feb1));
+
+        List<Location> result = locationController.getLocationsInDateRange("2026-03-01", "2026-03-31", null).getBody();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getTimestamp()).isBefore(result.get(1).getTimestamp());
+    }
+
+    @Test
+    void historyFiltersOptionalDriverId() {
+        LocalDateTime march1 = LocalDateTime.of(2026, 3, 5, 10, 0);
+        LocalDateTime march2 = LocalDateTime.of(2026, 3, 6, 10, 0);
+
+        Location locDriver1 = buildLocation(march1);
+        locDriver1.setDriverId(1L);
+        Location locDriver2 = buildLocation(march2);
+        locDriver2.setDriverId(2L);
+        locationRepository.save(locDriver1);
+        locationRepository.save(locDriver2);
+
+        List<Location> result = locationController.getLocationsInDateRange("2026-03-01", "2026-03-31", 1L).getBody();
+
+        assertThat(result).isNotEmpty();
+        assertThat(result).allMatch(l -> l.getDriverId().equals(1L));
+    }
+
+    @Test
+    void historyReturnsEmptyListWhenNoLocationsInRange() {
+        List<Location> result = locationController.getLocationsInDateRange("2020-01-01", "2020-01-31", null).getBody();
+
+        assertThat(result).isEmpty();
+    }
+
     private Location buildLocation(LocalDateTime timestamp) {
         Location location = new Location();
         location.setDriverId(1L);
