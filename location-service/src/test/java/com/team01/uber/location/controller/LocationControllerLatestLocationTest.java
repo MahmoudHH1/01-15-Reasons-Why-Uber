@@ -127,6 +127,15 @@ class LocationControllerLatestLocationTest {
         assertThat(saved.getMetadata()).containsEntry("speed", 45.2);
         assertThat(saved.getTimestamp()).isNotNull();
         assertThat(saved.getTimestamp()).isBetween(beforeCall, afterCall);
+
+        // Verify that timestamp and metadata are actually persisted and mapped correctly
+        Location reloaded = locationRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getDriverId()).isEqualTo(driverId);
+        assertThat(reloaded.getLatitude()).isEqualTo(30.044);
+        assertThat(reloaded.getLongitude()).isEqualTo(31.235);
+        assertThat(reloaded.getMetadata()).containsEntry("speed", 45.2);
+        assertThat(reloaded.getTimestamp()).isNotNull();
+        assertThat(reloaded.getTimestamp()).isBetween(beforeCall, afterCall);
     }
 
     @Test
