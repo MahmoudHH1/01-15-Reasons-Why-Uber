@@ -1,5 +1,6 @@
 package com.team01.uber.location.controller;
 
+import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
@@ -60,5 +61,13 @@ public class LocationController {
     @GetMapping("/driver/{driverId}/latest")
     public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
         return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
+    }
+
+    @PostMapping("/driver/{driverId}")
+    public ResponseEntity<Location> createForDriver(
+            @PathVariable Long driverId,
+            @RequestBody DriverLocationCreateRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(locationService.createForDriver(driverId, request));
     }
 }

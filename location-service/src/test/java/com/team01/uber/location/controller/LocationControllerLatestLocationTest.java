@@ -1,6 +1,7 @@
 package com.team01.uber.location.controller;
 
 import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -98,6 +100,44 @@ class LocationControllerLatestLocationTest {
         Long driverId = 300L;
 
         assertThatThrownBy(() -> locationController.getLatestByDriverId(driverId))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+    }
+
+    @Test
+    void createForDriverReturns201AndSavesTimestampAndMetadata() {
+        Long driverId = 400L;
+        fakeDriverLookupService.registerDriver(driverId);
+
+        LocalDateTime beforeCall = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        DriverLocationCreateRequest request = new DriverLocationCreateRequest();
+        request.setLatitude(30.044);
+        request.setLongitude(31.235);
+        request.setMetadata(Map.of("speed", 45.2));
+
+        ResponseEntity<Location> response = locationController.createForDriver(driverId, request);
+        LocalDateTime afterCall = LocalDateTime.now().plusSeconds(1).truncatedTo(ChronoUnit.SECONDS);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        Location saved = response.getBody();
+        assertThat(saved.getDriverId()).isEqualTo(driverId);
+        assertThat(saved.getLatitude()).isEqualTo(30.044);
+        assertThat(saved.getLongitude()).isEqualTo(31.235);
+        assertThat(saved.getMetadata()).containsEntry("speed", 45.2);
+        assertThat(saved.getTimestamp()).isNotNull();
+        assertThat(saved.getTimestamp()).isBetween(beforeCall, afterCall);
+    }
+
+    @Test
+    void createForDriverReturns404WhenDriverDoesNotExist() {
+        Long driverId = 500L;
+        DriverLocationCreateRequest request = new DriverLocationCreateRequest();
+        request.setLatitude(30.044);
+        request.setLongitude(31.235);
+        request.setMetadata(Map.of("speed", 45.2));
+
+        assertThatThrownBy(() -> locationController.createForDriver(driverId, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
     }

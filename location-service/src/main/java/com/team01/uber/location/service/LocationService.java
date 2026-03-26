@@ -1,6 +1,7 @@
 package com.team01.uber.location.service;
 
 import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import jakarta.transaction.Transactional;
@@ -23,6 +24,22 @@ public class LocationService {
     }
 
     public Location create(Location location) {
+        return locationRepository.save(location);
+    }
+
+    public Location createForDriver(Long driverId, DriverLocationCreateRequest request) {
+        if (!driverLookupService.existsById(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        Location location = new Location();
+        location.setId(null);
+        location.setDriverId(driverId);
+        location.setLatitude(request.getLatitude());
+        location.setLongitude(request.getLongitude());
+        location.setMetadata(request.getMetadata());
+        location.setTimestamp(LocalDateTime.now());
+
         return locationRepository.save(location);
     }
 
