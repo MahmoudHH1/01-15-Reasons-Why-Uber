@@ -10,7 +10,6 @@ import org.springframework.stereotype.Repository;
 import com.team01.uber.location.model.Location;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -31,5 +30,8 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     @Transactional
     @Query(value = "DELETE FROM locations WHERE timestamp < :cutoff", nativeQuery = true)
     int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query(value = "SELECT COUNT(*) FROM drivers WHERE id = :driverId", nativeQuery = true)
+    long countDriverById(@Param("driverId") Long driverId);
 
 }

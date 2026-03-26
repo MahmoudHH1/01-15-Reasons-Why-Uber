@@ -1,5 +1,7 @@
 package com.team01.uber.location.controller;
 
+import com.team01.uber.location.dto.BatchLocationRequest;
+import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
@@ -51,6 +53,12 @@ public class LocationController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         locationService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<BatchLocationResponse> batchUpdate(@RequestBody BatchLocationRequest request) {
+        BatchLocationResponse response = locationService.batchUpdate(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @DeleteMapping("/purge")
