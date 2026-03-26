@@ -89,6 +89,14 @@ public class LocationController {
         return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm));
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<List<Location>> getLocationsInDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) Long driverId) {
+        return ResponseEntity.ok(locationService.getLocationsInDateRange(startDate, endDate, driverId));
+    }
+
     @GetMapping("/metadata/search")
     public ResponseEntity<List<Location>> searchByMetadata(
             @RequestParam String key,
