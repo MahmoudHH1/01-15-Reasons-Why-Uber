@@ -1,6 +1,7 @@
 package com.team01.uber.location.service;
 
 import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import jakarta.transaction.Transactional;
@@ -77,5 +78,16 @@ public class LocationService {
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
+    }
+
+    public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
+        List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
+        return results.stream().map(row -> new NearbyDriverDTO(
+                ((Number) row[0]).longValue(),
+                (String) row[1],
+                (Double) row[2],
+                (Double) row[3],
+                (Double) row[4]
+        )).toList();
     }
 }
