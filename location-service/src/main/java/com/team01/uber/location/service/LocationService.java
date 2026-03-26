@@ -5,6 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.NearbyDriverDTO;
+import com.team01.uber.location.model.Location;
+import com.team01.uber.location.repository.LocationRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -12,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.team01.uber.location.client.DriverLookupService;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
+import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 
@@ -29,6 +35,35 @@ public class LocationService {
     }
 
     public Location create(Location location) {
+        return locationRepository.save(location);
+    }
+
+    public Location createForDriver(Long driverId, DriverLocationCreateRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
+        }
+
+        if (!driverLookupService.existsById(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        Double latitude = request.getLatitude();
+        Double longitude = request.getLongitude();
+        if (latitude == null || longitude == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
+        }
+        if (latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude or longitude out of valid range");
+        }
+
+        Location location = new Location();
+        location.setId(null);
+        location.setDriverId(driverId);
+        location.setLatitude(latitude);
+        location.setLongitude(longitude);
+        location.setMetadata(request.getMetadata());
+        location.setTimestamp(LocalDateTime.now());
+
         return locationRepository.save(location);
     }
 
@@ -139,5 +174,16 @@ public class LocationService {
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
+    }
+
+    public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
+        List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
+        return results.stream().map(row -> new NearbyDriverDTO(
+                ((Number) row[0]).longValue(),
+                (String) row[1],
+                (Double) row[2],
+                (Double) row[3],
+                (Double) row[4]
+        )).toList();
     }
 }
