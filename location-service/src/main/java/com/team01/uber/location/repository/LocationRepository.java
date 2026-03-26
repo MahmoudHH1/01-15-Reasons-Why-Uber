@@ -10,7 +10,6 @@ import org.springframework.stereotype.Repository;
 import com.team01.uber.location.model.Location;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -49,5 +48,8 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     List<Object[]> findNearbyAvailableDrivers(@Param("lat") Double lat,
                                               @Param("lon") Double lon,
                                               @Param("radiusKm") Double radiusKm);
+
+    @Query(value = "SELECT COUNT(*) FROM drivers WHERE id = :driverId", nativeQuery = true)
+    long countDriverById(@Param("driverId") Long driverId);
 
 }
