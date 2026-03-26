@@ -47,12 +47,17 @@ public class RideStopService {
     public RideStop updateStop(Long rideId, Long stopId, RideStop updated) {
         RideStop existing = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
+
+        validateRequiredUpdateKeys(updated);
+
         existing.setStopOrder(updated.getStopOrder());
         existing.setLatitude(updated.getLatitude());
         existing.setLongitude(updated.getLongitude());
         existing.setAddress(updated.getAddress());
         existing.setStatus(updated.getStatus());
-        existing.setMetadata(updated.getMetadata());
+
+        existing.setMetadata(updated.getMetadata()); // nullable field on the DB
+
         return rideStopRepository.save(existing);
     }
 
@@ -60,5 +65,23 @@ public class RideStopService {
         RideStop stop = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
         rideStopRepository.delete(stop);
+    }
+
+    private void validateRequiredUpdateKeys(RideStop updated) {
+        if (updated.getStopOrder() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing required field: stopOrder");
+        }
+
+        if (updated.getLatitude() == null || updated.getLongitude() == null ) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing required field: latitude or longitude");
+        }
+
+        if (updated.getAddress() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing required field: address");
+        }
+
+        if (updated.getStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing required field: status");
+        }
     }
 }

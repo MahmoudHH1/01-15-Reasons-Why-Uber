@@ -38,6 +38,9 @@ public class RideService {
 
     public Ride updateRide(Long id, Ride updated) {
         Ride existing = getRideById(id);
+
+        validateRequiredUpdateKeys(updated);
+
         existing.setDriverId(updated.getDriverId());
         existing.setPickupLatitude(updated.getPickupLatitude());
         existing.setPickupLongitude(updated.getPickupLongitude());
@@ -45,14 +48,9 @@ public class RideService {
         existing.setDropoffLongitude(updated.getDropoffLongitude());
         existing.setStatus(updated.getStatus());
 
-        if (updated.getFare() != null)
-            existing.setFare(updated.getFare()); // optional field on the DB
-
-        if (updated.getMetadata() != null)
-            existing.setMetadata(updated.getMetadata()); // optional field on the DB
-
-        if (updated.getCompletedAt() != null)
-            existing.setCompletedAt(updated.getCompletedAt()); // optional field on the DB
+        existing.setFare(updated.getFare()); // nullable field on the DB
+        existing.setMetadata(updated.getMetadata()); // nullable field on the DB
+        existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
 
         return rideRepository.save(existing);
     }
@@ -62,5 +60,20 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
         rideRepository.deleteById(id);
+    }
+
+    private void validateRequiredUpdateKeys(Ride updated) {
+        if (updated.getDriverId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver ID cannot be null");
+        }
+
+        if (updated.getPickupLatitude() == null || updated.getPickupLongitude() == null ||
+            updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location fields (pickup and dropoff latitude/longitude) cannot be null");
+        }
+
+        if (updated.getStatus() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride status cannot be null");
+        }
     }
 }
