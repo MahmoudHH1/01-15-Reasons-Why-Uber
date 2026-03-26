@@ -58,16 +58,27 @@ public class LocationService {
     @Transactional
     public BatchLocationResponse batchUpdate(BatchLocationRequest request) {
         Long driverId = request.getDriverId();
+        if (driverId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "driverId is required");
+        }
+
+        List<Location> items = request.getLocations();
+        if (items == null || items.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "locations must not be null or empty");
+        }
+
         if (locationRepository.countDriverById(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
-        List<Location> items = request.getLocations();
         LocalDateTime base = LocalDateTime.now();
         List<Location> toSave = new ArrayList<>();
 
         for (int i = 0; i < items.size(); i++) {
             Location item = items.get(i);
+            if (item == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "locations must not contain null elements");
+            }
             if (item.getLatitude() == null || item.getLatitude() < -90 || item.getLatitude() > 90) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude must be between -90 and 90");
             }
