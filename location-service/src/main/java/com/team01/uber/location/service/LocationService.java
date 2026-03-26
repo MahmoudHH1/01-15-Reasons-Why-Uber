@@ -1,5 +1,6 @@
 package com.team01.uber.location.service;
 
+import com.team01.uber.location.client.DriverLookupService;
 import com.team01.uber.location.model.BatchLocationRequest;
 import com.team01.uber.location.model.BatchLocationResponse;
 import com.team01.uber.location.model.Location;
@@ -17,9 +18,11 @@ import java.util.List;
 public class LocationService {
 
     private final LocationRepository locationRepository;
+    private final DriverLookupService driverLookupService;
 
-    public LocationService(LocationRepository locationRepository) {
+    public LocationService(LocationRepository locationRepository, DriverLookupService driverLookupService) {
         this.locationRepository = locationRepository;
+        this.driverLookupService = driverLookupService;
     }
 
     public Location create(Location location) {
@@ -112,5 +115,14 @@ public class LocationService {
 
         int deletedRows = locationRepository.deleteOlderThan(cutoff);
         return deletedRows;
+    }
+
+    public Location getLatestByDriverId(Long driverId) {
+        if (!driverLookupService.existsById(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
     }
 }

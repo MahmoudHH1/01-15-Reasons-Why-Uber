@@ -64,4 +64,9 @@ public class LocationController {
         long deletedCount = locationService.purgeOlderThanDays(olderThanDays);
         return ResponseEntity.ok(new PurgeResponse(deletedCount));
     }
+
+    @GetMapping("/driver/{driverId}/latest")
+    public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
+        return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
+    }
 }
