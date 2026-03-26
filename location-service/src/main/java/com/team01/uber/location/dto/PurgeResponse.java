@@ -1,4 +1,4 @@
-package com.team01.uber.location.model;
+package com.team01.uber.location.dto;
 
 public class PurgeResponse {
 

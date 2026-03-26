@@ -1,9 +1,9 @@
 package com.team01.uber.location;
 
 import com.team01.uber.location.controller.LocationController;
-import com.team01.uber.location.model.BatchLocationRequest;
-import com.team01.uber.location.model.BatchLocationResponse;
-import com.team01.uber.location.model.PurgeResponse;
+import com.team01.uber.location.dto.BatchLocationRequest;
+import com.team01.uber.location.dto.BatchLocationResponse;
+import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import org.junit.jupiter.api.BeforeEach;

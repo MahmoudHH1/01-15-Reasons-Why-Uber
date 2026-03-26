@@ -1,18 +1,20 @@
 package com.team01.uber.location.service;
 
-import com.team01.uber.location.client.DriverLookupService;
-import com.team01.uber.location.model.BatchLocationRequest;
-import com.team01.uber.location.model.BatchLocationResponse;
-import com.team01.uber.location.model.Location;
-import com.team01.uber.location.repository.LocationRepository;
-import jakarta.transaction.Transactional;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.BatchLocationRequest;
+import com.team01.uber.location.dto.BatchLocationResponse;
+import com.team01.uber.location.model.Location;
+import com.team01.uber.location.repository.LocationRepository;
+
+import jakarta.transaction.Transactional;
 
 @Service
 public class LocationService {

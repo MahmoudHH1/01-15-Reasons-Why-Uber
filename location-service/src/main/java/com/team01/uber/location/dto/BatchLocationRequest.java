@@ -1,6 +1,8 @@
-package com.team01.uber.location.model;
+package com.team01.uber.location.dto;
 
 import java.util.List;
+
+import com.team01.uber.location.model.Location;
 
 public class BatchLocationRequest {
 
