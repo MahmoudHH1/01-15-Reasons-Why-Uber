@@ -1,7 +1,7 @@
 package com.team01.uber.location;
 
 import com.team01.uber.location.controller.LocationController;
-import com.team01.uber.location.dto.PurgeResponse;
+import com.team01.uber.location.model.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import org.junit.jupiter.api.Test;

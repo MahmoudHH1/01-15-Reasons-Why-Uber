@@ -1,4 +1,4 @@
-package com.team01.uber.location.dto;
+package com.team01.uber.location.model;
 
 public class PurgeResponse {
 
@@ -12,4 +12,3 @@ public class PurgeResponse {
         return deletedCount;
     }
 }
-
