@@ -88,4 +88,12 @@ public class LocationController {
             @RequestParam Double radiusKm) {
         return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm));
     }
+
+    @GetMapping("/metadata/search")
+    public ResponseEntity<List<Location>> searchByMetadata(
+            @RequestParam String key,
+            @RequestParam String operator,
+            @RequestParam String value) {
+        return ResponseEntity.ok(locationService.filterByMetadata(key, operator, value));
+    }
 }

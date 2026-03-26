@@ -3,6 +3,7 @@ package com.team01.uber.location.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import com.team01.uber.location.client.DriverLookupService;
 import com.team01.uber.location.dto.NearbyDriverDTO;
@@ -152,6 +153,18 @@ public class LocationService {
 
         int deletedRows = locationRepository.deleteOlderThan(cutoff);
         return deletedRows;
+    }
+
+    public List<Location> filterByMetadata(String key, String operator, String value) {
+        if (!Set.of("eq", "gt", "lt").contains(operator)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid operator: must be eq, gt, or lt");
+        }
+        return switch (operator) {
+            case "eq" -> locationRepository.findByMetadataKeyEq(key, value);
+            case "gt" -> locationRepository.findByMetadataKeyGt(key, value);
+            case "lt" -> locationRepository.findByMetadataKeyLt(key, value);
+            default -> List.of();
+        };
     }
 
     public Location getLatestByDriverId(Long driverId) {

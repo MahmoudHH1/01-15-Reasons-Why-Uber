@@ -53,4 +53,13 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     @Query(value = "SELECT COUNT(*) FROM drivers WHERE id = :driverId", nativeQuery = true)
     long countDriverById(@Param("driverId") Long driverId);
 
+    @Query(value = "SELECT * FROM locations WHERE metadata->>:key = :value", nativeQuery = true)
+    List<Location> findByMetadataKeyEq(@Param("key") String key, @Param("value") String value);
+
+    @Query(value = "SELECT * FROM locations WHERE (metadata->>:key)::numeric > CAST(:value AS numeric)", nativeQuery = true)
+    List<Location> findByMetadataKeyGt(@Param("key") String key, @Param("value") String value);
+
+    @Query(value = "SELECT * FROM locations WHERE (metadata->>:key)::numeric < CAST(:value AS numeric)", nativeQuery = true)
+    List<Location> findByMetadataKeyLt(@Param("key") String key, @Param("value") String value);
+
 }
