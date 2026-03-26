@@ -2,10 +2,12 @@ package com.team01.uber.location.controller;
 
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
+import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -69,6 +71,14 @@ public class LocationController {
     @GetMapping("/driver/{driverId}/latest")
     public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
         return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
+    }
+
+    @PostMapping("/driver/{driverId}")
+    public ResponseEntity<Location> createForDriver(
+            @PathVariable Long driverId,
+            @Valid @RequestBody DriverLocationCreateRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(locationService.createForDriver(driverId, request));
     }
 
     @GetMapping("/nearby")
