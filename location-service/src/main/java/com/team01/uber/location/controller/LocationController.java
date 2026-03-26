@@ -1,5 +1,6 @@
 package com.team01.uber.location.controller;
 
+import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
@@ -60,5 +61,13 @@ public class LocationController {
     @GetMapping("/driver/{driverId}/latest")
     public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
         return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
+    }
+
+    @GetMapping("/nearby")
+    public ResponseEntity<List<NearbyDriverDTO>> findNearbyDrivers(
+            @RequestParam Double lat,
+            @RequestParam Double lon,
+            @RequestParam Double radiusKm) {
+        return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm));
     }
 }
