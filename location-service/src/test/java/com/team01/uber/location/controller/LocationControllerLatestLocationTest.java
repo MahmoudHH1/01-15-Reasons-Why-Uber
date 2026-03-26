@@ -142,6 +142,34 @@ class LocationControllerLatestLocationTest {
                 .hasMessageContaining("404 NOT_FOUND");
     }
 
+    @Test
+    void createForDriverReturns400WhenLatitudeOrLongitudeMissing() {
+        Long driverId = 600L;
+        fakeDriverLookupService.registerDriver(driverId);
+
+        DriverLocationCreateRequest request = new DriverLocationCreateRequest();
+        request.setMetadata(Map.of("speed", 45.2));
+
+        assertThatThrownBy(() -> locationController.createForDriver(driverId, request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+    }
+
+    @Test
+    void createForDriverReturns400WhenCoordinatesOutOfRange() {
+        Long driverId = 700L;
+        fakeDriverLookupService.registerDriver(driverId);
+
+        DriverLocationCreateRequest request = new DriverLocationCreateRequest();
+        request.setLatitude(95.0);
+        request.setLongitude(200.0);
+        request.setMetadata(Map.of("speed", 45.2));
+
+        assertThatThrownBy(() -> locationController.createForDriver(driverId, request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+    }
+
     private void createLocation(Long driverId, LocalDateTime timestamp) {
         Location location = new Location();
         location.setDriverId(driverId);

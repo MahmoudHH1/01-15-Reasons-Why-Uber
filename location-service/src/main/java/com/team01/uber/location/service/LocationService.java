@@ -28,15 +28,28 @@ public class LocationService {
     }
 
     public Location createForDriver(Long driverId, DriverLocationCreateRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
+        }
+
         if (!driverLookupService.existsById(driverId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        Double latitude = request.getLatitude();
+        Double longitude = request.getLongitude();
+        if (latitude == null || longitude == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
+        }
+        if (latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude or longitude out of valid range");
         }
 
         Location location = new Location();
         location.setId(null);
         location.setDriverId(driverId);
-        location.setLatitude(request.getLatitude());
-        location.setLongitude(request.getLongitude());
+        location.setLatitude(latitude);
+        location.setLongitude(longitude);
         location.setMetadata(request.getMetadata());
         location.setTimestamp(LocalDateTime.now());
 
