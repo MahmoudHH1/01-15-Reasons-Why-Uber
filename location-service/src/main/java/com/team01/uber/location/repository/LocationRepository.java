@@ -22,6 +22,8 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     // deleteById(id)        → delete by ID
     // existsById(id)        → exists check
 
+    Optional<Location> findTopByDriverIdOrderByTimestampDescIdDesc(Long driverId);
+
     @Query(value = "SELECT COUNT(*) FROM locations WHERE timestamp < :cutoff", nativeQuery = true)
     long countOlderThan(@Param("cutoff") LocalDateTime cutoff);
 
