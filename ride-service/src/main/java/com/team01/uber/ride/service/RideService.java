@@ -38,8 +38,6 @@ public class RideService {
 
     public Ride updateRide(Long id, Ride updated) {
         Ride existing = getRideById(id);
-        existing.setUserId(updated.getUserId()); // Is it possible to change?
-        existing.setDriverId(updated.getDriverId()); // Is it possible to change?
         existing.setPickupLatitude(updated.getPickupLatitude());
         existing.setPickupLongitude(updated.getPickupLongitude());
         existing.setDropoffLatitude(updated.getDropoffLatitude());
