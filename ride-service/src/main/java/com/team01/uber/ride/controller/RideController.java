@@ -1,11 +1,13 @@
 package com.team01.uber.ride.controller;
 
+import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -36,6 +38,14 @@ public class RideController {
     @GetMapping
     public List<Ride> getAllRides() {
         return rideService.getAllRides();
+    }
+
+    @GetMapping("/search")
+    public List<Ride> searchRides(
+            @RequestParam(required = false) RideStatus status,
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        return rideService.searchRides(status, startDate, endDate);
     }
 
     @PutMapping("/{id}")
