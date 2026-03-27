@@ -11,10 +11,12 @@ import java.util.List;
 
 public interface RideRepository extends JpaRepository<Ride, Long> {
 
-    @Query("SELECT r FROM Ride r WHERE r.requestedAt BETWEEN :startDate AND :endDate AND (:status IS NULL OR r.status = :status) ORDER BY r.requestedAt DESC")
-    List<Ride> searchByDateRangeAndStatus(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
+    List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT r FROM Ride r WHERE r.requestedAt BETWEEN :start AND :end AND r.status = :status ORDER BY r.requestedAt DESC")
+    List<Ride> findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
             @Param("status") RideStatus status
     );
 }
