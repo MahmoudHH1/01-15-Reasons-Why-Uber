@@ -83,4 +83,21 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
                                       @Param("startDate") LocalDateTime startDate,
                                       @Param("endDate") LocalDateTime endDate);
 
+    @Query(value = """
+            SELECT d.id AS driver_id, d.name AS driver_name, l.latitude, l.longitude,
+                   (l.metadata->>'speed')::numeric AS last_speed,
+                   l.timestamp AS last_updated
+            FROM locations l
+            JOIN (
+                SELECT driver_id, MAX(timestamp) AS latest
+                FROM locations
+                GROUP BY driver_id
+            ) latest_loc ON l.driver_id = latest_loc.driver_id AND l.timestamp = latest_loc.latest
+            JOIN drivers d ON l.driver_id = d.id
+            WHERE (l.metadata->>'speed')::numeric <= :maxSpeed
+              AND l.timestamp >= :since
+            """, nativeQuery = true)
+    List<Object[]> findStationaryDrivers(@Param("maxSpeed") Double maxSpeed,
+                                         @Param("since") LocalDateTime since);
+
 }
