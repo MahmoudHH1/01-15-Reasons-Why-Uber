@@ -5,6 +5,7 @@ import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
+import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.service.LocationService;
@@ -88,6 +89,13 @@ public class LocationController {
             @RequestParam String startDate,
             @RequestParam String endDate) {
         return ResponseEntity.ok(locationService.getDriverMovementSummary(driverId, startDate, endDate));
+    }
+
+    @GetMapping("/stationary")
+    public ResponseEntity<List<StationaryDriverDTO>> findStationaryDrivers(
+            @RequestParam Double maxSpeed,
+            @RequestParam int sinceMinutes) {
+        return ResponseEntity.ok(locationService.findStationaryDrivers(maxSpeed, sinceMinutes));
     }
 
     @GetMapping("/nearby")
