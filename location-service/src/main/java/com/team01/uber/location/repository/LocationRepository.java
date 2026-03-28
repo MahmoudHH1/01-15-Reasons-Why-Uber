@@ -79,8 +79,8 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
             WHERE driver_id = :driverId
               AND timestamp BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
-    Object[] getMovementSummary(@Param("driverId") Long driverId,
-                                @Param("startDate") LocalDateTime startDate,
-                                @Param("endDate") LocalDateTime endDate);
+    List<Object[]> getMovementSummary(@Param("driverId") Long driverId,
+                                      @Param("startDate") LocalDateTime startDate,
+                                      @Param("endDate") LocalDateTime endDate);
 
 }
