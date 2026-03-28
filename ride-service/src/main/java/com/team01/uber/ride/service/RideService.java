@@ -3,6 +3,7 @@ package com.team01.uber.ride.service;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.repository.RideRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,9 +49,9 @@ public class RideService {
         existing.setDropoffLongitude(updated.getDropoffLongitude());
         existing.setStatus(updated.getStatus());
 
-        existing.setFare(updated.getFare()); // nullable field on the DB
-        existing.setMetadata(updated.getMetadata()); // nullable field on the DB
-        existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
+        existing.setFare(updated.getFare());
+        existing.setMetadata(updated.getMetadata());
+        existing.setCompletedAt(updated.getCompletedAt());
 
         return rideRepository.save(existing);
     }
@@ -60,6 +61,29 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
         rideRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void assignDriverToRide(Long rideId, Long driverId) {
+        Ride ride = getRideById(rideId);
+
+        if (ride.getStatus() != RideStatus.REQUESTED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
+        }
+
+        if (!rideRepository.driverExists(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        if (!rideRepository.isDriverAvailable(driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
+        }
+
+        ride.setDriverId(driverId);
+        ride.setStatus(RideStatus.ACCEPTED);
+        rideRepository.save(ride);
+
+        rideRepository.setDriverBusy(driverId);
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
