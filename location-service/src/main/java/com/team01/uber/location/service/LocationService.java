@@ -210,7 +210,7 @@ public class LocationService {
     }
 
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
-        LocalDateTime since = LocalDateTime.now().minusMinutes(sinceMinutes);
+        LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
         return results.stream().map(row -> new StationaryDriverDTO(
                 ((Number) row[0]).longValue(),
