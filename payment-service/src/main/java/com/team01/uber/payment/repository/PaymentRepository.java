@@ -1,7 +1,6 @@
 package com.team01.uber.payment.repository;
 
 import com.team01.uber.payment.model.Payment;
-import com.team01.uber.payment.model.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,11 +10,11 @@ import java.util.List;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @Query("SELECT p FROM Payment p WHERE (:status IS NULL OR p.status = :status) " +
-            "AND p.createdAt BETWEEN :startDate AND :endDate " +
-            "ORDER BY p.createdAt DESC")
+    @Query(value = "SELECT * FROM payments WHERE (:status IS NULL OR status::text = :status) " +
+            "AND created_at BETWEEN :startDate AND :endDate " +
+            "ORDER BY created_at DESC", nativeQuery = true)
     List<Payment> findByStatusAndDateRange(
-            @Param("status") PaymentStatus status,
+            @Param("status") String status,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );

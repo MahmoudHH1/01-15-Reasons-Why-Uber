@@ -20,6 +20,7 @@ public class PaymentService {
     }
 
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
-        return paymentRepository.findByStatusAndDateRange(status, startDate, endDate);
+        String statusStr = status != null ? status.name() : null;
+        return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
     }
 }
