@@ -10,6 +10,7 @@ import java.util.Set;
 import com.team01.uber.location.client.DriverLookupService;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
+import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 import jakarta.transaction.Transactional;
@@ -206,6 +207,19 @@ public class LocationService {
         LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
 
         return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
+    }
+
+    public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
+        LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
+        List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
+        return results.stream().map(row -> new StationaryDriverDTO(
+                ((Number) row[0]).longValue(),
+                (String) row[1],
+                (Double) row[2],
+                (Double) row[3],
+                row[4] != null ? ((Number) row[4]).doubleValue() : null,
+                (LocalDateTime) row[5]
+        )).toList();
     }
 
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
