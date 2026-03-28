@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.team01.uber.location.client.DriverLookupService;
+import com.team01.uber.location.dto.DriverMovementSummaryDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
@@ -185,6 +186,26 @@ public class LocationService {
             return locationRepository.findInDateRangeByDriver(start, end, driverId);
         }
         return locationRepository.findInDateRange(start, end);
+    }
+
+    public DriverMovementSummaryDTO getDriverMovementSummary(Long driverId, String startDate, String endDate) {
+        if (!driverLookupService.existsById(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+
+        List<Object[]> results = locationRepository.getMovementSummary(driverId, start, end);
+        Object[] row = results.get(0);
+
+        long totalPoints = ((Number) row[0]).longValue();
+        Double avgSpeed = row[1] != null ? ((Number) row[1]).doubleValue() : null;
+        Double maxSpeed = row[2] != null ? ((Number) row[2]).doubleValue() : null;
+        LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
+        LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
+
+        return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
     }
 
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {

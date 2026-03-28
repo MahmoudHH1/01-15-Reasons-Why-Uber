@@ -68,4 +68,19 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     @Query(value = "SELECT * FROM locations WHERE timestamp BETWEEN :startDate AND :endDate AND driver_id = :driverId ORDER BY timestamp ASC", nativeQuery = true)
     List<Location> findInDateRangeByDriver(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate, @Param("driverId") Long driverId);
 
+    @Query(value = """
+            SELECT
+                COUNT(*)                                       AS total_location_points,
+                AVG((metadata->>'speed')::numeric)             AS average_speed,
+                MAX((metadata->>'speed')::numeric)             AS max_speed,
+                MIN(timestamp)                                 AS first_timestamp,
+                MAX(timestamp)                                 AS last_timestamp
+            FROM locations
+            WHERE driver_id = :driverId
+              AND timestamp BETWEEN :startDate AND :endDate
+            """, nativeQuery = true)
+    List<Object[]> getMovementSummary(@Param("driverId") Long driverId,
+                                      @Param("startDate") LocalDateTime startDate,
+                                      @Param("endDate") LocalDateTime endDate);
+
 }
