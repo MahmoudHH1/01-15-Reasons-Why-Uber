@@ -3,6 +3,7 @@ package com.team01.uber.location.controller;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
+import com.team01.uber.location.dto.DriverMovementSummaryDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.model.Location;
@@ -79,6 +80,14 @@ public class LocationController {
             @Valid @RequestBody DriverLocationCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(locationService.createForDriver(driverId, request));
+    }
+
+    @GetMapping("/driver/{driverId}/summary")
+    public ResponseEntity<DriverMovementSummaryDTO> getDriverMovementSummary(
+            @PathVariable Long driverId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        return ResponseEntity.ok(locationService.getDriverMovementSummary(driverId, startDate, endDate));
     }
 
     @GetMapping("/nearby")
