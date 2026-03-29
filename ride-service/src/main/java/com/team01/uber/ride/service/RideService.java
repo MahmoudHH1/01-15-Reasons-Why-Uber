@@ -64,12 +64,16 @@ public class RideService {
     }
 
     @Transactional
-    public void assignDriverToRide(Long rideId, Long driverId) {
+    public Ride assignDriver(Long rideId, Long driverId) {
         Ride ride = getRideById(rideId);
 
         if (ride.getStatus() != RideStatus.REQUESTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
         }
+
+        ride.setDriverId(driverId);
+        ride.setStatus(RideStatus.ACCEPTED);
+        rideRepository.save(ride);
 
         if (!rideRepository.driverExists(driverId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
@@ -79,11 +83,9 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
         }
 
-        ride.setDriverId(driverId);
-        ride.setStatus(RideStatus.ACCEPTED);
-        rideRepository.save(ride);
-
         rideRepository.setDriverBusy(driverId);
+
+        return ride;
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
