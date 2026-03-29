@@ -1,4 +1,4 @@
-package com.team01.uber.location.entity;
+package com.team01.uber.location.model;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
