@@ -19,6 +19,6 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'type' = :type", nativeQuery = true)
     List<Driver> findByVehicleType(@Param("type") String type);
 
-    @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'type' = :type AND status = :status", nativeQuery = true)
+    @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'type' = :type AND status = CAST(:status AS driverstatus)", nativeQuery = true)
     List<Driver> findByVehicleTypeAndStatus(@Param("type") String type, @Param("status") String status);
 }

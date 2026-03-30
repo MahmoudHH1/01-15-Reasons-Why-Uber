@@ -1,6 +1,7 @@
 package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,12 @@ public class DriverController {
     @GetMapping
     public List<Driver> getAllDrivers() {
         return driverService.getAllDrivers();
+    }
+
+    @GetMapping("/vehicle-type")
+    public List<Driver> filterByVehicleType(@RequestParam String type,
+                                            @RequestParam(required = false) DriverStatus status) {
+        return driverService.filterByVehicleType(type, status);
     }
 
     @PutMapping("/{id}")
