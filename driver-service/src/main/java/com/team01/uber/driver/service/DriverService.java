@@ -37,6 +37,18 @@ public class DriverService {
         return driverRepository.findAll();
     }
 
+    public List<Driver> searchDrivers(DriverStatus status, Double minRating, Double maxRating) {
+        if (minRating > maxRating) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");
+        }
+
+        if (status == null) {
+            return driverRepository.findByRatingBetweenOrderByRatingDesc(minRating, maxRating);
+        }
+
+        return driverRepository.findByStatusAndRatingBetweenOrderByRatingDesc(status, minRating, maxRating);
+    }
+
     public Driver updateDriver(Long id, Driver updated) {
         Driver existing = getDriverById(id);
         existing.setName(updated.getName());
