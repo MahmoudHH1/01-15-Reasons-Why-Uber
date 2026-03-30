@@ -58,7 +58,7 @@ public class RideService {
 
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
         LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime end = endDate.atTime(23, 59, 59);
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
         if (status == null) {
             return rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
         }
