@@ -1,5 +1,6 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
@@ -49,4 +50,12 @@ public class DriverController {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/rate")
+    public ResponseEntity<Driver> rateDriver(@PathVariable Long id,
+                                             @Valid @RequestBody RateDriverRequest request) {
+        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
+        return ResponseEntity.ok(updated);
+    }
 }
+
