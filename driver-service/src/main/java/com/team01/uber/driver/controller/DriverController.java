@@ -1,5 +1,6 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
@@ -37,6 +38,11 @@ public class DriverController {
     @GetMapping
     public List<Driver> getAllDrivers() {
         return driverService.getAllDrivers();
+    }
+
+    @GetMapping("/reports/top-rated")
+    public List<TopDriverDTO> getTopRatedDrivers(@RequestParam int limit) {
+        return driverService.getTopRatedDrivers(limit);
     }
 
     @PutMapping("/{id}")
