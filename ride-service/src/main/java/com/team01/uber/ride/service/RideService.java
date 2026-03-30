@@ -71,10 +71,6 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
         }
 
-        ride.setDriverId(driverId);
-        ride.setStatus(RideStatus.ACCEPTED);
-        rideRepository.save(ride);
-
         if (!rideRepository.driverExists(driverId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
@@ -83,7 +79,13 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
         }
 
-        rideRepository.setDriverBusy(driverId);
+        ride.setDriverId(driverId);
+        ride.setStatus(RideStatus.ACCEPTED);
+        rideRepository.save(ride);
+
+        if(rideRepository.setDriverBusy(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to BUSY. Driver may have become unavailable.");
+        }
 
         return ride;
     }
