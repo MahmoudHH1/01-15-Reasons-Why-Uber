@@ -4,10 +4,8 @@ import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -16,15 +14,10 @@ import java.util.List;
 @Service
 public class DriverService {
 
-    // Local record to deserialise only the fields we need from ride-service
-    record RideResponse(Long id, Long driverId, String status) {}
-
     private final DriverRepository driverRepository;
-    private final RestClient rideServiceClient;
 
-    public DriverService(DriverRepository driverRepository, RestClient rideServiceClient) {
+    public DriverService(DriverRepository driverRepository) {
         this.driverRepository = driverRepository;
-        this.rideServiceClient = rideServiceClient;
     }
 
     public Driver createDriver(Driver driver) {
@@ -73,26 +66,19 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
 
-        // 3. Fetch ride from ride-service — 404 if not found
-        RideResponse ride = rideServiceClient.get()
-                .uri("/api/rides/{id}", rideId)
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                    throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-                })
-                .body(RideResponse.class);
-
-        if (ride == null) {
+        // 3. Verify ride exists — 404 if not found
+        if (!driverRepository.rideExists(rideId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
 
         // 4. Verify ride belongs to this driver — 400 if not
-        if (!driverId.equals(ride.driverId())) {
+        if (!driverRepository.rideBelongsToDriver(rideId, driverId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
         }
 
         // 5. Verify ride is COMPLETED — 400 if not
-        if (!"COMPLETED".equals(ride.status())) {
+        String rideStatus = driverRepository.getRideStatus(rideId);
+        if (!"COMPLETED".equals(rideStatus)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not completed");
         }
 
