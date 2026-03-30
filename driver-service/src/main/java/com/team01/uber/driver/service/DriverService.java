@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
@@ -35,6 +36,17 @@ public class DriverService {
 
     public List<Driver> getAllDrivers() {
         return driverRepository.findAll();
+    }
+
+    public List<TopDriverDTO> getTopRatedDrivers(int limit) {
+        return driverRepository.findTopRatedDrivers(limit).stream()
+                .map(row -> new TopDriverDTO(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        ((Number) row[2]).doubleValue(),
+                        ((Number) row[3]).longValue()
+                ))
+                .toList();
     }
 
     public Driver updateDriver(Long id, Driver updated) {
