@@ -37,6 +37,13 @@ public class DriverService {
         return driverRepository.findAll();
     }
 
+    public List<Driver> filterByVehicleType(String type, DriverStatus status) {
+        if (status == null) {
+            return driverRepository.findByVehicleType(type);
+        }
+        return driverRepository.findByVehicleTypeAndStatus(type, status.name());
+    }
+
     public Driver updateDriver(Long id, Driver updated) {
         Driver existing = getDriverById(id);
         existing.setName(updated.getName());
