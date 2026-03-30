@@ -1,5 +1,6 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
@@ -48,5 +49,12 @@ public class PaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/ride/{rideId}")
+    public ResponseEntity<Payment> processPaymentForRide(
+            @PathVariable Long rideId,
+            @Valid @RequestBody ProcessPaymentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.processPaymentForRide(rideId, request));
     }
 }
