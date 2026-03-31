@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
@@ -7,8 +8,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class DriverDocumentService {
@@ -55,5 +59,20 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
+    }
+
+    public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
+        List<DriverDocument> expired = driverDocumentRepository.findByExpiryDateBefore(LocalDate.now());
+
+        Map<Driver, List<DriverDocument>> byDriver = expired.stream()
+                .collect(Collectors.groupingBy(DriverDocument::getDriver));
+
+        return byDriver.entrySet().stream()
+                .map(e -> new DriverDocumentAlertDTO(
+                        e.getKey().getId(),
+                        e.getKey().getName(),
+                        e.getKey().getStatus(),
+                        e.getValue()))
+                .collect(Collectors.toList());
     }
 }
