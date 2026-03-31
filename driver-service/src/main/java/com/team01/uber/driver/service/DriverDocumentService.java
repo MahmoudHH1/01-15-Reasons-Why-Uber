@@ -3,13 +3,9 @@ package com.team01.uber.driver.service;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
-import com.team01.uber.driver.repository.DriverRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -22,21 +18,11 @@ import java.util.Map;
 public class DriverDocumentService {
 
     private final DriverDocumentRepository driverDocumentRepository;
-    private final DriverRepository driverRepository;
     private final DriverService driverService;
-    private final RestTemplate restTemplate;
 
-    @Value("${user.service.url}")
-    private String userServiceUrl;
-
-    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
-                                 DriverRepository driverRepository,
-                                 DriverService driverService,
-                                 RestTemplate restTemplate) {
+    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository, DriverService driverService) {
         this.driverDocumentRepository = driverDocumentRepository;
-        this.driverRepository = driverRepository;
         this.driverService = driverService;
-        this.restTemplate = restTemplate;
     }
 
     public DriverDocument createDocument(Long driverId, DriverDocument document) {
@@ -90,12 +76,7 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is expired");
         }
 
-        try {
-            Map<?, ?> user = restTemplate.getForObject(userServiceUrl + "/api/users/" + verifiedBy, Map.class);
-            if (user == null || !"ADMIN".equals(user.get("role"))) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
-            }
-        } catch (HttpClientErrorException.NotFound e) {
+        if (!driverDocumentRepository.isAdminUser(verifiedBy)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
         }
 
