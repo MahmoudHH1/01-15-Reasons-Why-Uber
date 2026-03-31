@@ -2,6 +2,8 @@ package com.team01.uber.driver.repository;
 
 import com.team01.uber.driver.model.DriverDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,4 +15,7 @@ public interface DriverDocumentRepository extends JpaRepository<DriverDocument, 
     Optional<DriverDocument> findByIdAndDriverId(Long id, Long driverId);
 
     boolean existsByIdAndDriverId(Long id, Long driverId);
+
+    @Query(value = "SELECT COUNT(*) > 0 FROM users WHERE id = :userId AND role = 'ADMIN'", nativeQuery = true)
+    boolean isAdminUser(@Param("userId") Long userId);
 }
