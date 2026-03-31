@@ -1,6 +1,8 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.service.DriverDocumentService;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,9 +16,11 @@ import java.util.List;
 public class DriverController {
 
     private final DriverService driverService;
+    private final DriverDocumentService driverDocumentService;
 
-    public DriverController(DriverService driverService) {
+    public DriverController(DriverService driverService, DriverDocumentService driverDocumentService) {
         this.driverService = driverService;
+        this.driverDocumentService = driverDocumentService;
     }
 
     @GetMapping("/health")
@@ -48,5 +52,10 @@ public class DriverController {
     public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/documents/expired")
+    public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
+        return driverDocumentService.getDriversWithExpiredDocuments();
     }
 }
