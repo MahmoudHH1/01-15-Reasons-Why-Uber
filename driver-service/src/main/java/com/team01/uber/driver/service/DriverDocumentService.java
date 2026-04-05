@@ -4,6 +4,9 @@ import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
+
+import org.springframework.transaction.annotation.Transactional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -61,6 +64,8 @@ public class DriverDocumentService {
         driverDocumentRepository.deleteById(docId);
     }
 
+
+    @Transactional(readOnly = true)
     public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
         List<DriverDocument> expired = driverDocumentRepository.findByExpiryDateBefore(LocalDate.now());
 
