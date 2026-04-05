@@ -1,15 +1,19 @@
 package com.team01.uber.payment.service;
 
 import com.team01.uber.payment.model.Coupon;
+import com.team01.uber.payment.model.DiscountType;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentCoupon;
+import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.repository.CouponRepository;
 import com.team01.uber.payment.repository.PaymentCouponRepository;
 import com.team01.uber.payment.repository.PaymentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -64,5 +68,55 @@ public class PaymentCouponService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "PaymentCoupon not found");
         }
         paymentCouponRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Payment applyCouponToPayment(Long paymentId, Long couponId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() == PaymentStatus.COMPLETED || payment.getStatus() == PaymentStatus.REFUNDED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "cannot apply coupon to a completed/cancelled payment");
+        }
+
+        Coupon coupon = couponRepository.findById(couponId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found"));
+
+        if (!coupon.getActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon is not active");
+        }
+        if (coupon.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon has expired");
+        }
+        if (coupon.getCurrentUses() >= coupon.getMaxUses()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon usage limit reached");
+        }
+
+        if (paymentCouponRepository.existsByPaymentIdAndCouponId(paymentId, couponId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "coupon already applied");
+        }
+
+        double discount;
+        if (coupon.getDiscountType() == DiscountType.PERCENTAGE) {
+            discount = payment.getAmount() * coupon.getDiscountValue() / 100;
+        } else {
+            discount = coupon.getDiscountValue();
+        }
+        if (discount > payment.getAmount()) {
+            discount = payment.getAmount();
+        }
+
+        PaymentCoupon paymentCoupon = new PaymentCoupon();
+        paymentCoupon.setPayment(payment);
+        paymentCoupon.setCoupon(coupon);
+        paymentCoupon.setDiscountApplied(discount);
+        paymentCoupon.setAppliedAt(LocalDateTime.now());
+        paymentCouponRepository.save(paymentCoupon);
+
+        coupon.setCurrentUses(coupon.getCurrentUses() + 1);
+        couponRepository.save(coupon);
+
+        return paymentRepository.findById(paymentId).orElseThrow();
     }
 }
