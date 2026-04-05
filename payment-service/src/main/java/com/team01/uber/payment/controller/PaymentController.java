@@ -7,7 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
+import com.team01.uber.payment.model.PaymentStatus;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -48,5 +50,14 @@ public class PaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/search")
+    public List<Payment> searchPayments(
+            @RequestParam(required = false) PaymentStatus status,
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate
+    ) {
+        return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
     }
 }

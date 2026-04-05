@@ -53,4 +53,9 @@ public class PaymentService {
         }
         paymentRepository.deleteById(id);
     }
+
+    public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
+        String statusStr = status != null ? status.name() : null;
+        return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
+    }
 }
