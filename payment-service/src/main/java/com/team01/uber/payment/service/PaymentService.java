@@ -1,5 +1,6 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.repository.PaymentRepository;
@@ -9,8 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class PaymentService {
@@ -21,13 +23,38 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
     }
 
+    public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
+        if (paymentRepository.countUsersById(userId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
+
+        Map<String, Double> methodBreakdown = new HashMap<>();
+        long totalPayments = 0;
+        double totalAmount = 0.0;
+
+        for (Object[] row : rows) {
+            String method = (String) row[0];
+            long count = ((Number) row[1]).longValue();
+            double amount = ((Number) row[2]).doubleValue();
+
+            methodBreakdown.put(method, amount);
+            totalPayments += count;
+            totalAmount += amount;
+        }
+
+        return new UserPaymentSummaryDTO(userId, totalPayments, totalAmount, methodBreakdown);
+    }
+
     public Payment createPayment(Payment payment) {
         payment.setCreatedAt(LocalDateTime.now());
         if (payment.getStatus() == null) {
             payment.setStatus(PaymentStatus.PENDING);
         }
-            return paymentRepository.save(payment);
-        }
+        return paymentRepository.save(payment);
+    }
+
     @Transactional
     public Payment processRefund(Long id, String reason) {
         Payment payment = paymentRepository.findById(id)
