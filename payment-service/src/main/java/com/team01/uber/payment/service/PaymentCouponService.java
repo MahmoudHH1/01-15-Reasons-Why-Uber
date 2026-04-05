@@ -1,5 +1,7 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.dto.AppliedCouponDTO;
+import com.team01.uber.payment.dto.PaymentWithCouponsDTO;
 import com.team01.uber.payment.model.Coupon;
 import com.team01.uber.payment.model.DiscountType;
 import com.team01.uber.payment.model.Payment;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -71,7 +74,7 @@ public class PaymentCouponService {
     }
 
     @Transactional
-    public Payment applyCouponToPayment(Long paymentId, Long couponId) {
+    public PaymentWithCouponsDTO applyCouponToPayment(Long paymentId, Long couponId) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
 
@@ -117,6 +120,33 @@ public class PaymentCouponService {
         coupon.setCurrentUses(coupon.getCurrentUses() + 1);
         couponRepository.save(coupon);
 
-        return paymentRepository.findById(paymentId).orElseThrow();
+        return buildPaymentWithCouponsDTO(payment);
+    }
+
+    private PaymentWithCouponsDTO buildPaymentWithCouponsDTO(Payment payment) {
+        PaymentWithCouponsDTO dto = new PaymentWithCouponsDTO();
+        dto.setPaymentId(payment.getId());
+        dto.setRideId(payment.getRideId());
+        dto.setUserId(payment.getUserId());
+        dto.setAmount(payment.getAmount());
+        dto.setMethod(payment.getMethod());
+        dto.setStatus(payment.getStatus());
+        dto.setTransactionDetails(payment.getTransactionDetails());
+        dto.setCreatedAt(payment.getCreatedAt());
+
+        List<AppliedCouponDTO> appliedCoupons = new ArrayList<>();
+        if (payment.getPaymentCoupons() != null) {
+            for (PaymentCoupon pc : payment.getPaymentCoupons()) {
+                AppliedCouponDTO couponDTO = new AppliedCouponDTO();
+                couponDTO.setCouponId(pc.getCoupon().getId());
+                couponDTO.setCouponCode(pc.getCoupon().getCode());
+                couponDTO.setDiscountType(pc.getCoupon().getDiscountType().name());
+                couponDTO.setDiscountApplied(pc.getDiscountApplied());
+                couponDTO.setAppliedAt(pc.getAppliedAt());
+                appliedCoupons.add(couponDTO);
+            }
+        }
+        dto.setAppliedCoupons(appliedCoupons);
+        return dto;
     }
 }

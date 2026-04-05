@@ -1,6 +1,6 @@
 package com.team01.uber.payment.controller;
 
-import com.team01.uber.payment.model.Payment;
+import com.team01.uber.payment.dto.PaymentWithCouponsDTO;
 import com.team01.uber.payment.model.PaymentCoupon;
 import com.team01.uber.payment.service.PaymentCouponService;
 import jakarta.validation.Valid;
@@ -20,8 +20,8 @@ public class PaymentCouponController {
     }
 
     @PostMapping("/api/payments/{paymentId}/coupons/{couponId}")
-    public ResponseEntity<Payment> applyCouponToPayment(@PathVariable Long paymentId,
-                                                        @PathVariable Long couponId) {
+    public ResponseEntity<PaymentWithCouponsDTO> applyCouponToPayment(@PathVariable Long paymentId,
+                                                                      @PathVariable Long couponId) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentCouponService.applyCouponToPayment(paymentId, couponId));
     }
