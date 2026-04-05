@@ -7,13 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import com.team01.uber.payment.model.PaymentStatus;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -59,9 +55,9 @@ public class PaymentController {
     @GetMapping("/search")
     public List<Payment> searchPayments(
             @RequestParam(required = false) PaymentStatus status,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate
     ) {
-        return paymentService.searchPayments(status, startDate, endDate);
+        return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
     }
 }
