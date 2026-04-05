@@ -4,4 +4,6 @@ import com.team01.uber.payment.model.PaymentCoupon;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PaymentCouponRepository extends JpaRepository<PaymentCoupon, Long> {
+
+    boolean existsByPaymentIdAndCouponId(Long paymentId, Long couponId);
 }
