@@ -13,7 +13,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query(value = "SELECT COUNT(*) FROM users WHERE id = :userId", nativeQuery = true)
     long countUsersById(@Param("userId") Long userId);
 
-    @Query(value = "SELECT method, COUNT(*) AS cnt, SUM(amount) AS total " +
+    @Query(value = "SELECT method::text, COUNT(*) AS cnt, SUM(amount) AS total " +
             "FROM payments " +
             "WHERE user_id = :userId AND status = 'COMPLETED' " +
             "GROUP BY method", nativeQuery = true)
