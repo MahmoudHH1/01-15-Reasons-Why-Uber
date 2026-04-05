@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
@@ -17,4 +18,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             "WHERE user_id = :userId AND status = 'COMPLETED' " +
             "GROUP BY method", nativeQuery = true)
     List<Object[]> findCompletedPaymentsSummaryByUser(@Param("userId") Long userId);
+
+    @Query(value = "SELECT * FROM payments WHERE (:status IS NULL OR status::text = :status) " +
+            "AND created_at BETWEEN :startDate AND :endDate " +
+            "ORDER BY created_at DESC", nativeQuery = true)
+    List<Payment> findByStatusAndDateRange(
+            @Param("status") String status,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }
