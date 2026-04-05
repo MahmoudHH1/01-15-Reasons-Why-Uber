@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/payment-coupons")
 public class PaymentCouponController {
 
     private final PaymentCouponService paymentCouponService;
@@ -19,27 +18,33 @@ public class PaymentCouponController {
         this.paymentCouponService = paymentCouponService;
     }
 
-    @PostMapping
-    public ResponseEntity<PaymentCoupon> createPaymentCoupon(@Valid @RequestBody PaymentCoupon paymentCoupon) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentCouponService.createPaymentCoupon(paymentCoupon));
+    @PostMapping("/api/payments/{paymentId}/coupons/{couponId}")
+    public ResponseEntity<PaymentCoupon> createPaymentCoupon(@PathVariable Long paymentId,
+                                                              @PathVariable Long couponId,
+                                                              @Valid @RequestBody PaymentCoupon paymentCoupon) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(paymentCouponService.createPaymentCoupon(paymentId, couponId, paymentCoupon));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/api/payment-coupons/{id}")
     public ResponseEntity<PaymentCoupon> getPaymentCouponById(@PathVariable Long id) {
         return ResponseEntity.ok(paymentCouponService.getPaymentCouponById(id));
     }
 
-    @GetMapping
+    @GetMapping("/api/payment-coupons")
     public ResponseEntity<List<PaymentCoupon>> getAllPaymentCoupons() {
         return ResponseEntity.ok(paymentCouponService.getAllPaymentCoupons());
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<PaymentCoupon> updatePaymentCoupon(@PathVariable Long id, @Valid @RequestBody PaymentCoupon paymentCoupon) {
-        return ResponseEntity.ok(paymentCouponService.updatePaymentCoupon(id, paymentCoupon));
+    @PutMapping("/api/payments/{paymentId}/coupons/{couponId}/{id}")
+    public ResponseEntity<PaymentCoupon> updatePaymentCoupon(@PathVariable Long paymentId,
+                                                              @PathVariable Long couponId,
+                                                              @PathVariable Long id,
+                                                              @Valid @RequestBody PaymentCoupon paymentCoupon) {
+        return ResponseEntity.ok(paymentCouponService.updatePaymentCoupon(paymentId, couponId, id, paymentCoupon));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/api/payment-coupons/{id}")
     public ResponseEntity<Void> deletePaymentCoupon(@PathVariable Long id) {
         paymentCouponService.deletePaymentCoupon(id);
         return ResponseEntity.noContent().build();
