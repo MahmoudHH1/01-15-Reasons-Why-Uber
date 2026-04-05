@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,30 @@ public class PaymentService {
     }
 
     public Payment createPayment(Payment payment) {
+        payment.setCreatedAt(LocalDateTime.now());
+        if (payment.getStatus() == null) {
+            payment.setStatus(PaymentStatus.PENDING);
+        }
+            return paymentRepository.save(payment);
+        }
+    @Transactional
+    public Payment processRefund(Long id, String reason) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only COMPLETED payments can be refunded");
+        }
+
+        payment.setStatus(PaymentStatus.REFUNDED);
+
+        if (payment.getTransactionDetails() == null) {
+            payment.setTransactionDetails(new HashMap<>());
+        }
+        payment.getTransactionDetails().put("refundReason", reason);
+        payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+
         return paymentRepository.save(payment);
     }
 
@@ -43,12 +68,13 @@ public class PaymentService {
         existing.setMethod(payment.getMethod());
         existing.setStatus(payment.getStatus());
         existing.setTransactionDetails(payment.getTransactionDetails());
-        existing.setCreatedAt(payment.getCreatedAt());
         return paymentRepository.save(existing);
     }
 
     public void deletePayment(Long id) {
-        getPaymentById(id);
+        if (!paymentRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");
+        }
         paymentRepository.deleteById(id);
     }
 
@@ -81,6 +107,9 @@ public class PaymentService {
         }
         payment.setTransactionDetails(details);
 
-        return paymentRepository.save(payment);
+        return paymentRepository.save(payment);}
+    public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
+        String statusStr = status != null ? status.name() : null;
+        return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
     }
 }

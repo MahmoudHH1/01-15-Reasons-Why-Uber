@@ -44,7 +44,9 @@ public class CouponService {
     }
 
     public void deleteCoupon(Long id) {
-        getCouponById(id);
+        if (!couponRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found");
+        }
         couponRepository.deleteById(id);
     }
 }
