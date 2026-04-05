@@ -86,17 +86,19 @@ public class PaymentCouponService {
         Coupon coupon = couponRepository.findById(couponId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found"));
 
-        if (!coupon.getActive()) {
+        if (!Boolean.TRUE.equals(coupon.getActive())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon is not active");
         }
         if (coupon.getExpiryDate().isBefore(LocalDateTime.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon has expired");
         }
-        if (coupon.getCurrentUses() >= coupon.getMaxUses()) {
+        int currentUses = coupon.getCurrentUses() != null ? coupon.getCurrentUses() : 0;
+        int maxUses = coupon.getMaxUses() != null ? coupon.getMaxUses() : Integer.MAX_VALUE;
+        if (currentUses >= maxUses) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coupon usage limit reached");
         }
 
-        if (paymentCouponRepository.existsByPaymentIdAndCouponId(paymentId, couponId)) {
+        if (paymentCouponRepository.existsByPayment_IdAndCoupon_Id(paymentId, couponId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "coupon already applied");
         }
 
@@ -117,7 +119,7 @@ public class PaymentCouponService {
         paymentCoupon.setAppliedAt(LocalDateTime.now());
         paymentCouponRepository.save(paymentCoupon);
 
-        coupon.setCurrentUses(coupon.getCurrentUses() + 1);
+        coupon.setCurrentUses(currentUses + 1);
         couponRepository.save(coupon);
 
         return buildPaymentWithCouponsDTO(payment);
