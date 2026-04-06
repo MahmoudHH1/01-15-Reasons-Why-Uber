@@ -1,6 +1,7 @@
 package com.team01.uber.payment.service;
 
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
+import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.repository.PaymentRepository;
@@ -23,13 +24,38 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
     }
 
+    public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
+        if (paymentRepository.countUsersById(userId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
+
+        Map<String, Double> methodBreakdown = new HashMap<>();
+        long totalPayments = 0;
+        double totalAmount = 0.0;
+
+        for (Object[] row : rows) {
+            String method = (String) row[0];
+            long count = ((Number) row[1]).longValue();
+            double amount = ((Number) row[2]).doubleValue();
+
+            methodBreakdown.put(method, amount);
+            totalPayments += count;
+            totalAmount += amount;
+        }
+
+        return new UserPaymentSummaryDTO(userId, totalPayments, totalAmount, methodBreakdown);
+    }
+
     public Payment createPayment(Payment payment) {
         payment.setCreatedAt(LocalDateTime.now());
         if (payment.getStatus() == null) {
             payment.setStatus(PaymentStatus.PENDING);
         }
-            return paymentRepository.save(payment);
-        }
+        return paymentRepository.save(payment);
+    }
+
     @Transactional
     public Payment processRefund(Long id, String reason) {
         Payment payment = paymentRepository.findById(id)
@@ -107,7 +133,9 @@ public class PaymentService {
         }
         payment.setTransactionDetails(details);
 
-        return paymentRepository.save(payment);}
+        return paymentRepository.save(payment);
+    }
+
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
