@@ -20,8 +20,8 @@ public class PaymentCouponController {
 
     @PostMapping("/api/payments/{paymentId}/coupons/{couponId}")
     public ResponseEntity<PaymentCoupon> createPaymentCoupon(@PathVariable Long paymentId,
-                                                              @PathVariable Long couponId,
-                                                              @Valid @RequestBody PaymentCoupon paymentCoupon) {
+                                                             @PathVariable Long couponId,
+                                                             @Valid @RequestBody PaymentCoupon paymentCoupon) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentCouponService.createPaymentCoupon(paymentId, couponId, paymentCoupon));
     }
@@ -38,9 +38,9 @@ public class PaymentCouponController {
 
     @PutMapping("/api/payments/{paymentId}/coupons/{couponId}/{id}")
     public ResponseEntity<PaymentCoupon> updatePaymentCoupon(@PathVariable Long paymentId,
-                                                              @PathVariable Long couponId,
-                                                              @PathVariable Long id,
-                                                              @Valid @RequestBody PaymentCoupon paymentCoupon) {
+                                                             @PathVariable Long couponId,
+                                                             @PathVariable Long id,
+                                                             @Valid @RequestBody PaymentCoupon paymentCoupon) {
         return ResponseEntity.ok(paymentCouponService.updatePaymentCoupon(paymentId, couponId, id, paymentCoupon));
     }
 
