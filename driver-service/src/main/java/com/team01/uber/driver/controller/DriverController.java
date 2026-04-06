@@ -1,12 +1,15 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +29,7 @@ public class DriverController {
     }
 
     @PostMapping
-    public ResponseEntity<Driver> createDriver(@RequestBody Driver driver) {
+    public ResponseEntity<Driver> createDriver(@Valid @RequestBody Driver driver) {
         return ResponseEntity.status(HttpStatus.CREATED).body(driverService.createDriver(driver));
     }
 
@@ -41,7 +44,7 @@ public class DriverController {
     }
 
     @PutMapping("/{id}")
-    public Driver updateDriver(@PathVariable Long id, @RequestBody Driver driver) {
+    public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
     }
 
@@ -53,9 +56,21 @@ public class DriverController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{id}/vehicle")
+    public Driver updateVehicleDetails(@PathVariable Long id, @RequestBody Map<String, Object> vehicleUpdates) {
+        return driverService.updateVehicleDetails(id, vehicleUpdates);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/earnings")
+    public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
+                                                @RequestParam LocalDate startDate,
+                                                @RequestParam LocalDate endDate) {
+        return driverService.getEarningsSummary(id, startDate, endDate);
     }
 }

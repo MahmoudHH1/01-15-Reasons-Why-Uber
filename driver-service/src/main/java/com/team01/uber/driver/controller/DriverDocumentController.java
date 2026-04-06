@@ -2,6 +2,7 @@ package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.service.DriverDocumentService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +20,7 @@ public class DriverDocumentController {
     }
 
     @PostMapping
-    public ResponseEntity<DriverDocument> createDocument(@PathVariable Long driverId, @RequestBody DriverDocument document) {
+    public ResponseEntity<DriverDocument> createDocument(@PathVariable Long driverId, @Valid @RequestBody DriverDocument document) {
         return ResponseEntity.status(HttpStatus.CREATED).body(driverDocumentService.createDocument(driverId, document));
     }
 
@@ -34,7 +35,7 @@ public class DriverDocumentController {
     }
 
     @PutMapping("/{docId}")
-    public DriverDocument updateDocument(@PathVariable Long driverId, @PathVariable Long docId, @RequestBody DriverDocument document) {
+    public DriverDocument updateDocument(@PathVariable Long driverId, @PathVariable Long docId, @Valid @RequestBody DriverDocument document) {
         return driverDocumentService.updateDocument(driverId, docId, document);
     }
 

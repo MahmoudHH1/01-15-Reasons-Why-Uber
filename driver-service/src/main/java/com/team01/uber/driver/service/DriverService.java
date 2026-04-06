@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
@@ -8,8 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DriverService {
@@ -21,8 +25,7 @@ public class DriverService {
     }
 
     public Driver createDriver(Driver driver) {
-        driver.setRating(0.0);
-        driver.setTotalRatings(0);
+        driver.setId(null); // Ensure ID is null for new document
         driver.setCreatedAt(LocalDateTime.now());
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.OFFLINE);
@@ -66,10 +69,41 @@ public class DriverService {
         driverRepository.save(driver);
     }
 
+    public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
+        Driver driver = getDriverById(id);
+        if (updates == null || updates.isEmpty()) {
+            return driver;
+        }
+        Map<String, Object> existing = driver.getVehicleDetails();
+        if (existing == null) {
+            existing = new HashMap<>();
+        }
+        existing.putAll(updates);
+        driver.setVehicleDetails(existing);
+        return driverRepository.save(driver);
+    }
+
     public void deleteDriver(Long id) {
         if (!driverRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
         driverRepository.deleteById(id);
+    }
+
+    public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
+        Driver driver = getDriverById(driverId);
+
+        Object[] row = driverRepository.getEarningsSummary(driverId, startDate, endDate);
+        // native query returns a single-row result; each element is a column value
+        // Spring Data may wrap as Object[] where element 0 is itself an Object[] row
+        if (row.length > 0 && row[0] instanceof Object[]) {
+            row = (Object[]) row[0];
+        }
+
+        Long totalRides = ((Number) row[0]).longValue();
+        Double totalEarnings = ((Number) row[1]).doubleValue();
+        Double averageFare = ((Number) row[2]).doubleValue();
+
+        return new DriverEarningsDTO(driver.getId(), driver.getName(), totalRides, totalEarnings, averageFare);
     }
 }

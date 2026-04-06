@@ -62,6 +62,8 @@ Example: `git checkout -b feat/driver/S2-F3/55-25085`
 
 Ask the user to paste the feature spec (from the assignment PDF) into the terminal. Store this for later reference in the workflow. Alternatively you can also ask for a source PDF for the feature description and parse the relevant details from it.
 
+**Error Code Extraction:** When reading the feature spec, identify the expected HTTP error code for error cases (e.g., 404, 400, 409). If the spec does not explicitly mention an error code, **STOP and ask the user** what error code to use before proceeding. Never assume an error code — it must come from the spec or the user.
+
 ## Step 6: Explore Dependencies
 
 Before planning the implementation, scan the codebase to understand what already exists:
@@ -111,6 +113,11 @@ Analyze the feature and break it down into the specific files and changes needed
 4. **Controller layer** — specific REST endpoint(s)
 5. **Refinements** — edge cases, null handling, error responses, cleanup
 
+**Mandatory feature conventions:**
+
+- **Error codes:** Feature-specific error codes come from the spec (extracted in Step 5). Use `ResponseStatusException(HttpStatus.XXX, "message")` in the service layer.
+- **@Valid on controllers:** If the feature adds new endpoints with `@RequestBody`, add `@Valid` on the parameter.
+
 Present the plan as:
 
 ```
@@ -141,3 +148,58 @@ Each commit description should be specific to what is actually being done (not g
 ## Step 8: Confirm and Start
 
 Ask the user to review the plan. Once they approve (or after incorporating feedback), tell them the branch is ready and start implementing commit by commit.
+
+## Step 9: Test the Feature
+
+After all commits are made, test the feature end-to-end:
+
+1. **Build the service:**
+   ```
+   mvn clean package -DskipTests -pl <service-module> -am
+   ```
+   If the build fails, fix compilation errors before proceeding.
+
+2. **Ensure the database is running:**
+   - Check `docker ps` for the PostgreSQL container
+   - If not running, start it with `docker compose up -d postgres` or equivalent
+
+3. **Start the service:**
+   ```
+   cd <service-module>
+   java -jar target/<service-jar>.jar &
+   ```
+   Wait for it to be healthy (`curl /api/<service>/health`).
+
+4. **Run the test scenario from the feature spec:**
+   - Execute each step from the spec's test scenario using `curl` commands
+   - Verify each expected HTTP status code and response
+   - If the feature requires cross-service data (e.g., rides table), create the necessary tables/data manually via `psql`
+
+5. **Create and run your own additional test scenarios:**
+   - Think about edge cases NOT covered by the spec's test scenario
+   - Test boundary conditions (empty inputs, max values, duplicate data, etc.)
+   - Test error paths: 404 for non-existent resources, 400 for invalid input, constraint violations
+   - Test with unexpected but valid combinations (e.g., updating to the same status, concurrent-like scenarios)
+   - If the feature involves status transitions, test all valid and invalid transitions
+   - If the feature involves cross-service queries, test with empty tables, missing foreign keys, and multiple matching records
+
+6. **Report results:**
+   ```
+   Test Results: <feature-ID>
+   ──────────────────────────
+   Spec scenario:
+     Step 1: <description> → <expected> = <actual> ✓/✗
+     Step 2: <description> → <expected> = <actual> ✓/✗
+     ...
+
+   Additional tests:
+     <description> → <expected> = <actual> ✓/✗
+     <description> → <expected> = <actual> ✓/✗
+     ...
+
+   Overall: PASS / FAIL
+   ```
+
+7. **Stop the service** after testing (`taskkill` or `kill` the java process).
+
+If any test fails, debug and fix the issue, committing the fix as a separate commit (e.g., `fix(<service-name>): fix <description> (<studentId>)`).
