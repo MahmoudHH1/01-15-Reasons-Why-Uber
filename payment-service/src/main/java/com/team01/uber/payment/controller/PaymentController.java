@@ -1,5 +1,6 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
@@ -11,7 +12,6 @@ import java.time.LocalDate;
 import java.util.List;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.dto.RefundRequest;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -26,6 +26,11 @@ public class PaymentController {
     @GetMapping("/health")
     public String health() {
         return "OK";
+    }
+
+    @GetMapping("/user/{userId}/summary")
+    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
+        return paymentService.getUserPaymentSummary(userId);
     }
 
     @PutMapping("/{id}/refund")
