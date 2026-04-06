@@ -48,7 +48,6 @@ public class DriverService {
         existing.setEmail(updated.getEmail());
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
-        existing.setStatus(updated.getStatus());
         existing.setVehicleDetails(updated.getVehicleDetails());
         return driverRepository.save(existing);
     }
