@@ -16,9 +16,14 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     Optional<Driver> findByLicenseNumber(String licenseNumber);
 
+    @Query(value = "SELECT COUNT(*) FROM rides WHERE driver_id = :driverId " +
+                   "AND status::text IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')",
+           nativeQuery = true)
+    long countActiveRidesByDriverId(@Param("driverId") Long driverId);
+
     @Query(value = "SELECT COUNT(*), COALESCE(SUM(fare), 0), COALESCE(AVG(fare), 0) " +
                    "FROM rides WHERE driver_id = :driverId " +
-                   "AND status = CAST('COMPLETED' AS ridestatus) " +
+                   "AND status::text = 'COMPLETED' " +
                    "AND CAST(completed_at AS date) BETWEEN :startDate AND :endDate",
            nativeQuery = true)
     Object[] getEarningsSummary(@Param("driverId") Long driverId,

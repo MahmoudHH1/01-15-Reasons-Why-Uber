@@ -2,6 +2,7 @@ package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -45,6 +46,22 @@ public class DriverController {
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
+    }
+
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
+                                                   @RequestBody Map<String, String> body) {
+        String raw = body.get("status");
+        if (raw == null || raw.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            DriverStatus status = DriverStatus.valueOf(raw.toUpperCase());
+            driverService.updateAvailability(id, status);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PutMapping("/{id}/vehicle")

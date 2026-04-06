@@ -6,6 +6,7 @@ import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -47,9 +48,24 @@ public class DriverService {
         existing.setEmail(updated.getEmail());
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
-        existing.setStatus(updated.getStatus());
         existing.setVehicleDetails(updated.getVehicleDetails());
         return driverRepository.save(existing);
+    }
+
+    @Transactional
+    public void updateAvailability(Long id, DriverStatus status) {
+        Driver driver = getDriverById(id);
+
+        if (status == DriverStatus.OFFLINE) {
+            long activeRides = driverRepository.countActiveRidesByDriverId(id);
+            if (activeRides > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Cannot go OFFLINE with active rides");
+            }
+        }
+
+        driver.setStatus(status);
+        driverRepository.save(driver);
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
