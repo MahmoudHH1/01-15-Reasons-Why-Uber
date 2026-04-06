@@ -1,5 +1,7 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.dto.AppliedCouponDTO;
+import com.team01.uber.payment.dto.PaymentDetailsDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
@@ -159,6 +161,38 @@ public class PaymentService {
         details.put("gatewayResponse", "approved");
 
         return paymentRepository.save(payment);
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentDetailsDTO getPaymentDetails(Long paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        List<AppliedCouponDTO> appliedCoupons = payment.getPaymentCoupons().stream()
+                .map(pc -> new AppliedCouponDTO(
+                        pc.getCoupon().getCode(),
+                        pc.getCoupon().getDiscountType(),
+                        pc.getDiscountApplied(),
+                        pc.getAppliedAt()
+                ))
+                .toList();
+
+        double totalDiscount = appliedCoupons.stream()
+                .mapToDouble(AppliedCouponDTO::getDiscountApplied)
+                .sum();
+
+        return new PaymentDetailsDTO(
+                payment.getId(),
+                payment.getRideId(),
+                payment.getUserId(),
+                payment.getAmount(),
+                payment.getMethod(),
+                payment.getStatus(),
+                payment.getTransactionDetails(),
+                appliedCoupons,
+                totalDiscount,
+                payment.getAmount() - totalDiscount
+        );
     }
 
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
