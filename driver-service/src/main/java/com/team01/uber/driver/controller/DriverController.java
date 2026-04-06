@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -42,6 +43,11 @@ public class DriverController {
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
+    }
+
+    @PutMapping("/{id}/vehicle")
+    public Driver updateVehicleDetails(@PathVariable Long id, @RequestBody Map<String, Object> vehicleUpdates) {
+        return driverService.updateVehicleDetails(id, vehicleUpdates);
     }
 
     @DeleteMapping("/{id}")
