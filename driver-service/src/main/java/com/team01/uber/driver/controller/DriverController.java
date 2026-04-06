@@ -51,9 +51,17 @@ public class DriverController {
     @PutMapping("/{id}/availability")
     public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
                                                    @RequestBody Map<String, String> body) {
-        DriverStatus status = DriverStatus.valueOf(body.get("status"));
-        driverService.updateAvailability(id, status);
-        return ResponseEntity.ok().build();
+        String raw = body.get("status");
+        if (raw == null || raw.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            DriverStatus status = DriverStatus.valueOf(raw.toUpperCase());
+            driverService.updateAvailability(id, status);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PutMapping("/{id}/vehicle")
