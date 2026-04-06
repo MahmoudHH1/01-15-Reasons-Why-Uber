@@ -31,12 +31,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query(value = "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payments " +
             "WHERE status::text = 'COMPLETED' AND created_at BETWEEN :startDate AND :endDate",
             nativeQuery = true)
-    Object[] getCompletedRevenueInRange(@Param("startDate") LocalDateTime startDate,
-                                        @Param("endDate") LocalDateTime endDate);
+    List<Object[]> getCompletedRevenueInRange(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate);
 
     @Query(value = "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payments " +
             "WHERE status::text = 'REFUNDED' AND created_at BETWEEN :startDate AND :endDate",
             nativeQuery = true)
-    Object[] getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
-                                      @Param("endDate") LocalDateTime endDate);
+    List<Object[]> getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
+                                            @Param("endDate") LocalDateTime endDate);
 }

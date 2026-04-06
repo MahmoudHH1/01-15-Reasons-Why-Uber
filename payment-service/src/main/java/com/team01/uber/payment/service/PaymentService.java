@@ -115,15 +115,15 @@ public class PaymentService {
                     "startDate must be before endDate");
         }
 
-        Object[] completed = paymentRepository.getCompletedRevenueInRange(startDate, endDate);
-        double totalRevenue = ((Number) completed[0]).doubleValue();
-        long totalTransactions = ((Number) completed[1]).longValue();
+        Object[] completedRow = paymentRepository.getCompletedRevenueInRange(startDate, endDate).get(0);
+        double totalRevenue = ((Number) completedRow[0]).doubleValue();
+        long totalTransactions = ((Number) completedRow[1]).longValue();
 
         double averagePayment = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
-        Object[] refunded = paymentRepository.getRefundedAmountInRange(startDate, endDate);
-        double refundedAmount = ((Number) refunded[0]).doubleValue();
-        long refundCount = ((Number) refunded[1]).longValue();
+        Object[] refundedRow = paymentRepository.getRefundedAmountInRange(startDate, endDate).get(0);
+        double refundedAmount = ((Number) refundedRow[0]).doubleValue();
+        long refundCount = ((Number) refundedRow[1]).longValue();
 
         RevenueReportDTO dto = new RevenueReportDTO();
         dto.setTotalRevenue(totalRevenue);
