@@ -136,6 +136,31 @@ public class PaymentService {
         return paymentRepository.save(payment);
     }
 
+    @Transactional
+    public Payment retryFailedPayment(Long id) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.FAILED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only FAILED payments can be retried");
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
+
+        if (payment.getTransactionDetails() == null) {
+            payment.setTransactionDetails(new HashMap<>());
+        }
+        Map<String, Object> details = payment.getTransactionDetails();
+        int currentRetry = details.containsKey("retryAttempt")
+                ? ((Number) details.get("retryAttempt")).intValue()
+                : 0;
+        details.put("retryAttempt", currentRetry + 1);
+        details.put("gatewayResponse", "approved");
+
+        return paymentRepository.save(payment);
+    }
+
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
