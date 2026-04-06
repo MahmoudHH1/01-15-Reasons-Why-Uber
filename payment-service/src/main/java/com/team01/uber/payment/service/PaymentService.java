@@ -1,5 +1,6 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
@@ -106,5 +107,30 @@ public class PaymentService {
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
+    }
+
+    public RevenueReportDTO getRevenueReport(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "startDate must be before endDate");
+        }
+
+        Object[] completed = paymentRepository.getCompletedRevenueInRange(startDate, endDate);
+        double totalRevenue = ((Number) completed[0]).doubleValue();
+        long totalTransactions = ((Number) completed[1]).longValue();
+
+        double averagePayment = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+
+        Object[] refunded = paymentRepository.getRefundedAmountInRange(startDate, endDate);
+        double refundedAmount = ((Number) refunded[0]).doubleValue();
+        long refundCount = ((Number) refunded[1]).longValue();
+
+        RevenueReportDTO dto = new RevenueReportDTO();
+        dto.setTotalRevenue(totalRevenue);
+        dto.setTotalTransactions(totalTransactions);
+        dto.setAveragePayment(averagePayment);
+        dto.setRefundedAmount(refundedAmount);
+        dto.setRefundCount(refundCount);
+        return dto;
     }
 }
