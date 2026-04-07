@@ -93,6 +93,25 @@ public class RideService {
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
     }
 
+    public List<Ride> findByMetadata(String key, String value) {
+
+        // Validate key and value entered
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Metadata key and value parameters must not be empty"
+            );
+        }
+
+        // Validate key exists
+        boolean keyExists = rideRepository.existsMetadataKey(key);
+        if (!keyExists) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid key: " + key);
+        }
+
+        return rideRepository.findByMetadataField(key, value);
+    }
+
     private void validateRequiredUpdateKeys(Ride updated) {
         if (updated.getDriverId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver ID cannot be null");
