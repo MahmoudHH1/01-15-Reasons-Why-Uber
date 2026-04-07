@@ -55,4 +55,10 @@ public class RideController {
         rideService.deleteRide(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<Ride> completeRide(@PathVariable Long id) {
+        Ride completedRide = rideService.completeRide(id);
+        return ResponseEntity.ok(completedRide);
+    }
 }
