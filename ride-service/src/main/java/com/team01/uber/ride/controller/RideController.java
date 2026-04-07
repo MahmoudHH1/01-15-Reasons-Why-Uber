@@ -55,4 +55,12 @@ public class RideController {
         rideService.deleteRide(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/metadata/search")
+    public List<Ride> searchByMetadata(
+            @RequestParam("key") String key,
+            @RequestParam("value") String value) {
+        return rideService.findByMetadata(key, value);
+    }
+
 }
