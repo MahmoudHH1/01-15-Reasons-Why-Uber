@@ -1,92 +1,92 @@
 [
   {
-    "studentID": "55-25378",
+    "service": "ride-service",
+    "githubUsername": "MohamedAbdel-Azeem",
     "name": "Mohamed Khaled Naguib",
-    "githubUsername":"MohamedAbdel-Azeem",
-    "service": "ride-service"
+    "studentId": "55-25378"
   },
   {
-    "studentId": "55-13512",
-    "name":"Ahmed Wael Ibrahim",
+    "service": "ride-service",
     "githubUsername": "sp4rkii",
-    "service": "ride-service"
+    "name": "Ahmed Wael Ibrahim",
+    "studentId": "55-13512"
   },
   {
-    "studentId": "55-24816",
-    "name":"Youssef Mohamed Malek",
+    "service": "ride-service",
     "githubUsername": "Youssef-Malek2004",
-    "service": "ride-service"
+    "name": "Youssef Mohamed Malek",
+    "studentId": "55-24816"
   },
   {
-    "studentID": "55-24853",
+    "service": "payment-service",
+    "githubUsername": "seiftarek158",
     "name": "Seif Tarek Mostafa",
-    "githubUsername":"seiftarek158",
-    "service": "payment-service"
+    "studentId": "55-24853"
   },
   {
-    "studentID": "55-25376",
+    "service": "payment-service",
+    "githubUsername": "YahiaHesham",
     "name": "Yahia Hesham Anwer",
-    "githubUsername":"YahiaHesham",
-    "service": "payment-service"
+    "studentId": "55-25376"
   },
   {
-    "studentID": "55-0664",
+    "service": "payment-service",
+    "githubUsername": "seifo195",
     "name": "Seifeldin Hesham Abdelrahman",
-    "githubUsername":"seifo195",
-    "service": "payment-service"
+    "studentId": "55-0664"
   },
   {
-    "studentID": "55-0654",
+    "service": "location-service",
+    "githubUsername": "OHarridy",
     "name": "Omar Mostafa Fouad Elharridy",
-    "githubUsername":"OHarridy",
-    "service": "location-service"
+    "studentId": "55-0654"
   },
   {
-    "studentID": "55-0823",
+    "service": "location-service",
+    "githubUsername": "Naefu",
     "name": "Ahmed Ibrahim El-Mosallamy",
-    "githubUsername":"Naefu",
-    "service": "location-service"
+    "studentId": "55-0823"
   },
   {
-    "studentID": "55-2829",
+    "service": "location-service",
+    "githubUsername": "youssef20031",
     "name": "Youssef Maged Mourice Nazir Hanna",
-    "githubUsername":"youssef20031",
-    "service": "location-service"
+    "studentId": "55-2829"
   },
   {
-    "studentID": "55-24478",
+    "service": "user-service",
+    "githubUsername": "Agaae",
     "name": "Ahmed Gamal Elkot",
-    "githubUsername":"Agaae",
-    "service": "user-service"
+    "studentId": "55-24478"
   },
   {
-    "studentID": "55-26445",
+    "service": "user-service",
+    "githubUsername": "Welo5",
     "name": "Abdelrahman Mohamed Wael",
-    "githubUsername":"Welo5",
-    "service": "user-service"
+    "studentId": "55-26445"
   },
   {
-    "studentID": "55-3258",
+    "service": "user-service",
+    "githubUsername": "seifabdalla",
     "name": "Seif Tarek Ahmed",
-    "githubUsername":"seifabdalla",
-    "service": "user-service"
+    "studentId": "55-3258"
   },
   {
-    "studentID": "55-18387",
+    "service": "driver-service",
+    "githubUsername": "MahmoudHH1",
     "name": "Mahmoud Hebishy",
-    "githubUsername":"MahmoudHH1",
-    "service": "driver-service"
+    "studentId": "55-18387"
   },
   {
-    "studentID": "55-25085",
-    "name": "Ahmed Gasser",
+    "service": "driver-service",
     "githubUsername": "Ahmed20150",
-    "service": "driver-service"
+    "name": "Ahmed Gasser",
+    "studentId": "55-25085"
   },
   {
-    "studentID": "55-7978",
+    "service": "driver-service",
+    "githubUsername": "ZiadRaafat",
     "name": "Ziad Raafat",
-    "githubUsername":"ZiadRaafat",
-    "service": "driver-service"
+    "studentId": "55-7978"
   }
 ]
