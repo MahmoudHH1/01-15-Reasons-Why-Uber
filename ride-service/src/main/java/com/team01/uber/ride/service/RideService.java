@@ -7,6 +7,7 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.repository.RideRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -55,6 +56,25 @@ public class RideService {
         existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
 
         return rideRepository.save(existing);
+    }
+
+    @Transactional
+    public Ride cancelRide(Long id) {
+        Ride ride = getRideById(id);
+
+        if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only REQUESTED or ACCEPTED rides can be cancelled");
+        }
+
+        if (ride.getDriverId() != null) {
+            if (rideRepository.countDriverById(ride.getDriverId()) == 0) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned driver not found");
+            }
+            rideRepository.setDriverAvailable(ride.getDriverId());
+        }
+
+        ride.setStatus(RideStatus.CANCELLED);
+        return rideRepository.save(ride);
     }
 
     public void deleteRide(Long id) {
