@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -55,6 +56,15 @@ public class RideService {
         existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
 
         return rideRepository.save(existing);
+    }
+
+    public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        if (status == null) {
+            return rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+        }
+        return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
     }
 
     public void deleteRide(Long id) {
