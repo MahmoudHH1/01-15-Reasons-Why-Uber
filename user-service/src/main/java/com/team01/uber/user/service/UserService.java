@@ -78,4 +78,11 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
         }
     }
+
+    public List<User> searchByPreference(String key, String value) {
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Key and value must not be blank");
+        }
+        return userRepository.findByPreference(key, value);
+    }
 }

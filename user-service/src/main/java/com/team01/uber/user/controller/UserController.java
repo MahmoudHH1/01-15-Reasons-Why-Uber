@@ -48,4 +48,11 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/preferences/search")
+    public ResponseEntity<List<User>> searchByPreference(
+            @RequestParam String key,
+            @RequestParam String value) {
+        return ResponseEntity.ok(userService.searchByPreference(key, value));
+    }
 }
