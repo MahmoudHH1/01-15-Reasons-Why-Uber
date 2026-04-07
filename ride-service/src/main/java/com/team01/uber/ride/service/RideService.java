@@ -1,5 +1,7 @@
 package com.team01.uber.ride.service;
 
+import com.team01.uber.ride.dto.FareEstimateDTO;
+import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.repository.RideRepository;
@@ -8,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -56,6 +59,15 @@ public class RideService {
         return rideRepository.save(existing);
     }
 
+    public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        if (status == null) {
+            return rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+        }
+        return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
+    }
+
     public void deleteRide(Long id) {
         if (!rideRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
@@ -88,6 +100,35 @@ public class RideService {
         }
 
         return ride;
+    }
+
+    public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
+        if (request.pickupLatitude() == null || request.pickupLongitude() == null ||
+            request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All coordinate fields are required");
+        }
+
+        double latDiff = request.dropoffLatitude() - request.pickupLatitude();
+        double lonDiff = request.dropoffLongitude() - request.pickupLongitude();
+        double distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111;
+
+        double duration = (distance / 40.0) * 60.0;
+
+        long activeRides = rideRepository.countActiveRidesNearby(
+                request.pickupLatitude(), request.pickupLongitude());
+
+        double surgeMultiplier;
+        if (activeRides > 20) {
+            surgeMultiplier = 2.0;
+        } else if (activeRides > 10) {
+            surgeMultiplier = 1.5;
+        } else {
+            surgeMultiplier = 1.0;
+        }
+
+        double fare = 15.0 * distance * surgeMultiplier;
+
+        return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
