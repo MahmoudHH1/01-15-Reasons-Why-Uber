@@ -2,6 +2,7 @@ package com.team01.uber.ride.service;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.dto.RideAnalyticsDTO;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.repository.RideRepository;
@@ -9,7 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -91,6 +94,42 @@ public class RideService {
         double fare = 15.0 * distance * surgeMultiplier;
 
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
+    }
+
+    public RideAnalyticsDTO getRideAnalytics(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.atTime(LocalTime.MAX);
+
+        List<Ride> rides = rideRepository.findByRequestedAtBetween(start, end);
+
+        long totalRides = rides.size();
+
+
+        long completedRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED)
+                .count();
+
+        long cancelledRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.CANCELLED)
+                .count();
+
+        double totalRevenue = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED && r.getFare() != null)
+                .mapToDouble(Ride::getFare)
+                .sum();
+
+        double averageFare = completedRides > 0 ? totalRevenue / completedRides : 0.0;
+
+        double completionRate = ((double) completedRides / totalRides) * 100.0;
+
+        return new RideAnalyticsDTO(
+                totalRides,
+                completedRides,
+                cancelledRides,
+                totalRevenue,
+                averageFare,
+                completionRate
+        );
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
