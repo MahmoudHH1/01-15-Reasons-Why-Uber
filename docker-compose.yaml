@@ -64,5 +64,19 @@ services:
     depends_on:
       - postgres
 
+  location-service:
+    build:
+      context: ./location-service
+      dockerfile: Dockerfile
+    container_name: uber-location-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8084:8080"
+    depends_on:
+      - postgres
+      
 volumes:
   pgdata:
