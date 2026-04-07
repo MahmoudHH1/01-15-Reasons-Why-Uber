@@ -1,9 +1,5 @@
 package com.team01.uber.ride.service;
 
-
-
-import com.team01.uber.payment.model.Payment;
-import com.team01.uber.payment.service.PaymentService;
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
@@ -22,11 +18,9 @@ import java.util.List;
 public class RideService {
 
     private final RideRepository rideRepository;
-    private final PaymentService paymentService;
 
-    public RideService(RideRepository rideRepository, PaymentService paymentService) {
+    public RideService(RideRepository rideRepository) {
         this.rideRepository = rideRepository;
-        this.paymentService = paymentService;
     }
 
     public Ride createRide(Ride ride) {
