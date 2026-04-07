@@ -1,5 +1,7 @@
 package com.team01.uber.ride.controller;
 
+import com.team01.uber.ride.dto.FareEstimateDTO;
+import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
@@ -23,6 +25,11 @@ public class RideController {
     @GetMapping("/health")
     public String health() {
         return "OK";
+    }
+
+    @PostMapping("/estimate")
+    public ResponseEntity<FareEstimateDTO> estimateFare(@RequestBody FareEstimateRequestDTO request) {
+        return ResponseEntity.ok(rideService.estimateFare(request));
     }
 
     @PostMapping
