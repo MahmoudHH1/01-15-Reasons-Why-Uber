@@ -2,12 +2,15 @@ package com.team01.uber.ride.controller;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.dto.RideAnalyticsDTO;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -55,4 +58,13 @@ public class RideController {
         rideService.deleteRide(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/analytics")
+    public ResponseEntity<RideAnalyticsDTO> getAnalytics(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        return ResponseEntity.ok(rideService.getRideAnalytics(startDate, endDate));
+    }
+
 }
