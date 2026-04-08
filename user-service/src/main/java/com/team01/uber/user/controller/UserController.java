@@ -49,6 +49,13 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/preferences/search")
+    public ResponseEntity<List<User>> searchByPreference(
+            @RequestParam String key,
+            @RequestParam String value) {
+        return ResponseEntity.ok(userService.searchByPreference(key, value));
+    }
+  
     @PutMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
         userService.deactivateUser(id);
