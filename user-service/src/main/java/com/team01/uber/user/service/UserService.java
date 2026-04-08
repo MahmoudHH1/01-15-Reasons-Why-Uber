@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -83,6 +84,19 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
         }
     }
+
+    public User updatePreferences(Long id, Map<String, Object> incoming) {
+    User user = getUserById(id);
+    Map<String, Object> current = user.getPreferences();
+    if (current == null) {
+        user.setPreferences(incoming);
+    } else {
+        current.putAll(incoming);
+        user.setPreferences(current);
+    }
+    return userRepository.save(user);
+
+}
 
     public List<User> searchUsers(String name, String email, String role) {
     return userRepository.searchUsers(name, email, role);
