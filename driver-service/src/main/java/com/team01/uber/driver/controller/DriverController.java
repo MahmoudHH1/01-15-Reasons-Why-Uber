@@ -1,14 +1,19 @@
 package com.team01.uber.driver.controller;
 
 import com.team01.uber.driver.dto.RateDriverRequest;
+import com.team01.uber.driver.dto.TopDriverDTO;
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -40,9 +45,46 @@ public class DriverController {
         return driverService.getAllDrivers();
     }
 
+    @GetMapping("/reports/top-rated")
+    public List<TopDriverDTO> getTopRatedDrivers(@RequestParam int limit) {
+        return driverService.getTopRatedDrivers(limit);
+    }
+    @GetMapping("/vehicle-type")
+    public List<Driver> filterByVehicleType(@RequestParam String type,
+                                            @RequestParam(required = false) DriverStatus status) {
+        return driverService.filterByVehicleType(type, status);
+    }
+    @GetMapping("/search")
+    public List<Driver> searchDrivers(@RequestParam(required = false) DriverStatus status,
+                                      @RequestParam(required = false, defaultValue = "0.0") Double minRating,
+                                      @RequestParam(required = false, defaultValue = "5.0") Double maxRating) {
+        return driverService.searchDrivers(status, minRating, maxRating);
+    }
+
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
+    }
+
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
+                                                   @RequestBody Map<String, String> body) {
+        String raw = body.get("status");
+        if (raw == null || raw.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            DriverStatus status = DriverStatus.valueOf(raw.toUpperCase());
+            driverService.updateAvailability(id, status);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PutMapping("/{id}/vehicle")
+    public Driver updateVehicleDetails(@PathVariable Long id, @RequestBody Map<String, Object> vehicleUpdates) {
+        return driverService.updateVehicleDetails(id, vehicleUpdates);
     }
 
     @DeleteMapping("/{id}")
@@ -56,6 +98,11 @@ public class DriverController {
                                              @Valid @RequestBody RateDriverRequest request) {
         Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
         return ResponseEntity.ok(updated);
+    @GetMapping("/{id}/earnings")
+    public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
+                                                @RequestParam LocalDate startDate,
+                                                @RequestParam LocalDate endDate) {
+        return driverService.getEarningsSummary(id, startDate, endDate);
     }
 }
 

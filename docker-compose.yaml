@@ -35,6 +35,62 @@ services:
       - "8083:8080"
     depends_on:
       - postgres
+  
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: uber-user-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+      
+  driver-service:
+    build:
+      context: ./driver-service
+      dockerfile: Dockerfile
+    container_name: uber-driver-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8082:8080"
+    depends_on:
+      - postgres
+
+  location-service:
+    build:
+      context: ./location-service
+      dockerfile: Dockerfile
+    container_name: uber-location-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8084:8080"
+    depends_on:
+      - postgres
+      
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: uber-payment-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8085:8080"
+    depends_on:
+      - postgres
 
 volumes:
   pgdata:
