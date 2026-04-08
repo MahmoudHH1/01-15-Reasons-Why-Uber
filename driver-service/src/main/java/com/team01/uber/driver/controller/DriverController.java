@@ -55,8 +55,8 @@ public class DriverController {
     }
     @GetMapping("/search")
     public List<Driver> searchDrivers(@RequestParam(required = false) DriverStatus status,
-                                      @RequestParam Double minRating,
-                                      @RequestParam Double maxRating) {
+                                      @RequestParam(required = false, defaultValue = "0.0") Double minRating,
+                                      @RequestParam(required = false, defaultValue = "5.0") Double maxRating) {
         return driverService.searchDrivers(status, minRating, maxRating);
     }
 
