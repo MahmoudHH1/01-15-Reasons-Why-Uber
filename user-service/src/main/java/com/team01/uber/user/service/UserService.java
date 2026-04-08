@@ -1,9 +1,11 @@
 package com.team01.uber.user.service;
 
 import com.team01.uber.user.model.User;
+import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -84,5 +86,18 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Key and value must not be blank");
         }
         return userRepository.findByPreference(key, value);
+    }
+  
+    @Transactional
+    public void deactivateUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id: " + userId));
+
+        if (userRepository.countActiveRides(userId) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
+        }
+
+        user.setStatus(UserStatus.DEACTIVATED);
+        userRepository.save(user);
     }
 }

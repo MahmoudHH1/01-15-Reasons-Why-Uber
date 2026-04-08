@@ -55,4 +55,10 @@ public class UserController {
             @RequestParam String value) {
         return ResponseEntity.ok(userService.searchByPreference(key, value));
     }
+  
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+        userService.deactivateUser(id);
+        return ResponseEntity.ok().build();
+    }
 }
