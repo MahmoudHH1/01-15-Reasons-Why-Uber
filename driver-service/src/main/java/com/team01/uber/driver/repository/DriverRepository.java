@@ -1,6 +1,7 @@
 package com.team01.uber.driver.repository;
 
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,6 +23,9 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'type' = :type AND status = CAST(:status AS driverstatus)", nativeQuery = true)
     List<Driver> findByVehicleTypeAndStatus(@Param("type") String type, @Param("status") String status);
+    List<Driver> findByRatingBetweenOrderByRatingDesc(Double minRating, Double maxRating);
+
+    List<Driver> findByStatusAndRatingBetweenOrderByRatingDesc(DriverStatus status, Double minRating, Double maxRating);
     @Query(value = "SELECT COUNT(*) FROM rides WHERE driver_id = :driverId " +
                    "AND status::text IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')",
            nativeQuery = true)
