@@ -50,6 +50,10 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/search")
+public List<User> searchUsers(@RequestParam(required = false) String name, @RequestParam(required = false) String email, @RequestParam(required = false) String role) {
+    return userService.searchUsers(name, email, role);
+}
     @GetMapping("/reports/top-riders")
     public ResponseEntity<List<TopRiderDTO>> getTopRiders(
             @RequestParam String startDate,

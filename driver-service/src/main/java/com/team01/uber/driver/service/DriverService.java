@@ -118,6 +118,42 @@ public class DriverService {
         driverRepository.deleteById(id);
     }
 
+    @Transactional
+    public Driver rateDriver(Long driverId, Long rideId, Integer rating) {
+        // 1. Find driver — 404 if not found
+        Driver driver = getDriverById(driverId);
+
+        // 2. Validate rating range — 400 if out of bounds
+        if (rating < 1 || rating > 5) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
+        }
+
+        // 3. Verify ride exists — 404 if not found
+        if (!driverRepository.rideExists(rideId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        }
+
+        // 4. Verify ride belongs to this driver — 400 if not
+        if (!driverRepository.rideBelongsToDriver(rideId, driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
+        }
+
+        // 5. Verify ride is COMPLETED — 400 if not
+        String rideStatus = driverRepository.getRideStatus(rideId);
+        if (!"COMPLETED".equals(rideStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not completed");
+        }
+
+        // 6. Recalculate running average and update driver
+        int totalRatings = driver.getTotalRatings();
+        double newRating = (driver.getRating() * totalRatings + rating) / (totalRatings + 1.0);
+
+        driver.setRating(newRating);
+        driver.setTotalRatings(totalRatings + 1);
+
+        return driverRepository.save(driver);
+    }
+
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
 

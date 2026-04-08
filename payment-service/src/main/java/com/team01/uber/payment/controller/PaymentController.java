@@ -1,5 +1,6 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.PaymentService;
@@ -63,6 +64,13 @@ public class PaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/reports/revenue")
+    public RevenueReportDTO getRevenueReport(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        return paymentService.getRevenueReport(startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
     }
 
     @GetMapping("/search")

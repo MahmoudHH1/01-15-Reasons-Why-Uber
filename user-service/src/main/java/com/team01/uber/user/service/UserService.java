@@ -84,6 +84,9 @@ public class UserService {
         }
     }
 
+    public List<User> searchUsers(String name, String email, String role) {
+    return userRepository.searchUsers(name, email, role);
+}
     public List<TopRiderDTO> getTopRiders(String startDate, String endDate, int limit) {
         LocalDateTime start;
         LocalDateTime end;
