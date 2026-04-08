@@ -41,7 +41,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             nativeQuery = true)
     List<Object[]> getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
                                             @Param("endDate") LocalDateTime endDate);
-}
+
     @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
     String findRideStatusById(@Param("rideId") Long rideId);
 
