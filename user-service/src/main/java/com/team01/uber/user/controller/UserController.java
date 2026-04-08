@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -48,4 +49,9 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{id}/preferences")
+public User updatePreferences(@PathVariable Long id, @RequestBody Map<String, Object> preferences) {
+    return userService.updatePreferences(id, preferences);
+}
 }
