@@ -98,6 +98,7 @@ public class DriverController {
                                              @Valid @RequestBody RateDriverRequest request) {
         Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
         return ResponseEntity.ok(updated);
+                                             }
     @GetMapping("/{id}/earnings")
     public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
                                                 @RequestParam LocalDate startDate,
