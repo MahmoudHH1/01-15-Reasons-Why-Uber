@@ -1,9 +1,11 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
+import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.service.DriverDocumentService;
 import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
-import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
@@ -20,9 +22,11 @@ import java.util.Map;
 public class DriverController {
 
     private final DriverService driverService;
+    private final DriverDocumentService driverDocumentService;
 
-    public DriverController(DriverService driverService) {
+    public DriverController(DriverService driverService, DriverDocumentService driverDocumentService) {
         this.driverService = driverService;
+        this.driverDocumentService = driverDocumentService;
     }
 
     @GetMapping("/health")
@@ -93,6 +97,10 @@ public class DriverController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/documents/expired")
+    public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
+        return driverDocumentService.getDriversWithExpiredDocuments();
+    }
     @PostMapping("/{id}/rate")
     public ResponseEntity<Driver> rateDriver(@PathVariable Long id,
                                              @Valid @RequestBody RateDriverRequest request) {
