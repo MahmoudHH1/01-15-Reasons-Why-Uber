@@ -42,6 +42,12 @@ public class DriverService {
         return driverRepository.findAll();
     }
 
+    public List<Driver> filterByVehicleType(String type, DriverStatus status) {
+        if (status == null) {
+            return driverRepository.findByVehicleType(type);
+        }
+        return driverRepository.findByVehicleTypeAndStatus(type, status.name());
+    }
     public List<Driver> searchDrivers(DriverStatus status, Double minRating, Double maxRating) {
         if (minRating > maxRating) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");

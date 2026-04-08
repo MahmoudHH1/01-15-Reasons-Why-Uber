@@ -43,6 +43,11 @@ public class DriverController {
         return driverService.getAllDrivers();
     }
 
+    @GetMapping("/vehicle-type")
+    public List<Driver> filterByVehicleType(@RequestParam String type,
+                                            @RequestParam(required = false) DriverStatus status) {
+        return driverService.filterByVehicleType(type, status);
+    }
     @GetMapping("/search")
     public List<Driver> searchDrivers(@RequestParam(required = false) DriverStatus status,
                                       @RequestParam Double minRating,
