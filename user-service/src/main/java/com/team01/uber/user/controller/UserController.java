@@ -1,5 +1,6 @@
 package com.team01.uber.user.controller;
 
+import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -47,5 +48,13 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/reports/top-riders")
+    public ResponseEntity<List<TopRiderDTO>> getTopRiders(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam int limit) {
+        return ResponseEntity.ok(userService.getTopRiders(startDate, endDate, limit));
     }
 }
