@@ -73,6 +73,11 @@ public class PaymentController {
     ) {
         return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
     }
+    @PutMapping("/{id}/retry")
+    public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.retryFailedPayment(id));
+    }
+
     @PostMapping("/ride/{rideId}")
     public ResponseEntity<Payment> processPaymentForRide(
             @PathVariable Long rideId,

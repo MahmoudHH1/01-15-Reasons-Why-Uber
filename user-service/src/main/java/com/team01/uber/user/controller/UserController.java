@@ -1,5 +1,6 @@
 package com.team01.uber.user.controller;
 
+import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -53,4 +54,24 @@ public class UserController {
 public List<User> searchUsers(@RequestParam(required = false) String name, @RequestParam(required = false) String email, @RequestParam(required = false) String role) {
     return userService.searchUsers(name, email, role);
 }
+    @GetMapping("/reports/top-riders")
+    public ResponseEntity<List<TopRiderDTO>> getTopRiders(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam int limit) {
+        return ResponseEntity.ok(userService.getTopRiders(startDate, endDate, limit));
+    }
+  
+    @GetMapping("/preferences/search")
+    public ResponseEntity<List<User>> searchByPreference(
+            @RequestParam String key,
+            @RequestParam String value) {
+        return ResponseEntity.ok(userService.searchByPreference(key, value));
+    }
+  
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+        userService.deactivateUser(id);
+        return ResponseEntity.ok().build();
+    }
 }

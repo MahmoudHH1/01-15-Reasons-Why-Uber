@@ -1,11 +1,16 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.model.User;
+import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -82,4 +87,49 @@ public class UserService {
     public List<User> searchUsers(String name, String email, String role) {
     return userRepository.searchUsers(name, email, role);
 }
+    public List<TopRiderDTO> getTopRiders(String startDate, String endDate, int limit) {
+        LocalDateTime start;
+        LocalDateTime end;
+
+        try {
+            start = LocalDate.parse(startDate).atStartOfDay();
+            end = LocalDate.parse(endDate).atTime(23, 59, 59);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use yyyy-MM-dd");
+        }
+
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must not be after endDate");
+        }
+
+        return userRepository.findTopRiders(start, end, limit)
+                .stream()
+                .map(row -> new TopRiderDTO(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        ((Number) row[2]).doubleValue(),
+                        ((Number) row[3]).longValue()
+                ))
+                .toList();
+    }
+  
+    public List<User> searchByPreference(String key, String value) {
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Key and value must not be blank");
+        }
+        return userRepository.findByPreference(key, value);
+    }
+  
+    @Transactional
+    public void deactivateUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id: " + userId));
+
+        if (userRepository.countActiveRides(userId) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
+        }
+
+        user.setStatus(UserStatus.DEACTIVATED);
+        userRepository.save(user);
+    }
 }
