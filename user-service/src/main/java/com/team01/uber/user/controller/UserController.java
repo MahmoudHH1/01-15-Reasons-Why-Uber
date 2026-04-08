@@ -57,4 +57,17 @@ public class UserController {
             @RequestParam int limit) {
         return ResponseEntity.ok(userService.getTopRiders(startDate, endDate, limit));
     }
+  
+    @GetMapping("/preferences/search")
+    public ResponseEntity<List<User>> searchByPreference(
+            @RequestParam String key,
+            @RequestParam String value) {
+        return ResponseEntity.ok(userService.searchByPreference(key, value));
+    }
+  
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+        userService.deactivateUser(id);
+        return ResponseEntity.ok().build();
+    }
 }

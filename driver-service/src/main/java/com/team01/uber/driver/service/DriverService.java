@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
@@ -40,6 +41,34 @@ public class DriverService {
 
     public List<Driver> getAllDrivers() {
         return driverRepository.findAll();
+    }
+
+    public List<TopDriverDTO> getTopRatedDrivers(int limit) {
+        return driverRepository.findTopRatedDrivers(limit).stream()
+                .map(row -> new TopDriverDTO(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        ((Number) row[2]).doubleValue(),
+                        ((Number) row[3]).longValue()
+                ))
+                .toList();
+    }
+    public List<Driver> filterByVehicleType(String type, DriverStatus status) {
+        if (status == null) {
+            return driverRepository.findByVehicleType(type);
+        }
+        return driverRepository.findByVehicleTypeAndStatus(type, status.name());
+    }
+    public List<Driver> searchDrivers(DriverStatus status, Double minRating, Double maxRating) {
+        if (minRating > maxRating) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");
+        }
+
+        if (status == null) {
+            return driverRepository.findByRatingBetweenOrderByRatingDesc(minRating, maxRating);
+        }
+
+        return driverRepository.findByStatusAndRatingBetweenOrderByRatingDesc(status, minRating, maxRating);
     }
 
     public Driver updateDriver(Long id, Driver updated) {

@@ -28,4 +28,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("limit") int limit);
+           
+    @Query(value = "SELECT * FROM users WHERE preferences->>:key = :value", nativeQuery = true)
+    List<User> findByPreference(@Param("key") String key, @Param("value") String value);
+  
+    @Query(value = "SELECT COUNT(*) FROM rides WHERE user_id = :userId AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
+    int countActiveRides(@Param("userId") Long userId);
 }
