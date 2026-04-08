@@ -48,4 +48,9 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/search")
+public List<User> searchUsers(@RequestParam(required = false) String name, @RequestParam(required = false) String email, @RequestParam(required = false) String role) {
+    return userService.searchUsers(name, email, role);
+}
 }
