@@ -78,4 +78,8 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
         }
     }
+
+    public List<User> searchUsers(String name, String email, String role) {
+    return userRepository.searchUsers(name, email, role);
+}
 }
