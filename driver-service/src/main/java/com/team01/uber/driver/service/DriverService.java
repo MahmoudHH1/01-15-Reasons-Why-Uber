@@ -152,6 +152,8 @@ public class DriverService {
         driver.setTotalRatings(totalRatings + 1);
 
         return driverRepository.save(driver);
+    }
+
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
 
