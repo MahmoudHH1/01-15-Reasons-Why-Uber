@@ -18,6 +18,14 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     Optional<Driver> findByLicenseNumber(String licenseNumber);
 
+    @Query(value = "SELECT COUNT(*) > 0 FROM rides WHERE id = :rideId", nativeQuery = true)
+    boolean rideExists(@Param("rideId") Long rideId);
+
+    @Query(value = "SELECT COUNT(*) > 0 FROM rides WHERE id = :rideId AND driver_id = :driverId", nativeQuery = true)
+    boolean rideBelongsToDriver(@Param("rideId") Long rideId, @Param("driverId") Long driverId);
+
+    @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
+    String getRideStatus(@Param("rideId") Long rideId);
     @Query(value = """
             SELECT d.id, d.name, d.rating, COUNT(r.id) AS total_rides
             FROM drivers d
@@ -49,3 +57,4 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
                                 @Param("startDate") LocalDate startDate,
                                 @Param("endDate") LocalDate endDate);
 }
+

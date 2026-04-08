@@ -1,5 +1,6 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
@@ -92,6 +93,12 @@ public class DriverController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/rate")
+    public ResponseEntity<Driver> rateDriver(@PathVariable Long id,
+                                             @Valid @RequestBody RateDriverRequest request) {
+        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
+        return ResponseEntity.ok(updated);
+                                             }
     @GetMapping("/{id}/earnings")
     public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
                                                 @RequestParam LocalDate startDate,
@@ -99,3 +106,4 @@ public class DriverController {
         return driverService.getEarningsSummary(id, startDate, endDate);
     }
 }
+
