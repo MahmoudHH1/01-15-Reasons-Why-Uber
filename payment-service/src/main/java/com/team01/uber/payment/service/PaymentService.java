@@ -1,6 +1,7 @@
 package com.team01.uber.payment.service;
 
 import com.team01.uber.payment.dto.RevenueReportDTO;
+import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
@@ -102,6 +103,63 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");
         }
         paymentRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request) {
+        String rideStatus = paymentRepository.findRideStatusById(rideId);
+        if (rideStatus == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        }
+        if (!"COMPLETED".equals(rideStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not COMPLETED");
+        }
+
+        if (paymentRepository.existsByRideIdAndStatus(rideId, PaymentStatus.COMPLETED)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "already paid");
+        }
+
+        Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No pending payment found for this ride"));
+
+        payment.setMethod(request.getMethod());
+        payment.setStatus(PaymentStatus.COMPLETED);
+
+        Map<String, Object> details = payment.getTransactionDetails() != null
+                ? payment.getTransactionDetails()
+                : new HashMap<>();
+        details.put("gatewayResponse", "approved");
+        if (request.getCardLastFour() != null) {
+            details.put("cardLastFour", request.getCardLastFour());
+        }
+        payment.setTransactionDetails(details);
+
+        return paymentRepository.save(payment);
+    }
+
+    @Transactional
+    public Payment retryFailedPayment(Long id) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.FAILED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only FAILED payments can be retried");
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
+
+        if (payment.getTransactionDetails() == null) {
+            payment.setTransactionDetails(new HashMap<>());
+        }
+        Map<String, Object> details = payment.getTransactionDetails();
+        int currentRetry = details.containsKey("retryAttempt")
+                ? ((Number) details.get("retryAttempt")).intValue()
+                : 0;
+        details.put("retryAttempt", currentRetry + 1);
+        details.put("gatewayResponse", "approved");
+
+        return paymentRepository.save(payment);
     }
 
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {

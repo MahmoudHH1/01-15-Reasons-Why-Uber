@@ -1,5 +1,6 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
@@ -41,6 +42,22 @@ public class DriverController {
     @GetMapping
     public List<Driver> getAllDrivers() {
         return driverService.getAllDrivers();
+    }
+
+    @GetMapping("/reports/top-rated")
+    public List<TopDriverDTO> getTopRatedDrivers(@RequestParam int limit) {
+        return driverService.getTopRatedDrivers(limit);
+    }
+    @GetMapping("/vehicle-type")
+    public List<Driver> filterByVehicleType(@RequestParam String type,
+                                            @RequestParam(required = false) DriverStatus status) {
+        return driverService.filterByVehicleType(type, status);
+    }
+    @GetMapping("/search")
+    public List<Driver> searchDrivers(@RequestParam(required = false) DriverStatus status,
+                                      @RequestParam Double minRating,
+                                      @RequestParam Double maxRating) {
+        return driverService.searchDrivers(status, minRating, maxRating);
     }
 
     @PutMapping("/{id}")
