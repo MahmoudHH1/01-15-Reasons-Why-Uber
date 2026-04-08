@@ -48,6 +48,17 @@ public class DriverController {
     public List<TopDriverDTO> getTopRatedDrivers(@RequestParam int limit) {
         return driverService.getTopRatedDrivers(limit);
     }
+    @GetMapping("/vehicle-type")
+    public List<Driver> filterByVehicleType(@RequestParam String type,
+                                            @RequestParam(required = false) DriverStatus status) {
+        return driverService.filterByVehicleType(type, status);
+    }
+    @GetMapping("/search")
+    public List<Driver> searchDrivers(@RequestParam(required = false) DriverStatus status,
+                                      @RequestParam Double minRating,
+                                      @RequestParam Double maxRating) {
+        return driverService.searchDrivers(status, minRating, maxRating);
+    }
 
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
