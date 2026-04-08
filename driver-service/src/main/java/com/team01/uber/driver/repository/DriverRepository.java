@@ -18,6 +18,15 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     Optional<Driver> findByLicenseNumber(String licenseNumber);
 
+    @Query(value = """
+            SELECT d.id, d.name, d.rating, COUNT(r.id) AS total_rides
+            FROM drivers d
+            LEFT JOIN rides r ON r.driver_id = d.id AND r.status = 'COMPLETED'
+            GROUP BY d.id, d.name, d.rating
+            ORDER BY d.rating DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findTopRatedDrivers(@Param("limit") int limit);
     @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'type' = :type", nativeQuery = true)
     List<Driver> findByVehicleType(@Param("type") String type);
 
