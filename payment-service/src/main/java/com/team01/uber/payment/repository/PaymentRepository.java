@@ -29,6 +29,19 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payments " +
+            "WHERE status::text = 'COMPLETED' AND created_at BETWEEN :startDate AND :endDate",
+            nativeQuery = true)
+    List<Object[]> getCompletedRevenueInRange(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payments " +
+            "WHERE status::text = 'REFUNDED' AND created_at BETWEEN :startDate AND :endDate",
+            nativeQuery = true)
+    List<Object[]> getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
+                                            @Param("endDate") LocalDateTime endDate);
+
     @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
     String findRideStatusById(@Param("rideId") Long rideId);
 
