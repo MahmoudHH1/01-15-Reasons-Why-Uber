@@ -95,6 +95,9 @@ public class UserService {
         user.setPreferences(current);
     }
     return userRepository.save(user);
+
+}
+
     public List<User> searchUsers(String name, String email, String role) {
     return userRepository.searchUsers(name, email, role);
 }
