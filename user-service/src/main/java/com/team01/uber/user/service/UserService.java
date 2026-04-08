@@ -15,11 +15,9 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final JdbcTemplate jdbcTemplate;
 
-    public UserService(UserRepository userRepository , JdbcTemplate jdbcTemplate) {
+    public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.jdbcTemplate = jdbcTemplate;
     }
 
     public User createUser(User user) {
@@ -89,11 +87,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id: " + userId));
 
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM rides WHERE user_id = ? AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')",
-                Integer.class, userId);
-
-        if (count != null && count > 0) {
+        if (userRepository.countActiveRides(userId) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
         }
 
