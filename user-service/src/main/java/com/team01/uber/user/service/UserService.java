@@ -4,7 +4,6 @@ import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
