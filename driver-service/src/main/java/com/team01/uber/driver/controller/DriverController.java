@@ -1,5 +1,6 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.service.DriverService;
@@ -8,7 +9,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -52,9 +55,37 @@ public class DriverController {
         return driverService.updateDriver(id, driver);
     }
 
+    @PutMapping("/{id}/availability")
+    public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
+                                                   @RequestBody Map<String, String> body) {
+        String raw = body.get("status");
+        if (raw == null || raw.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            DriverStatus status = DriverStatus.valueOf(raw.toUpperCase());
+            driverService.updateAvailability(id, status);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PutMapping("/{id}/vehicle")
+    public Driver updateVehicleDetails(@PathVariable Long id, @RequestBody Map<String, Object> vehicleUpdates) {
+        return driverService.updateVehicleDetails(id, vehicleUpdates);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
         driverService.deleteDriver(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/earnings")
+    public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
+                                                @RequestParam LocalDate startDate,
+                                                @RequestParam LocalDate endDate) {
+        return driverService.getEarningsSummary(id, startDate, endDate);
     }
 }
