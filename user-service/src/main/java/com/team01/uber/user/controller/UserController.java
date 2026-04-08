@@ -1,5 +1,6 @@
 package com.team01.uber.user.controller;
 
+import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -48,4 +49,9 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{id}/ride-summary")
+public UserRideSummaryDTO getRideSummary(@PathVariable Long id) {
+    return userService.getRideSummary(id);
+}
 }
