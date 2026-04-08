@@ -1,5 +1,6 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -78,4 +79,22 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
         }
     }
+
+    public UserRideSummaryDTO getRideSummary(Long userId) {
+    getUserById(userId);
+    Object[] row = userRepository.getRideSummary(userId);
+    if (row == null || row.length == 0) {
+        return new UserRideSummaryDTO(userId, null, 0L, 0L, 0L, 0.0, 0.0);
+    }
+    Object[] data = (Object[]) row[0];
+    return new UserRideSummaryDTO(
+        ((Number) data[0]).longValue(),
+        (String) data[1],
+        ((Number) data[2]).longValue(),
+        ((Number) data[3]).longValue(),
+        ((Number) data[4]).longValue(),
+        ((Number) data[5]).doubleValue(),
+        ((Number) data[6]).doubleValue()
+    );
+}
 }
