@@ -38,9 +38,9 @@ public class PaymentCouponController {
 
     @PutMapping("/api/payments/{paymentId}/coupons/{couponId}/{id}")
     public ResponseEntity<PaymentCoupon> updatePaymentCoupon(@PathVariable Long paymentId,
-                                                              @PathVariable Long couponId,
-                                                              @PathVariable Long id,
-                                                              @Valid @RequestBody PaymentCoupon paymentCoupon) {
+                                                             @PathVariable Long couponId,
+                                                             @PathVariable Long id,
+                                                             @Valid @RequestBody PaymentCoupon paymentCoupon) {
         return ResponseEntity.ok(paymentCouponService.updatePaymentCoupon(paymentId, couponId, id, paymentCoupon));
     }
 

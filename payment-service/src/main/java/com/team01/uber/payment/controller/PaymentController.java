@@ -1,17 +1,18 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.team01.uber.payment.dto.ProcessPaymentRequest;
+import com.team01.uber.payment.dto.RefundRequest;
+import com.team01.uber.payment.model.PaymentStatus;
 
 import java.time.LocalDate;
 import java.util.List;
-import com.team01.uber.payment.model.PaymentStatus;
-import com.team01.uber.payment.dto.RefundRequest;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -26,6 +27,11 @@ public class PaymentController {
     @GetMapping("/health")
     public String health() {
         return "OK";
+    }
+
+    @GetMapping("/user/{userId}/summary")
+    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
+        return paymentService.getUserPaymentSummary(userId);
     }
 
     @PutMapping("/{id}/refund")
@@ -66,5 +72,16 @@ public class PaymentController {
             @RequestParam LocalDate endDate
     ) {
         return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+    }
+    @PutMapping("/{id}/retry")
+    public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.retryFailedPayment(id));
+    }
+
+    @PostMapping("/ride/{rideId}")
+    public ResponseEntity<Payment> processPaymentForRide(
+            @PathVariable Long rideId,
+            @Valid @RequestBody ProcessPaymentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.processPaymentForRide(rideId, request));
     }
 }
