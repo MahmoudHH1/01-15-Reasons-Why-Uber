@@ -20,14 +20,11 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     @Transactional
     @Query(value = "UPDATE drivers SET status = 'BUSY' WHERE id = :id", nativeQuery = true)
     void setDriverBusy(@Param("id") Long id);
-}
-    @Query(value = "SELECT COUNT(*) FROM drivers WHERE id = :driverId", nativeQuery = true)
-    long countDriverById(@Param("driverId") Long driverId);
 
     @Modifying
     @Transactional
     @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
-    void setDriverAvailable(@Param("driverId") Long driverId);
+    int setDriverAvailable(@Param("driverId") Long driverId);
 
     @Query(value = "SELECT COUNT(*) FROM rides " +
             "WHERE pickup_latitude BETWEEN :lat - 0.01 AND :lat + 0.01 " +

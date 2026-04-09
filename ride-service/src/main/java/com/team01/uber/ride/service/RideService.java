@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class RideService {
@@ -62,15 +64,19 @@ public class RideService {
     public Ride cancelRide(Long id) {
         Ride ride = getRideById(id);
 
-        if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
+        Set<RideStatus> activeStatuses = EnumSet.of(RideStatus.REQUESTED, RideStatus.ACCEPTED);
+        if (!activeStatuses.contains(ride.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only REQUESTED or ACCEPTED rides can be cancelled");
         }
 
         if (ride.getDriverId() != null) {
-            if (rideRepository.countDriverById(ride.getDriverId()) == 0) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned driver not found");
+            if (!rideRepository.driverExists(ride.getDriverId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned driver not found or is not available");
             }
-            rideRepository.setDriverAvailable(ride.getDriverId());
+
+            if(rideRepository.setDriverAvailable(ride.getDriverId()) == 0){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to AVAILABLE");
+            }
         }
 
         ride.setStatus(RideStatus.CANCELLED);
