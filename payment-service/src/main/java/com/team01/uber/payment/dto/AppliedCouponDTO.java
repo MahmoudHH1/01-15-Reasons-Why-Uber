@@ -8,8 +8,9 @@ import java.time.LocalDateTime;
 @Getter
 @AllArgsConstructor
 public class AppliedCouponDTO {
+    private Long couponId;      
     private String couponCode;
-    private DiscountType discountType;
+    private DiscountType discountType;  
     private Double discountApplied;
     private LocalDateTime appliedAt;
 }

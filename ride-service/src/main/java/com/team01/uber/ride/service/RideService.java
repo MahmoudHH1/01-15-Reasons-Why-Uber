@@ -5,10 +5,12 @@ import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.repository.RideRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -50,11 +52,20 @@ public class RideService {
         existing.setDropoffLongitude(updated.getDropoffLongitude());
         existing.setStatus(updated.getStatus());
 
-        existing.setFare(updated.getFare()); // nullable field on the DB
-        existing.setMetadata(updated.getMetadata()); // nullable field on the DB
-        existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
+        existing.setFare(updated.getFare());
+        existing.setMetadata(updated.getMetadata());
+        existing.setCompletedAt(updated.getCompletedAt());
 
         return rideRepository.save(existing);
+    }
+
+    public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        if (status == null) {
+            return rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+        }
+        return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
     }
 
     public void deleteRide(Long id) {
@@ -62,6 +73,33 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
         rideRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Ride assignDriver(Long rideId, Long driverId) {
+        Ride ride = getRideById(rideId);
+
+        if (ride.getStatus() != RideStatus.REQUESTED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
+        }
+
+        if (!rideRepository.driverExists(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        if (!rideRepository.isDriverAvailable(driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
+        }
+
+        ride.setDriverId(driverId);
+        ride.setStatus(RideStatus.ACCEPTED);
+        rideRepository.save(ride);
+
+        if(rideRepository.setDriverBusy(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to BUSY. Driver may have become unavailable.");
+        }
+
+        return ride;
     }
 
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
