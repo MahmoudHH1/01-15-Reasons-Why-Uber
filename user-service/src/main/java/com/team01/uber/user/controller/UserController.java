@@ -2,6 +2,7 @@ package com.team01.uber.user.controller;
 
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -92,5 +93,9 @@ public class UserController {
             @PathVariable Long userId,
             @PathVariable Long addressId) {
         return ResponseEntity.ok(userService.setDefaultAddress(userId, addressId));
+    }
+    @GetMapping("/{id}/profile")
+    public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserProfile(id));
     }
 }
