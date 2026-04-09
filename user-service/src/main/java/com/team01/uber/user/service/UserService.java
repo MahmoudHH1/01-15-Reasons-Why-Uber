@@ -1,7 +1,9 @@
 package com.team01.uber.user.service;
 
 import com.team01.uber.user.dto.UserRideSummaryDTO;
+import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
 import com.team01.uber.user.model.SavedAddress;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
@@ -176,7 +178,33 @@ public class UserService {
         savedAddressRepository.save(target);
 
         return userRepository.findById(userId).get();
-}
+    }
+
+    public UserProfileDTO getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        List<AddressDTO> addressDTOs = user.getSavedAddresses().stream()
+                .map(addr -> new AddressDTO(
+                        addr.getId(),
+                        addr.getLabel(),
+                        addr.getAddress(),
+                        addr.getLatitude(),
+                        addr.getLongitude(),
+                        addr.getIsDefault(),
+                        addr.getMetadata()
+                ))
+                .toList();
+
+        return new UserProfileDTO(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getPreferences(),
+                addressDTOs
+        );
+    }   
 
 
 }
