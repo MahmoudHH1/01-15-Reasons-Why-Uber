@@ -172,7 +172,7 @@ public class UserService {
         }
 
         savedAddressRepository.clearDefaultForUser(userId);
-        target.setDefault(true);
+        target.setIsDefault(true);
         savedAddressRepository.save(target);
 
         return userRepository.findById(userId).get();
