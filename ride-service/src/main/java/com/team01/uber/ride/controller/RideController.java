@@ -65,4 +65,9 @@ public class RideController {
         rideService.deleteRide(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{id}/assign")
+    public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
+        return rideService.assignDriver(id, driverId);
+    }
 }
