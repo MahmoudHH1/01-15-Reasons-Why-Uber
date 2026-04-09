@@ -2,12 +2,14 @@ package com.team01.uber.ride.controller;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -45,6 +47,14 @@ public class RideController {
         return rideService.getAllRides();
     }
 
+    @GetMapping("/search")
+    public List<Ride> searchRides(
+            @RequestParam(required = false) RideStatus status,
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        return rideService.searchRides(status, startDate, endDate);
+    }
+
     @PutMapping("/{id}")
     public Ride updateRide(@PathVariable Long id, @RequestBody Ride ride) {
         return rideService.updateRide(id, ride);
@@ -59,5 +69,10 @@ public class RideController {
     public ResponseEntity<Void> deleteRide(@PathVariable Long id) {
         rideService.deleteRide(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/assign")
+    public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
+        return rideService.assignDriver(id, driverId);
     }
 }

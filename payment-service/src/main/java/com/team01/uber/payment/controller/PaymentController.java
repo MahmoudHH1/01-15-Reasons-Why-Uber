@@ -1,5 +1,6 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.PaymentService;
@@ -65,6 +66,13 @@ public class PaymentController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/reports/revenue")
+    public RevenueReportDTO getRevenueReport(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        return paymentService.getRevenueReport(startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+    }
+
     @GetMapping("/search")
     public List<Payment> searchPayments(
             @RequestParam(required = false) PaymentStatus status,
@@ -73,6 +81,11 @@ public class PaymentController {
     ) {
         return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
     }
+    @PutMapping("/{id}/retry")
+    public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.retryFailedPayment(id));
+    }
+
     @PostMapping("/ride/{rideId}")
     public ResponseEntity<Payment> processPaymentForRide(
             @PathVariable Long rideId,
