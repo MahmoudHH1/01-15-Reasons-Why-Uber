@@ -16,7 +16,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             nativeQuery = true)
     long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
 
-    @Query(value = "SELECT COUNT(*) > 0 FROM rides r WHERE r.metadata ? :key", nativeQuery = true)
+    @Query(value = "SELECT COUNT(*) > 0 FROM rides r WHERE jsonb_exists(r.metadata, :key)", nativeQuery = true)
     boolean existsMetadataKey(@Param("key") String key);
 
     @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value"
