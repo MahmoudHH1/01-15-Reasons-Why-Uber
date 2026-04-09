@@ -66,5 +66,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE r.user_id = u.id AND r.status = 'COMPLETED'
         ) >= :minRides
         """, nativeQuery = true)
-        List<User> findByLanguagePreferenceWithMinRides(String lang, int minRides);
+        List<User> findByLanguagePreferenceWithMinRides(
+        @Param("lang") String lang,
+        @Param("minRides") int minRides
+        );
 }
