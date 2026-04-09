@@ -179,6 +179,12 @@ public class UserService {
 
         return userRepository.findById(userId).get();
     }
+    public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
+        if (lang == null || lang.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
+        }
+        return userRepository.findByLanguagePreferenceWithMinRides(lang, minRides);
+    }
 
     public UserProfileDTO getUserProfile(Long userId) {
         User user = userRepository.findById(userId)

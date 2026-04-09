@@ -94,6 +94,14 @@ public class UserController {
             @PathVariable Long addressId) {
         return ResponseEntity.ok(userService.setDefaultAddress(userId, addressId));
     }
+
+    @GetMapping("/preferences/language")
+    public ResponseEntity<List<User>> getUsersByLanguage(
+            @RequestParam String lang,
+            @RequestParam int minRides) {
+        return ResponseEntity.ok(userService.findUsersByLanguageWithMinRides(lang, minRides));
+    }
+  
     @GetMapping("/{id}/profile")
     public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserProfile(id));
