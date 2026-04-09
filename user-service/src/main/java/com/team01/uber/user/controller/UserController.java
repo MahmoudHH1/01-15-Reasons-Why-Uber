@@ -2,6 +2,7 @@ package com.team01.uber.user.controller;
 
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -99,5 +100,10 @@ public class UserController {
             @RequestParam String lang,
             @RequestParam int minRides) {
         return ResponseEntity.ok(userService.findUsersByLanguageWithMinRides(lang, minRides));
+    }
+  
+    @GetMapping("/{id}/profile")
+    public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserProfile(id));
     }
 }
