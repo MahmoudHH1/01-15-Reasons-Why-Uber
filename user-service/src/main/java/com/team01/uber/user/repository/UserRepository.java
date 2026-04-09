@@ -58,4 +58,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT COUNT(*) FROM rides WHERE user_id = :userId AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
     int countActiveRides(@Param("userId") Long userId);
+    @Query(value = """
+        SELECT u.* FROM users u
+        WHERE u.preferences->>'language' = :lang
+        AND (
+            SELECT COUNT(*) FROM rides r
+            WHERE r.user_id = u.id AND r.status = 'COMPLETED'
+        ) >= :minRides
+        """, nativeQuery = true)
+        List<User> findByLanguagePreferenceWithMinRides(String lang, int minRides);
 }
