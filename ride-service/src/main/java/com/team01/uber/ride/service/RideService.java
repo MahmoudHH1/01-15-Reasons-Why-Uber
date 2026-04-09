@@ -154,10 +154,13 @@ public class RideService {
         rideRepository.setDriverAvailable(ride.getDriverId());
 
         // Create payment record
+        String paymentMethod = rideRepository.getDefaultPaymentMethod(ride.getUserId());
+        
         rideRepository.createPayment(
                 ride.getId(),
                 ride.getUserId(),
                 ride.getFare(),
+                "CASH",
                 "PENDING",
                 LocalDateTime.now()
         );
