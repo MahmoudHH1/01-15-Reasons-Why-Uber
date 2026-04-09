@@ -87,4 +87,10 @@ public class UserController {
         userService.deactivateUser(id);
         return ResponseEntity.ok().build();
     }
+    @PutMapping("/{userId}/addresses/{addressId}/default")
+    public ResponseEntity<User> setDefaultAddress(
+            @PathVariable Long userId,
+            @PathVariable Long addressId) {
+        return ResponseEntity.ok(userService.setDefaultAddress(userId, addressId));
+    }
 }
