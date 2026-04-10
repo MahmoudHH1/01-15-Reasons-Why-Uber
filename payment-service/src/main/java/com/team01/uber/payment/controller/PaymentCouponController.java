@@ -22,8 +22,7 @@ public class PaymentCouponController {
     @PostMapping("/api/payments/{paymentId}/coupons/{couponId}")
     public ResponseEntity<PaymentWithCouponsDTO> applyCouponToPayment(@PathVariable Long paymentId,
                                                                       @PathVariable Long couponId) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(paymentCouponService.applyCouponToPayment(paymentId, couponId));
+        return ResponseEntity.ok(paymentCouponService.applyCouponToPayment(paymentId, couponId));
     }
 
     @GetMapping("/api/payment-coupons/{id}")
