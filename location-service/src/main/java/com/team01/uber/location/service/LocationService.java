@@ -75,14 +75,11 @@ public class LocationService {
 
     public Location update(Long id, Location location) {
         Location existing = getById(id);
-        if(existing == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Error 404");
-        }
-        existing.setDriverId(location.getDriverId());
-        existing.setLatitude(location.getLatitude());
-        existing.setLongitude(location.getLongitude());
-        existing.setTimestamp(location.getTimestamp());
-        existing.setMetadata(location.getMetadata());
+        if (location.getDriverId() != null) existing.setDriverId(location.getDriverId());
+        if (location.getLatitude() != null) existing.setLatitude(location.getLatitude());
+        if (location.getLongitude() != null) existing.setLongitude(location.getLongitude());
+        if (location.getTimestamp() != null) existing.setTimestamp(location.getTimestamp());
+        if (location.getMetadata() != null) existing.setMetadata(location.getMetadata());
         return locationRepository.save(existing);
     }
 
@@ -153,6 +150,12 @@ public class LocationService {
     }
 
     public List<Location> filterByMetadata(String key, String operator, String value) {
+        if (key == null || key.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "key must not be blank");
+        }
+        if (value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "value must not be blank");
+        }
         if (!Set.of("eq", "gt", "lt").contains(operator)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid operator: must be eq, gt, or lt");
         }
