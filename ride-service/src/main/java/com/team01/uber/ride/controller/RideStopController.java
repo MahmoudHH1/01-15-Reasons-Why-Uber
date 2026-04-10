@@ -1,5 +1,7 @@
 package com.team01.uber.ride.controller;
 
+import com.team01.uber.ride.dto.RideWithStopsDTO;
+import com.team01.uber.ride.dto.StopRequestDTO;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.service.RideStopService;
 import org.springframework.http.HttpStatus;
@@ -18,10 +20,10 @@ public class RideStopController {
         this.rideStopService = rideStopService;
     }
 
-//    @PostMapping
-//    public ResponseEntity<RideStop> createStop(@PathVariable Long rideId, @RequestBody RideStop stop) {
-//        return ResponseEntity.status(HttpStatus.CREATED).body(rideStopService.createStop(rideId, stop));
-//    }
+    @PostMapping
+    public ResponseEntity<RideWithStopsDTO> addStops(@PathVariable Long rideId, @RequestBody List<StopRequestDTO> stops) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(rideStopService.addStops(rideId, stops));
+    }
 
     @GetMapping
     public List<RideStop> getStopsByRideId(@PathVariable Long rideId) {

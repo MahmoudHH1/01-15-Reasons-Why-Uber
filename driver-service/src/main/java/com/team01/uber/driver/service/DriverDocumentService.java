@@ -1,14 +1,23 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
+
+import org.springframework.transaction.annotation.Transactional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class DriverDocumentService {
@@ -55,5 +64,57 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
+    }
+
+    @Transactional
+    public Driver verifyDocument(Long driverId, Long documentId, Long verifiedBy) {
+        Driver driver = driverService.getDriverById(driverId);
+
+        DriverDocument document = driverDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+
+        if (!document.getDriver().getId().equals(driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document does not belong to this driver");
+        }
+
+        if (!document.getExpiryDate().isAfter(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is expired");
+        }
+
+        if (!driverDocumentRepository.isAdminUser(verifiedBy)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
+        }
+
+        document.setVerified(true);
+
+        Map<String, Object> metadata = document.getMetadata();
+        if (metadata == null) {
+            metadata = new HashMap<>();
+        }
+        metadata.put("verifiedAt", LocalDateTime.now().toString());
+        metadata.put("verifiedBy", verifiedBy);
+        document.setMetadata(metadata);
+
+        driverDocumentRepository.save(document);
+
+        // initialize the lazy collection within the transaction before returning
+        driver.getDriverDocuments().size();
+        return driver;
+    }
+
+    @Transactional(readOnly = true)
+    public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
+        List<DriverDocument> expired = driverDocumentRepository.findByExpiryDateBefore(LocalDate.now());
+
+        Map<Driver, List<DriverDocument>> byDriver = expired.stream()
+                .collect(Collectors.groupingBy(DriverDocument::getDriver));
+
+        return byDriver.entrySet().stream()
+                .map(e -> new DriverDocumentAlertDTO(
+                        e.getKey().getId(),
+                        e.getKey().getName(),
+                        e.getKey().getStatus(),
+                        e.getValue()))
+                .collect(Collectors.toList());
     }
 }

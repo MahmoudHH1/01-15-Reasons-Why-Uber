@@ -1,5 +1,8 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.dto.AppliedCouponDTO;
+import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
@@ -136,8 +139,90 @@ public class PaymentService {
         return paymentRepository.save(payment);
     }
 
+    @Transactional
+    public Payment retryFailedPayment(Long id) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.FAILED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only FAILED payments can be retried");
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
+
+        if (payment.getTransactionDetails() == null) {
+            payment.setTransactionDetails(new HashMap<>());
+        }
+        Map<String, Object> details = payment.getTransactionDetails();
+        int currentRetry = details.containsKey("retryAttempt")
+                ? ((Number) details.get("retryAttempt")).intValue()
+                : 0;
+        details.put("retryAttempt", currentRetry + 1);
+        details.put("gatewayResponse", "approved");
+
+        return paymentRepository.save(payment);
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentDetailsDTO getPaymentDetails(Long paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        List<AppliedCouponDTO> appliedCoupons = payment.getPaymentCoupons().stream()
+                .map(pc -> new AppliedCouponDTO(
+                        pc.getCoupon().getCode(),
+                        pc.getCoupon().getDiscountType(),
+                        pc.getDiscountApplied(),
+                        pc.getAppliedAt()
+                ))
+                .toList();
+
+        double totalDiscount = appliedCoupons.stream()
+                .mapToDouble(AppliedCouponDTO::getDiscountApplied)
+                .sum();
+
+        return new PaymentDetailsDTO(
+                payment.getId(),
+                payment.getRideId(),
+                payment.getUserId(),
+                payment.getAmount(),
+                payment.getMethod(),
+                payment.getStatus(),
+                payment.getTransactionDetails(),
+                appliedCoupons,
+                totalDiscount,
+                payment.getAmount() - totalDiscount
+        );
+    }
+
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
+    }
+
+    public RevenueReportDTO getRevenueReport(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "startDate must be before endDate");
+        }
+
+        Object[] completedRow = paymentRepository.getCompletedRevenueInRange(startDate, endDate).get(0);
+        double totalRevenue = ((Number) completedRow[0]).doubleValue();
+        long totalTransactions = ((Number) completedRow[1]).longValue();
+
+        double averagePayment = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+
+        Object[] refundedRow = paymentRepository.getRefundedAmountInRange(startDate, endDate).get(0);
+        double refundedAmount = ((Number) refundedRow[0]).doubleValue();
+        long refundCount = ((Number) refundedRow[1]).longValue();
+
+        RevenueReportDTO dto = new RevenueReportDTO();
+        dto.setTotalRevenue(totalRevenue);
+        dto.setTotalTransactions(totalTransactions);
+        dto.setAveragePayment(averagePayment);
+        dto.setRefundedAmount(refundedAmount);
+        dto.setRefundCount(refundCount);
+        return dto;
     }
 }
