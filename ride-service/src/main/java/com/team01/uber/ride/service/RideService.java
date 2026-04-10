@@ -193,6 +193,7 @@ public class RideService {
         }
 
         return rideRepository.findByMetadataField(key, value);
+    }
 
     @Transactional
     public Ride completeRide(Long id) {
