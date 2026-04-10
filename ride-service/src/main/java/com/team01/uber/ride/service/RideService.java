@@ -18,7 +18,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class RideService {
@@ -82,6 +84,29 @@ public class RideService {
         return new RideDetailsDTO(ride.getId(), ride.getUserId(), ride.getDriverId(),
                 ride.getStatus(), ride.getFare(), ride.getMetadata(),
                 stops, stops.size(), completedStops);
+    }
+
+    @Transactional
+    public Ride cancelRide(Long id) {
+        Ride ride = getRideById(id);
+
+        Set<RideStatus> activeStatuses = EnumSet.of(RideStatus.REQUESTED, RideStatus.ACCEPTED);
+        if (!activeStatuses.contains(ride.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only REQUESTED or ACCEPTED rides can be cancelled");
+        }
+
+        if (ride.getDriverId() != null) {
+            if (!rideRepository.driverExists(ride.getDriverId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned driver not found or is not available");
+            }
+
+            if(rideRepository.setDriverAvailable(ride.getDriverId()) == 0){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to AVAILABLE");
+            }
+        }
+
+        ride.setStatus(RideStatus.CANCELLED);
+        return rideRepository.save(ride);
     }
 
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {

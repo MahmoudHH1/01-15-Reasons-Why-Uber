@@ -66,6 +66,11 @@ public class RideController {
         return ResponseEntity.ok(rideService.getRideDetails(rideId));
     }
 
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Ride> cancelRide(@PathVariable Long id) {
+        return ResponseEntity.ok(rideService.cancelRide(id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRide(@PathVariable Long id) {
         rideService.deleteRide(id);
