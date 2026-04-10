@@ -139,12 +139,12 @@ public class PaymentCouponService {
         List<AppliedCouponDTO> appliedCoupons = new ArrayList<>();
         if (payment.getPaymentCoupons() != null) {
             for (PaymentCoupon pc : payment.getPaymentCoupons()) {
-                AppliedCouponDTO couponDTO = new AppliedCouponDTO();
-                couponDTO.setCouponId(pc.getCoupon().getId());
-                couponDTO.setCouponCode(pc.getCoupon().getCode());
-                couponDTO.setDiscountType(pc.getCoupon().getDiscountType().name());
-                couponDTO.setDiscountApplied(pc.getDiscountApplied());
-                couponDTO.setAppliedAt(pc.getAppliedAt());
+                AppliedCouponDTO couponDTO = new AppliedCouponDTO(
+                    pc.getCoupon().getCode(),
+                    pc.getCoupon().getDiscountType(),
+                    pc.getDiscountApplied(),
+                    pc.getAppliedAt()
+                );
                 appliedCoupons.add(couponDTO);
             }
         }
