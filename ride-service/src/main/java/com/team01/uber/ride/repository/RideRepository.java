@@ -61,7 +61,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     @Modifying
     @Transactional
     @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :id AND STATUS = 'BUSY'", nativeQuery = true)
-    int setDriverAvailable(@Param("id") Long id);
+    int setBusyDriverAvailable(@Param("id") Long id);
 
     @Modifying
     @Query(value = "INSERT INTO payments (ride_id, user_id, amount, method, status, created_at) " +
