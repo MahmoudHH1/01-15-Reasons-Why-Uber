@@ -103,12 +103,6 @@ public class RideService {
             );
         }
 
-        // Validate key exists
-        boolean keyExists = rideRepository.existsMetadataKey(key);
-        if (!keyExists) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid key: " + key);
-        }
-
         return rideRepository.findByMetadataField(key, value);
     }
 
