@@ -182,6 +182,18 @@ public class RideService {
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
     }
 
+    public List<Ride> findByMetadata(String key, String value) {
+
+        // Validate key and value entered
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Metadata key and value parameters must not be empty"
+            );
+        }
+
+        return rideRepository.findByMetadataField(key, value);
+    }
 
     @Transactional
     public Ride completeRide(Long id) {

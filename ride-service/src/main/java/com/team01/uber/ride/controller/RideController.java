@@ -77,6 +77,13 @@ public class RideController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/metadata/search")
+    public List<Ride> searchByMetadata(
+            @RequestParam("key") String key,
+            @RequestParam("value") String value) {
+        return rideService.findByMetadata(key, value);
+    }
+
     @PutMapping("/{id}/complete")
     public ResponseEntity<Ride> completeRide(@PathVariable Long id) {
         Ride completedRide = rideService.completeRide(id);
