@@ -2,6 +2,8 @@ package com.team01.uber.driver.repository;
 
 import com.team01.uber.driver.model.DriverDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,5 +17,8 @@ public interface DriverDocumentRepository extends JpaRepository<DriverDocument, 
 
     boolean existsByIdAndDriverId(Long id, Long driverId);
 
+    @Query(value = "SELECT COUNT(*) > 0 FROM users WHERE id = :userId AND role = 'ADMIN'", nativeQuery = true)
+    boolean isAdminUser(@Param("userId") Long userId);
+  
     List<DriverDocument> findByExpiryDateBefore(LocalDate date);
 }

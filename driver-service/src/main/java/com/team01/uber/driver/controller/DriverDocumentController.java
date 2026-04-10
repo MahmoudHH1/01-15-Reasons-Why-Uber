@@ -1,5 +1,7 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.VerifyDocumentRequest;
+import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.service.DriverDocumentService;
 import jakarta.validation.Valid;
@@ -43,5 +45,11 @@ public class DriverDocumentController {
     public ResponseEntity<Void> deleteDocument(@PathVariable Long driverId, @PathVariable Long docId) {
         driverDocumentService.deleteDocument(driverId, docId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{docId}/verify")
+    public Driver verifyDocument(@PathVariable Long driverId, @PathVariable Long docId,
+                                 @Valid @RequestBody VerifyDocumentRequest request) {
+        return driverDocumentService.verifyDocument(driverId, docId, request.getVerifiedBy());
     }
 }
