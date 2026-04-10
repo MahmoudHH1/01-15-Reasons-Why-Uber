@@ -1,6 +1,8 @@
 package com.team01.uber.payment.controller;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
+import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
@@ -64,7 +66,7 @@ public class PaymentController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @Valid @RequestBody Payment payment) {
+    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment) {
         return ResponseEntity.ok(paymentService.updatePayment(id, payment));
     }
 
@@ -74,6 +76,13 @@ public class PaymentController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/reports/revenue")
+    public RevenueReportDTO getRevenueReport(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        return paymentService.getRevenueReport(startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+    }
+
     @GetMapping("/search")
     public List<Payment> searchPayments(
             @RequestParam(required = false) PaymentStatus status,
@@ -81,6 +90,15 @@ public class PaymentController {
             @RequestParam LocalDate endDate
     ) {
         return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+    }
+    @PutMapping("/{id}/retry")
+    public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.retryFailedPayment(id));
+    }
+
+    @GetMapping("/{paymentId}/details")
+    public ResponseEntity<PaymentDetailsDTO> getPaymentDetails(@PathVariable Long paymentId) {
+        return ResponseEntity.ok(paymentService.getPaymentDetails(paymentId));
     }
 
     @PostMapping("/ride/{rideId}")

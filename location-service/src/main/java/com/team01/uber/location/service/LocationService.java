@@ -7,21 +7,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import com.team01.uber.location.client.DriverLookupService;
-import com.team01.uber.location.dto.DriverMovementSummaryDTO;
-import com.team01.uber.location.dto.NearbyDriverDTO;
-import com.team01.uber.location.dto.StationaryDriverDTO;
-import com.team01.uber.location.model.Location;
-import com.team01.uber.location.repository.LocationRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.team01.uber.location.client.DriverLookupService;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
+import com.team01.uber.location.dto.DriverMovementSummaryDTO;
+import com.team01.uber.location.dto.NearbyDriverDTO;
+import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.repository.LocationRepository;
 
@@ -31,11 +26,9 @@ import jakarta.transaction.Transactional;
 public class LocationService {
 
     private final LocationRepository locationRepository;
-    private final DriverLookupService driverLookupService;
 
-    public LocationService(LocationRepository locationRepository, DriverLookupService driverLookupService) {
+    public LocationService(LocationRepository locationRepository) {
         this.locationRepository = locationRepository;
-        this.driverLookupService = driverLookupService;
     }
 
     public Location create(Location location) {
@@ -47,7 +40,7 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
         }
 
-        if (!driverLookupService.existsById(driverId)) {
+        if (locationRepository.countDriverById(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
@@ -82,14 +75,11 @@ public class LocationService {
 
     public Location update(Long id, Location location) {
         Location existing = getById(id);
-        if(existing == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Error 404");
-        }
-        existing.setDriverId(location.getDriverId());
-        existing.setLatitude(location.getLatitude());
-        existing.setLongitude(location.getLongitude());
-        existing.setTimestamp(location.getTimestamp());
-        existing.setMetadata(location.getMetadata());
+        if (location.getDriverId() != null) existing.setDriverId(location.getDriverId());
+        if (location.getLatitude() != null) existing.setLatitude(location.getLatitude());
+        if (location.getLongitude() != null) existing.setLongitude(location.getLongitude());
+        if (location.getTimestamp() != null) existing.setTimestamp(location.getTimestamp());
+        if (location.getMetadata() != null) existing.setMetadata(location.getMetadata());
         return locationRepository.save(existing);
     }
 
@@ -160,6 +150,12 @@ public class LocationService {
     }
 
     public List<Location> filterByMetadata(String key, String operator, String value) {
+        if (key == null || key.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "key must not be blank");
+        }
+        if (value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "value must not be blank");
+        }
         if (!Set.of("eq", "gt", "lt").contains(operator)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid operator: must be eq, gt, or lt");
         }
@@ -172,7 +168,7 @@ public class LocationService {
     }
 
     public Location getLatestByDriverId(Long driverId) {
-        if (!driverLookupService.existsById(driverId)) {
+        if (locationRepository.countDriverById(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
@@ -190,7 +186,7 @@ public class LocationService {
     }
 
     public DriverMovementSummaryDTO getDriverMovementSummary(Long driverId, String startDate, String endDate) {
-        if (!driverLookupService.existsById(driverId)) {
+        if (locationRepository.countDriverById(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
