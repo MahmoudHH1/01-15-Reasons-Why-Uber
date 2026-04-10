@@ -51,10 +51,11 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     @Query(value = "SELECT COUNT(*), COALESCE(SUM(fare), 0), COALESCE(AVG(fare), 0) " +
                    "FROM rides WHERE driver_id = :driverId " +
                    "AND status::text = 'COMPLETED' " +
-                   "AND CAST(completed_at AS date) BETWEEN :startDate AND :endDate",
+                   "AND CAST(requested_at AS date) BETWEEN :startDate AND :endDate",
            nativeQuery = true)
     Object[] getEarningsSummary(@Param("driverId") Long driverId,
                                 @Param("startDate") LocalDate startDate,
                                 @Param("endDate") LocalDate endDate);
+
 }
 
