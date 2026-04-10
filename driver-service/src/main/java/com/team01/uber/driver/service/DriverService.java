@@ -31,6 +31,11 @@ public class DriverService {
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.OFFLINE);
         }
+
+        if (driverRepository.findByLicenseNumber(driver.getLicenseNumber()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "License number already in use");
+        }
+
         return driverRepository.save(driver);
     }
 
