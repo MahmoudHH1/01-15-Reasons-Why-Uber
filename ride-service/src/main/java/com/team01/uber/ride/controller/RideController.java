@@ -3,6 +3,7 @@ package com.team01.uber.ride.controller;
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
+import com.team01.uber.ride.dto.RideDetailsDTO;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.http.HttpStatus;
@@ -58,6 +59,11 @@ public class RideController {
     @PutMapping("/{id}")
     public Ride updateRide(@PathVariable Long id, @RequestBody Ride ride) {
         return rideService.updateRide(id, ride);
+    }
+
+    @GetMapping("/{rideId}/details")
+    public ResponseEntity<RideDetailsDTO> getRideDetails(@PathVariable Long rideId) {
+        return ResponseEntity.ok(rideService.getRideDetails(rideId));
     }
 
     @DeleteMapping("/{id}")

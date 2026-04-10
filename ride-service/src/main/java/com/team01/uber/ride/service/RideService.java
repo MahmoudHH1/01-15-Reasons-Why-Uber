@@ -2,9 +2,14 @@ package com.team01.uber.ride.service;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.dto.RideDetailsDTO;
+import com.team01.uber.ride.dto.StopDetailDTO;
 import com.team01.uber.ride.enums.RideStatus;
+import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
+import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.repository.RideRepository;
+import com.team01.uber.ride.repository.RideStopRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,15 +17,18 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
 public class RideService {
 
     private final RideRepository rideRepository;
+    private final RideStopRepository rideStopRepository;
 
-    public RideService(RideRepository rideRepository) {
+    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository) {
         this.rideRepository = rideRepository;
+        this.rideStopRepository = rideStopRepository;
     }
 
     public Ride createRide(Ride ride) {
@@ -57,6 +65,23 @@ public class RideService {
         existing.setCompletedAt(updated.getCompletedAt());
 
         return rideRepository.save(existing);
+    }
+
+    public RideDetailsDTO getRideDetails(Long rideId) {
+        Ride ride = getRideById(rideId);
+
+        List<StopDetailDTO> stops = rideStopRepository.findByRideId(rideId)
+                .stream()
+                .sorted(Comparator.comparingInt(RideStop::getStopOrder))
+                .map(s -> new StopDetailDTO(s.getId(), s.getStopOrder(), s.getAddress(),
+                        s.getLatitude(), s.getLongitude(), s.getStatus(), s.getMetadata()))
+                .toList();
+
+        long completedStops = stops.stream().filter(s -> s.status() == RideStopStatus.REACHED).count();
+
+        return new RideDetailsDTO(ride.getId(), ride.getUserId(), ride.getDriverId(),
+                ride.getStatus(), ride.getFare(), ride.getMetadata(),
+                stops, stops.size(), completedStops);
     }
 
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
