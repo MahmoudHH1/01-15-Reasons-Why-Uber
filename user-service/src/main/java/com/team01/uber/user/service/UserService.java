@@ -151,14 +151,14 @@ public class UserService {
     }
 
     @Transactional
-    public void deactivateUser(Long userId) {
+    public User deactivateUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id: " + userId));
         if (userRepository.countActiveRides(userId) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
         }
         user.setStatus(UserStatus.DEACTIVATED);
-        userRepository.save(user);
+        return userRepository.save(user);
     }
 
     @Transactional
