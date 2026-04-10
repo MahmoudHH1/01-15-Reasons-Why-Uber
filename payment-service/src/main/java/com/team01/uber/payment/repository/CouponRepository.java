@@ -10,7 +10,7 @@ import java.util.List;
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
     @Query(value = """
-            SELECT c.id, c.code, c.discount_type, c.discount_value,
+            SELECT c.id, c.code, c.discount_type::text, c.discount_value,
                    c.current_uses, SUM(pc.discount_applied) AS total_discount_given,
                    c.active, c.expiry_date
             FROM coupons c
