@@ -1,5 +1,8 @@
 package com.team01.uber.ride.service;
 
+import com.team01.uber.ride.dto.RideWithStopsDTO;
+import com.team01.uber.ride.dto.StopRequestDTO;
+import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
@@ -7,8 +10,11 @@ import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -20,6 +26,47 @@ public class RideStopService {
     public RideStopService(RideStopRepository rideStopRepository, RideRepository rideRepository) {
         this.rideStopRepository = rideStopRepository;
         this.rideRepository = rideRepository;
+    }
+
+    @Transactional
+    public RideWithStopsDTO addStops(Long rideId, List<StopRequestDTO> requests) {
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot add stops to a ride that is not REQUESTED or ACCEPTED");
+        }
+
+        for (StopRequestDTO req : requests) {
+            if (req.latitude() == null || req.longitude() == null || req.address() == null || req.address().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each stop must have latitude, longitude, and address");
+            }
+        }
+
+        Integer maxOrder = rideStopRepository.findMaxStopOrderByRideId(rideId);
+        int nextOrder = (maxOrder == null ? 0 : maxOrder) + 1;
+
+        List<RideStop> newStops = new ArrayList<>();
+        for (StopRequestDTO req : requests) {
+            RideStop stop = new RideStop();
+            stop.setRide(ride);
+            stop.setLatitude(req.latitude());
+            stop.setLongitude(req.longitude());
+            stop.setAddress(req.address());
+            stop.setMetadata(req.metadata());
+            stop.setStatus(RideStopStatus.PENDING);
+            stop.setStopOrder(nextOrder++);
+            newStops.add(stop);
+        }
+
+        rideStopRepository.saveAll(newStops);
+
+        List<RideStop> allStops = rideStopRepository.findByRideId(rideId)
+                .stream()
+                .sorted(Comparator.comparingInt(RideStop::getStopOrder))
+                .toList();
+
+        return new RideWithStopsDTO(ride, allStops);
     }
 
     public RideStop createStop(Long rideId, RideStop stop) {
