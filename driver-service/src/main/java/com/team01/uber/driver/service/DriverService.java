@@ -158,8 +158,6 @@ public class DriverService {
         Driver driver = getDriverById(driverId);
 
         Object[] row = driverRepository.getEarningsSummary(driverId, startDate, endDate);
-        // native query returns a single-row result; each element is a column value
-        // Spring Data may wrap as Object[] where element 0 is itself an Object[] row
         if (row.length > 0 && row[0] instanceof Object[]) {
             row = (Object[]) row[0];
         }
