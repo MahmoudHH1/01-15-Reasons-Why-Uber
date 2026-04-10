@@ -1,9 +1,11 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
+import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,14 +23,21 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final CouponService couponService;
 
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, CouponService couponService) {
         this.paymentService = paymentService;
+        this.couponService = couponService;
     }
 
     @GetMapping("/health")
     public String health() {
         return "OK";
+    }
+
+    @GetMapping("/coupons/top-used")
+    public ResponseEntity<List<CouponUsageDTO>> getTopUsedCoupons(@RequestParam int limit) {
+        return ResponseEntity.ok(couponService.getMostUsedCoupons(limit));
     }
 
     @GetMapping("/user/{userId}/summary")
