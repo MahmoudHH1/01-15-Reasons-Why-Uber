@@ -302,10 +302,6 @@ public class RideService {
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
-        if (updated.getDriverId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver ID cannot be null");
-        }
-
         if (updated.getPickupLatitude() == null || updated.getPickupLongitude() == null ||
             updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location fields (pickup and dropoff latitude/longitude) cannot be null");
