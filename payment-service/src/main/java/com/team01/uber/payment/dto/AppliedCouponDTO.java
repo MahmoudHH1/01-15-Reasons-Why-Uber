@@ -1,17 +1,15 @@
 package com.team01.uber.payment.dto;
 
+import com.team01.uber.payment.model.DiscountType;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
-
 import java.time.LocalDateTime;
 
 @Getter
-@Setter
+@AllArgsConstructor
 public class AppliedCouponDTO {
-
-    private Long couponId;
     private String couponCode;
-    private String discountType;
+    private DiscountType discountType;
     private Double discountApplied;
     private LocalDateTime appliedAt;
 }

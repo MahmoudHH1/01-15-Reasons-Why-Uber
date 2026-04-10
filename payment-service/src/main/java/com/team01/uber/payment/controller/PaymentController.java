@@ -1,5 +1,6 @@
 package com.team01.uber.payment.controller;
 
+import com.team01.uber.payment.dto.PaymentDetailsDTO;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
@@ -84,6 +85,11 @@ public class PaymentController {
     @PutMapping("/{id}/retry")
     public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {
         return ResponseEntity.ok(paymentService.retryFailedPayment(id));
+    }
+
+    @GetMapping("/{paymentId}/details")
+    public ResponseEntity<PaymentDetailsDTO> getPaymentDetails(@PathVariable Long paymentId) {
+        return ResponseEntity.ok(paymentService.getPaymentDetails(paymentId));
     }
 
     @PostMapping("/ride/{rideId}")

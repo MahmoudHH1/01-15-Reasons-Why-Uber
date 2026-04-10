@@ -35,6 +35,9 @@ public class DriverService {
         if (driverRepository.findByLicenseNumber(driver.getLicenseNumber()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "License number already in use");
         }
+        else if (driverRepository.findByEmail(driver.getEmail()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+        }
 
         return driverRepository.save(driver);
     }

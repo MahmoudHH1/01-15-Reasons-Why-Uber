@@ -27,6 +27,9 @@ public class GlobalExceptionHandler {
         String message = ex.getMostSpecificCause().getMessage();
         if (message != null && message.contains("license")) {
             error.put("error", "License number already in use");
+        }
+        else if (message != null && message.contains("email")) {
+            error.put("error", "Email already in use");
         } else {
             error.put("error", "Duplicate value violates unique constraint");
         }
