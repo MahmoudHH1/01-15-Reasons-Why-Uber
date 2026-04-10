@@ -87,6 +87,19 @@ public class RideController {
         return ResponseEntity.ok(rideService.getRideAnalytics(startDate, endDate));
     }
 
+    @GetMapping("/metadata/search")
+    public List<Ride> searchByMetadata(
+            @RequestParam("key") String key,
+            @RequestParam("value") String value) {
+        return rideService.findByMetadata(key, value);
+    }
+
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<Ride> completeRide(@PathVariable Long id) {
+        Ride completedRide = rideService.completeRide(id);
+        return ResponseEntity.ok(completedRide);
+    }
+    
     @PutMapping("/{id}/assign")
     public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
         return rideService.assignDriver(id, driverId);

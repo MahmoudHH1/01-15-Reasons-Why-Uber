@@ -9,12 +9,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+
 import java.util.List;
 
 public interface RideRepository extends JpaRepository<Ride, Long> {
-
     // Cross-service: queries the shared drivers table directly
     @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id", nativeQuery = true)
     boolean driverExists(@Param("id") Long id);
@@ -40,6 +41,11 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
 
 
+    @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value"
+            , nativeQuery = true)
+    List<Ride> findByMetadataField(@Param("key") String key, @Param("value") String value);
+  
+  
     @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end ORDER BY r.requestedAt DESC")
     List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
             @Param("start") LocalDateTime start,
@@ -52,4 +58,27 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             @Param("end") LocalDateTime end,
             @Param("status") RideStatus status
     );
+
+
+    @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id AND status = 'BUSY'", nativeQuery = true)
+    boolean isDriverBusy(@Param("id") Long id);
+
+    @Query(value = "SELECT COALESCE(preferences->>'defaultPaymentMethod', 'CASH') FROM users WHERE id = :userId", nativeQuery = true)
+    String getDefaultPaymentMethod(@Param("userId") Long userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :id AND STATUS = 'BUSY'", nativeQuery = true)
+    int setBusyDriverAvailable(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "INSERT INTO payments (ride_id, user_id, amount, method, status, created_at) " +
+            "VALUES (:rideId, :userId, :amount, CAST(:method AS payment_method), CAST(:status AS payment_status), :createdAt)",
+            nativeQuery = true)
+    void createPayment(@Param("rideId") Long rideId,
+                       @Param("userId") Long userId,
+                       @Param("amount") Double amount,
+                       @Param("method") String method,
+                       @Param("status") String status,
+                       @Param("createdAt") LocalDateTime createdAt);
 }
