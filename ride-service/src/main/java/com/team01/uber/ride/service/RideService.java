@@ -249,12 +249,9 @@ public class RideService {
             );
         }
 
-        // Validate driver is assigned
-        if (ride.getDriverId() == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Cannot complete ride without assigned driver"
-            );
+
+        if (ride.getDriverId() == null || !rideRepository.driverExists(ride.getDriverId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
         // Validate driver status is busy
@@ -282,19 +279,18 @@ public class RideService {
         }
 
         // Update driver status to AVAILABLE
-        rideRepository.setBusyDriverAvailable(ride.getDriverId());
+        rideRepository.setDriverAvailable(ride.getDriverId());
 
         // Create payment record
-        String paymentMethod = rideRepository.getDefaultPaymentMethod(ride.getUserId());
-        
-        rideRepository.createPayment(
-                ride.getId(),
-                ride.getUserId(),
-                ride.getFare(),
-                "CASH",
-                "PENDING",
-                LocalDateTime.now()
-        );
+
+        try {
+            rideRepository.createPayment(
+                    ride.getId(),
+                    ride.getUserId(),
+                    ride.getFare(),
+                    LocalDateTime.now()
+            );
+        } catch (Exception ignored) {}
 
         // Save ride and return the updated entity
         return rideRepository.save(ride);
