@@ -40,9 +40,12 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             nativeQuery = true)
     long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
 
+
     @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value"
             , nativeQuery = true)
     List<Ride> findByMetadataField(@Param("key") String key, @Param("value") String value);
+  
+  
     @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end ORDER BY r.requestedAt DESC")
     List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
             @Param("start") LocalDateTime start,

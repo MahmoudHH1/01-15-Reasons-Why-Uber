@@ -2,6 +2,7 @@ package com.team01.uber.ride.service;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.dto.RideAnalyticsDTO;
 import com.team01.uber.ride.dto.RideDetailsDTO;
 import com.team01.uber.ride.dto.StopDetailDTO;
 import com.team01.uber.ride.enums.RideStatus;
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -182,6 +184,46 @@ public class RideService {
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
     }
 
+    public RideAnalyticsDTO getRideAnalytics(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.atTime(LocalTime.MAX);
+
+        List<Ride> rides = rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+
+        long totalRides = rides.size();
+
+
+        long completedRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED)
+                .count();
+
+        long cancelledRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.CANCELLED)
+                .count();
+
+        double totalRevenue = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED && r.getFare() != null)
+                .mapToDouble(Ride::getFare)
+                .sum();
+
+        double averageFare = completedRides > 0
+                ? totalRevenue / completedRides
+                : 0.0;
+
+        double completionRate = totalRides > 0
+                ? ((double) completedRides / totalRides) * 100.0
+                : 0.0;
+
+        return new RideAnalyticsDTO(
+                totalRides,
+                completedRides,
+                cancelledRides,
+                totalRevenue,
+                averageFare,
+                completionRate
+        );
+    }
+  
     public List<Ride> findByMetadata(String key, String value) {
 
         // Validate key and value entered
