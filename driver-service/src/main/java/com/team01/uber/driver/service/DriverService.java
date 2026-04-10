@@ -31,6 +31,11 @@ public class DriverService {
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.OFFLINE);
         }
+
+        if (driverRepository.findByEmail(driver.getEmail()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+        }
+
         return driverRepository.save(driver);
     }
 
