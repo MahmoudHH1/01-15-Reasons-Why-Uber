@@ -2,6 +2,7 @@ package com.team01.uber.user.controller;
 
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -86,5 +87,23 @@ public class UserController {
     public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
         userService.deactivateUser(id);
         return ResponseEntity.ok().build();
+    }
+    @PutMapping("/{userId}/addresses/{addressId}/default")
+    public ResponseEntity<User> setDefaultAddress(
+            @PathVariable Long userId,
+            @PathVariable Long addressId) {
+        return ResponseEntity.ok(userService.setDefaultAddress(userId, addressId));
+    }
+
+    @GetMapping("/preferences/language")
+    public ResponseEntity<List<User>> getUsersByLanguage(
+            @RequestParam String lang,
+            @RequestParam int minRides) {
+        return ResponseEntity.ok(userService.findUsersByLanguageWithMinRides(lang, minRides));
+    }
+  
+    @GetMapping("/{id}/profile")
+    public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserProfile(id));
     }
 }

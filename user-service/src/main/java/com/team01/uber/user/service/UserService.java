@@ -1,9 +1,13 @@
 package com.team01.uber.user.service;
 
 import com.team01.uber.user.dto.UserRideSummaryDTO;
+import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
+import com.team01.uber.user.model.SavedAddress;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
+import com.team01.uber.user.repository.SavedAddressRepository;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,8 +23,11 @@ import java.util.Map;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final SavedAddressRepository savedAddressRepository;
 
-    public UserService(UserRepository userRepository) {
+
+    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository) {
+        this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
     }
 
@@ -153,4 +160,57 @@ public class UserService {
         user.setStatus(UserStatus.DEACTIVATED);
         userRepository.save(user);
     }
+
+    @Transactional
+    public User setDefaultAddress(Long userId, Long addressId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        SavedAddress target = savedAddressRepository.findById(addressId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Address not found"));
+
+        if (!target.getUser().getId().equals(userId)) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Address does not belong to this user");
+        }
+
+        savedAddressRepository.clearDefaultForUser(userId);
+        target.setIsDefault(true);
+        savedAddressRepository.save(target);
+
+        return userRepository.findById(userId).get();
+    }
+    public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
+        if (lang == null || lang.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
+        }
+        return userRepository.findByLanguagePreferenceWithMinRides(lang, minRides);
+    }
+
+    public UserProfileDTO getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        List<AddressDTO> addressDTOs = user.getSavedAddresses().stream()
+                .map(addr -> new AddressDTO(
+                        addr.getId(),
+                        addr.getLabel(),
+                        addr.getAddress(),
+                        addr.getLatitude(),
+                        addr.getLongitude(),
+                        addr.getIsDefault(),
+                        addr.getMetadata()
+                ))
+                .toList();
+
+        return new UserProfileDTO(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getPreferences(),
+                addressDTOs
+        );
+    }   
+
+
 }
