@@ -1,8 +1,13 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.dto.UserRideSummaryDTO;
+import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
+import com.team01.uber.user.dto.UserProfileDTO;
+import com.team01.uber.user.model.SavedAddress;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
+import com.team01.uber.user.repository.SavedAddressRepository;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,13 +17,17 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
+    private final SavedAddressRepository savedAddressRepository;
 
-    public UserService(UserRepository userRepository) {
+
+    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository) {
+        this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
     }
 
@@ -50,7 +59,6 @@ public class UserService {
         existing.setPhone(updated.getPhone());
         existing.setRole(updated.getRole());
         existing.setStatus(updated.getStatus());
-
         existing.setPreferences(updated.getPreferences());
 
         return userRepository.save(existing);
@@ -64,44 +72,66 @@ public class UserService {
     }
 
     private void validateRequiredUpdateKeys(User updated) {
-        if (updated.getName() == null) {
+        if (updated.getName() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name cannot be null");
-        }
-        if (updated.getEmail() == null) {
+        if (updated.getEmail() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email cannot be null");
-        }
-        if (updated.getPassword() == null) {
+        if (updated.getPassword() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password cannot be null");
-        }
-        if (updated.getPhone() == null) {
+        if (updated.getPhone() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone cannot be null");
-        }
-        if (updated.getRole() == null) {
+        if (updated.getRole() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role cannot be null");
-        }
-        if (updated.getStatus() == null) {
+        if (updated.getStatus() == null)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
+    }
+
+    public UserRideSummaryDTO getRideSummary(Long userId) {
+        getUserById(userId);
+        Object[] row = userRepository.getRideSummary(userId);
+        if (row == null || row.length == 0) {
+            return new UserRideSummaryDTO(userId, null, 0L, 0L, 0L, 0.0, 0.0);
         }
+        Object[] data = (Object[]) row[0];
+        return new UserRideSummaryDTO(
+            ((Number) data[0]).longValue(),
+            (String) data[1],
+            ((Number) data[2]).longValue(),
+            ((Number) data[3]).longValue(),
+            ((Number) data[4]).longValue(),
+            ((Number) data[5]).doubleValue(),
+            ((Number) data[6]).doubleValue()
+        );
+    }
+
+    public User updatePreferences(Long id, Map<String, Object> incoming) {
+        User user = getUserById(id);
+        Map<String, Object> current = user.getPreferences();
+        if (current == null) {
+            user.setPreferences(incoming);
+        } else {
+            current.putAll(incoming);
+            user.setPreferences(current);
+        }
+        return userRepository.save(user);
     }
 
     public List<User> searchUsers(String name, String email, String role) {
-    return userRepository.searchUsers(name, email, role);
-}
+        return userRepository.searchUsers(name, email, role);
+    }
+
     public List<TopRiderDTO> getTopRiders(String startDate, String endDate, int limit) {
         LocalDateTime start;
         LocalDateTime end;
-
         try {
             start = LocalDate.parse(startDate).atStartOfDay();
             end = LocalDate.parse(endDate).atTime(23, 59, 59);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use yyyy-MM-dd");
         }
-
         if (start.isAfter(end)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must not be after endDate");
         }
-
         return userRepository.findTopRiders(start, end, limit)
                 .stream()
                 .map(row -> new TopRiderDTO(
@@ -112,24 +142,75 @@ public class UserService {
                 ))
                 .toList();
     }
-  
+
     public List<User> searchByPreference(String key, String value) {
         if (key == null || key.isBlank() || value == null || value.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Key and value must not be blank");
         }
         return userRepository.findByPreference(key, value);
     }
-  
+
     @Transactional
     public void deactivateUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id: " + userId));
-
         if (userRepository.countActiveRides(userId) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
         }
-
         user.setStatus(UserStatus.DEACTIVATED);
         userRepository.save(user);
     }
+
+    @Transactional
+    public User setDefaultAddress(Long userId, Long addressId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        SavedAddress target = savedAddressRepository.findById(addressId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Address not found"));
+
+        if (!target.getUser().getId().equals(userId)) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Address does not belong to this user");
+        }
+
+        savedAddressRepository.clearDefaultForUser(userId);
+        target.setIsDefault(true);
+        savedAddressRepository.save(target);
+
+        return userRepository.findById(userId).get();
+    }
+    public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
+        if (lang == null || lang.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
+        }
+        return userRepository.findByLanguagePreferenceWithMinRides(lang, minRides);
+    }
+
+    public UserProfileDTO getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        List<AddressDTO> addressDTOs = user.getSavedAddresses().stream()
+                .map(addr -> new AddressDTO(
+                        addr.getId(),
+                        addr.getLabel(),
+                        addr.getAddress(),
+                        addr.getLatitude(),
+                        addr.getLongitude(),
+                        addr.getIsDefault(),
+                        addr.getMetadata()
+                ))
+                .toList();
+
+        return new UserProfileDTO(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getPreferences(),
+                addressDTOs
+        );
+    }   
+
+
 }

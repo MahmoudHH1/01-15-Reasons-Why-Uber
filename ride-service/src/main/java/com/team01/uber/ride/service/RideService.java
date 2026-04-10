@@ -2,9 +2,15 @@ package com.team01.uber.ride.service;
 
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
+import com.team01.uber.ride.dto.RideDetailsDTO;
+import com.team01.uber.ride.dto.StopDetailDTO;
 import com.team01.uber.ride.enums.RideStatus;
+import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
+import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.repository.RideRepository;
+import com.team01.uber.ride.repository.RideStopRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,16 +18,21 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 
 @Service
 public class RideService {
 
     private final RideRepository rideRepository;
+    private final RideStopRepository rideStopRepository;
 
-    public RideService(RideRepository rideRepository) {
+    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository) {
         this.rideRepository = rideRepository;
+        this.rideStopRepository = rideStopRepository;
     }
 
     public Ride createRide(Ride ride) {
@@ -53,11 +64,51 @@ public class RideService {
         existing.setDropoffLongitude(updated.getDropoffLongitude());
         existing.setStatus(updated.getStatus());
 
-        existing.setFare(updated.getFare()); // nullable field on the DB
-        existing.setMetadata(updated.getMetadata()); // nullable field on the DB
-        existing.setCompletedAt(updated.getCompletedAt()); // nullable field on the DB
+        existing.setFare(updated.getFare());
+        existing.setMetadata(updated.getMetadata());
+        existing.setCompletedAt(updated.getCompletedAt());
 
         return rideRepository.save(existing);
+    }
+
+    public RideDetailsDTO getRideDetails(Long rideId) {
+        Ride ride = getRideById(rideId);
+
+        List<StopDetailDTO> stops = rideStopRepository.findByRideId(rideId)
+                .stream()
+                .sorted(Comparator.comparingInt(RideStop::getStopOrder))
+                .map(s -> new StopDetailDTO(s.getId(), s.getStopOrder(), s.getAddress(),
+                        s.getLatitude(), s.getLongitude(), s.getStatus(), s.getMetadata()))
+                .toList();
+
+        long completedStops = stops.stream().filter(s -> s.status() == RideStopStatus.REACHED).count();
+
+        return new RideDetailsDTO(ride.getId(), ride.getUserId(), ride.getDriverId(),
+                ride.getStatus(), ride.getFare(), ride.getMetadata(),
+                stops, stops.size(), completedStops);
+    }
+
+    @Transactional
+    public Ride cancelRide(Long id) {
+        Ride ride = getRideById(id);
+
+        Set<RideStatus> activeStatuses = EnumSet.of(RideStatus.REQUESTED, RideStatus.ACCEPTED);
+        if (!activeStatuses.contains(ride.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only REQUESTED or ACCEPTED rides can be cancelled");
+        }
+
+        if (ride.getDriverId() != null) {
+            if (!rideRepository.driverExists(ride.getDriverId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assigned driver not found or is not available");
+            }
+
+            if(rideRepository.setDriverAvailable(ride.getDriverId()) == 0){
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to AVAILABLE");
+            }
+        }
+
+        ride.setStatus(RideStatus.CANCELLED);
+        return rideRepository.save(ride);
     }
 
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
@@ -74,6 +125,33 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
         rideRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Ride assignDriver(Long rideId, Long driverId) {
+        Ride ride = getRideById(rideId);
+
+        if (ride.getStatus() != RideStatus.REQUESTED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
+        }
+
+        if (!rideRepository.driverExists(driverId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        if (!rideRepository.isDriverAvailable(driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
+        }
+
+        ride.setDriverId(driverId);
+        ride.setStatus(RideStatus.ACCEPTED);
+        rideRepository.save(ride);
+
+        if(rideRepository.setDriverBusy(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to BUSY. Driver may have become unavailable.");
+        }
+
+        return ride;
     }
 
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {

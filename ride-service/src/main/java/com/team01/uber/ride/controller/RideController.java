@@ -3,6 +3,7 @@ package com.team01.uber.ride.controller;
 import com.team01.uber.ride.dto.FareEstimateDTO;
 import com.team01.uber.ride.dto.FareEstimateRequestDTO;
 import com.team01.uber.ride.enums.RideStatus;
+import com.team01.uber.ride.dto.RideDetailsDTO;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.http.HttpStatus;
@@ -60,6 +61,16 @@ public class RideController {
         return rideService.updateRide(id, ride);
     }
 
+    @GetMapping("/{rideId}/details")
+    public ResponseEntity<RideDetailsDTO> getRideDetails(@PathVariable Long rideId) {
+        return ResponseEntity.ok(rideService.getRideDetails(rideId));
+    }
+
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Ride> cancelRide(@PathVariable Long id) {
+        return ResponseEntity.ok(rideService.cancelRide(id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRide(@PathVariable Long id) {
         rideService.deleteRide(id);
@@ -70,5 +81,9 @@ public class RideController {
     public ResponseEntity<Ride> completeRide(@PathVariable Long id) {
         Ride completedRide = rideService.completeRide(id);
         return ResponseEntity.ok(completedRide);
+      
+    @PutMapping("/{id}/assign")
+    public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
+        return rideService.assignDriver(id, driverId);
     }
 }

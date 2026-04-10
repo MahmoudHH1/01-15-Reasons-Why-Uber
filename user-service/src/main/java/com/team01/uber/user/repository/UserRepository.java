@@ -13,6 +13,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhone(String phone);
 
     @Query(value = """
+            SELECT 
+                u.id AS userId,
+                u.name AS name,
+                COUNT(r.id) AS totalRides,
+                COUNT(CASE WHEN r.status = 'COMPLETED' THEN 1 END) AS completedRides,
+                COUNT(CASE WHEN r.status = 'CANCELLED' THEN 1 END) AS cancelledRides,
+                COALESCE(SUM(CASE WHEN r.status = 'COMPLETED' THEN r.fare ELSE 0 END), 0) AS totalSpent,
+                COALESCE(AVG(CASE WHEN r.status = 'COMPLETED' THEN r.fare END), 0) AS averageFare
+            FROM users u
+            LEFT JOIN rides r ON r.user_id = u.id
+            WHERE u.id = :userId
+            GROUP BY u.id, u.name
+            """, nativeQuery = true)
+    Object[] getRideSummary(@Param("userId") Long userId);
+
+    @Query(value = """
             SELECT * FROM users
             WHERE (:name IS NULL OR LOWER(name) LIKE LOWER(CONCAT('%', :name, '%')))
             AND (:email IS NULL OR LOWER(email) LIKE LOWER(CONCAT('%', :email, '%')))
@@ -42,4 +58,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT COUNT(*) FROM rides WHERE user_id = :userId AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
     int countActiveRides(@Param("userId") Long userId);
+    @Query(value = """
+        SELECT u.* FROM users u
+        WHERE u.preferences->>'language' = :lang
+        AND (
+            SELECT COUNT(*) FROM rides r
+            WHERE r.user_id = u.id AND r.status = 'COMPLETED'
+        ) >= :minRides
+        """, nativeQuery = true)
+        List<User> findByLanguagePreferenceWithMinRides(
+        @Param("lang") String lang,
+        @Param("minRides") int minRides
+        );
 }
