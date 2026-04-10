@@ -187,7 +187,7 @@ public class RideService {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.atTime(LocalTime.MAX);
 
-        List<Ride> rides = rideRepository.findByRequestedAtBetween(start, end);
+        List<Ride> rides = rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
 
         long totalRides = rides.size();
 
@@ -205,9 +205,13 @@ public class RideService {
                 .mapToDouble(Ride::getFare)
                 .sum();
 
-        double averageFare = completedRides > 0 ? totalRevenue / completedRides : 0.0;
+        double averageFare = completedRides > 0
+                ? totalRevenue / completedRides
+                : 0.0;
 
-        double completionRate = ((double) completedRides / totalRides) * 100.0;
+        double completionRate = totalRides > 0
+                ? ((double) completedRides / totalRides) * 100.0
+                : 0.0;
 
         return new RideAnalyticsDTO(
                 totalRides,

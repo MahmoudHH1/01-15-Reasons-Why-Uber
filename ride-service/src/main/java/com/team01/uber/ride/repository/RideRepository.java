@@ -39,7 +39,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             nativeQuery = true)
     long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
 
-    List<Ride> findByRequestedAtBetween(LocalDateTime start, LocalDateTime end);
+
     @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end ORDER BY r.requestedAt DESC")
     List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
             @Param("start") LocalDateTime start,
