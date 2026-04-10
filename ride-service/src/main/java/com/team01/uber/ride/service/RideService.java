@@ -22,6 +22,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+
 @Service
 public class RideService {
 
@@ -179,6 +180,71 @@ public class RideService {
         double fare = 15.0 * distance * surgeMultiplier;
 
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
+    }
+
+
+    @Transactional
+    public Ride completeRide(Long id) {
+        Ride ride = getRideById(id);
+
+        // Validate status is IN_PROGRESS - throws 400 if not
+        if (ride.getStatus() != RideStatus.IN_PROGRESS) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only rides with IN_PROGRESS status can be completed. Current status: " + ride.getStatus()
+            );
+        }
+
+        // Validate driver is assigned
+        if (ride.getDriverId() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot complete ride without assigned driver"
+            );
+        }
+
+        // Validate driver status is busy
+        if (!rideRepository.isDriverBusy(ride.getDriverId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Driver must be BUSY to complete a ride. Driver ID: " + ride.getDriverId()
+            );
+        }
+
+        // Set status to COMPLETED and set completedAt timestamp
+        ride.setStatus(RideStatus.COMPLETED);
+        ride.setCompletedAt(LocalDateTime.now());
+
+        // Calculate fare if not already set
+        if (ride.getFare() == null) {
+            FareEstimateRequestDTO fareRequest = new FareEstimateRequestDTO(
+                    ride.getPickupLatitude(),
+                    ride.getPickupLongitude(),
+                    ride.getDropoffLatitude(),
+                    ride.getDropoffLongitude()
+            );
+            FareEstimateDTO fareEstimate = estimateFare(fareRequest);
+            ride.setFare(fareEstimate.estimatedFare());
+        }
+
+        // Update driver status to AVAILABLE
+        rideRepository.setBusyDriverAvailable(ride.getDriverId());
+
+        // Create payment record
+        String paymentMethod = rideRepository.getDefaultPaymentMethod(ride.getUserId());
+        
+        rideRepository.createPayment(
+                ride.getId(),
+                ride.getUserId(),
+                ride.getFare(),
+                "CASH",
+                "PENDING",
+                LocalDateTime.now()
+        );
+
+        // Save ride and return the updated entity
+        return rideRepository.save(ride);
+
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {

@@ -77,6 +77,12 @@ public class RideController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<Ride> completeRide(@PathVariable Long id) {
+        Ride completedRide = rideService.completeRide(id);
+        return ResponseEntity.ok(completedRide);
+    }
+    
     @PutMapping("/{id}/assign")
     public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
         return rideService.assignDriver(id, driverId);
