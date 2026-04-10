@@ -1,5 +1,7 @@
 package com.team01.uber.driver.controller;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,5 +19,17 @@ public class GlobalExceptionHandler {
         ex.getBindingResult().getFieldErrors()
                 .forEach(e -> errors.put(e.getField(), e.getDefaultMessage()));
         return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        Map<String, String> error = new HashMap<>();
+        String message = ex.getMostSpecificCause().getMessage();
+        if (message != null && message.contains("email")) {
+            error.put("error", "Email already in use");
+        } else {
+            error.put("error", "Duplicate value violates unique constraint");
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 }
