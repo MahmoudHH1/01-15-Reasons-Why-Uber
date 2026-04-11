@@ -6,11 +6,13 @@ import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
+import com.team01.uber.payment.service.PaymentCouponService;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.team01.uber.payment.dto.PaymentWithCouponsDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.RefundRequest;
 import com.team01.uber.payment.model.PaymentStatus;
@@ -24,10 +26,13 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final CouponService couponService;
+    private final PaymentCouponService paymentCouponService;
 
-    public PaymentController(PaymentService paymentService, CouponService couponService) {
+    public PaymentController(PaymentService paymentService, CouponService couponService,
+                             PaymentCouponService paymentCouponService) {
         this.paymentService = paymentService;
         this.couponService = couponService;
+        this.paymentCouponService = paymentCouponService;
     }
 
     @GetMapping("/health")
@@ -99,6 +104,12 @@ public class PaymentController {
     @GetMapping("/{paymentId}/details")
     public ResponseEntity<PaymentDetailsDTO> getPaymentDetails(@PathVariable Long paymentId) {
         return ResponseEntity.ok(paymentService.getPaymentDetails(paymentId));
+    }
+
+    @PostMapping("/{paymentId}/coupons/{couponId}")
+    public ResponseEntity<PaymentWithCouponsDTO> applyCouponToPayment(@PathVariable Long paymentId,
+                                                                      @PathVariable Long couponId) {
+        return ResponseEntity.ok(paymentCouponService.applyCouponToPayment(paymentId, couponId));
     }
 
     @PostMapping("/ride/{rideId}")

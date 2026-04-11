@@ -64,7 +64,7 @@ public class CouponService {
                         ((Number) row[4]).intValue(),
                         ((Number) row[5]).doubleValue(),
                         (Boolean) row[6],
-                        ((java.sql.Timestamp) row[7]).toLocalDateTime().isBefore(LocalDateTime.now())
+                        ((LocalDateTime) row[7]).isBefore(LocalDateTime.now())
                 ))
                 .collect(Collectors.toList());
     }
