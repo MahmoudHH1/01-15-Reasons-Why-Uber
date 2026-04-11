@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -184,14 +185,15 @@ public class RideService {
         return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
     }
 
-    public RideAnalyticsDTO getRideAnalytics(LocalDate startDate, LocalDate endDate) {
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime end = endDate.atTime(LocalTime.MAX);
+    public RideAnalyticsDTO getRideAnalytics(String startDateStr, String endDateStr) {
+
+        // Parse the strings using our helper methods below
+        LocalDateTime start = parseStartDate(startDateStr);
+        LocalDateTime end = parseEndDate(endDateStr);
 
         List<Ride> rides = rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
 
         long totalRides = rides.size();
-
 
         long completedRides = rides.stream()
                 .filter(r -> r.getStatus() == RideStatus.COMPLETED)
@@ -222,6 +224,26 @@ public class RideService {
                 averageFare,
                 completionRate
         );
+    }
+
+    private LocalDateTime parseStartDate(String dateStr) {
+        try {
+            // Try parsing as full Date-Time (e.g., "2020-01-01T15:30:00")
+            return LocalDateTime.parse(dateStr);
+        } catch (DateTimeParseException e) {
+            // Fallback to Date only (e.g., "2020-01-01") and set to start of day
+            return LocalDate.parse(dateStr).atStartOfDay();
+        }
+    }
+
+    private LocalDateTime parseEndDate(String dateStr) {
+        try {
+            // Try parsing as full Date-Time
+            return LocalDateTime.parse(dateStr);
+        } catch (DateTimeParseException e) {
+            // Fallback to Date only and set to the very end of the day (23:59:59.999999999)
+            return LocalDate.parse(dateStr).atTime(LocalTime.MAX);
+        }
     }
   
     public List<Ride> findByMetadata(String key, String value) {
