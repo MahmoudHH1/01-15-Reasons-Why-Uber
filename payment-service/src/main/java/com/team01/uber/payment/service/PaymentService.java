@@ -122,7 +122,15 @@ public class PaymentService {
         }
 
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No pending payment found for this ride"));
+                .orElseGet(() -> {
+                    Payment newPayment = new Payment();
+                    newPayment.setRideId(rideId);
+                    newPayment.setUserId(paymentRepository.findRideUserIdById(rideId));
+                    Double fare = paymentRepository.findRideFareById(rideId);
+                    newPayment.setAmount(fare != null ? fare : 0.0);
+                    newPayment.setCreatedAt(LocalDateTime.now());
+                    return newPayment;
+                });
 
         payment.setMethod(request.getMethod());
         payment.setStatus(PaymentStatus.COMPLETED);

@@ -45,6 +45,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
     String findRideStatusById(@Param("rideId") Long rideId);
 
+    @Query(value = "SELECT fare FROM rides WHERE id = :rideId", nativeQuery = true)
+    Double findRideFareById(@Param("rideId") Long rideId);
+
+    @Query(value = "SELECT user_id FROM rides WHERE id = :rideId", nativeQuery = true)
+    Long findRideUserIdById(@Param("rideId") Long rideId);
+
     Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
 
     boolean existsByRideIdAndStatus(Long rideId, PaymentStatus status);
