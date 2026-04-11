@@ -81,8 +81,8 @@ public class RideController {
 
     @GetMapping("/analytics")
     public ResponseEntity<RideAnalyticsDTO> getAnalytics(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
 
         return ResponseEntity.ok(rideService.getRideAnalytics(startDate, endDate));
     }
