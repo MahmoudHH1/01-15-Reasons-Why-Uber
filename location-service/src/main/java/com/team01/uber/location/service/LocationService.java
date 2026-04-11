@@ -190,8 +190,8 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
-        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
-        LocalDateTime end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
 
         List<Object[]> results = locationRepository.getMovementSummary(driverId, start, end);
         Object[] row = results.get(0);
