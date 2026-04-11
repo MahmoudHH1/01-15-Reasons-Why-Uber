@@ -18,6 +18,7 @@ import com.team01.uber.payment.dto.RefundRequest;
 import com.team01.uber.payment.model.PaymentStatus;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -83,18 +84,34 @@ public class PaymentController {
 
     @GetMapping("/reports/revenue")
     public RevenueReportDTO getRevenueReport(
-            @RequestParam LocalDate startDate,
-            @RequestParam LocalDate endDate) {
-        return paymentService.getRevenueReport(startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        return paymentService.getRevenueReport(parseStartDate(startDate), parseEndDate(endDate));
     }
 
     @GetMapping("/search")
     public List<Payment> searchPayments(
             @RequestParam(required = false) PaymentStatus status,
-            @RequestParam LocalDate startDate,
-            @RequestParam LocalDate endDate
+            @RequestParam String startDate,
+            @RequestParam String endDate
     ) {
-        return paymentService.searchPayments(status, startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+        return paymentService.searchPayments(status, parseStartDate(startDate), parseEndDate(endDate));
+    }
+
+    private LocalDateTime parseStartDate(String dateStr) {
+        try {
+            return LocalDateTime.parse(dateStr);
+        } catch (java.time.format.DateTimeParseException e) {
+            return LocalDate.parse(dateStr).atStartOfDay();
+        }
+    }
+
+    private LocalDateTime parseEndDate(String dateStr) {
+        try {
+            return LocalDateTime.parse(dateStr);
+        } catch (java.time.format.DateTimeParseException e) {
+            return LocalDate.parse(dateStr).atTime(23, 59, 59);
+        }
     }
     @PutMapping("/{id}/retry")
     public ResponseEntity<Payment> retryPayment(@PathVariable Long id) {

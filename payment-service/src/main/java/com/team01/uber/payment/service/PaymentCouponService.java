@@ -127,7 +127,7 @@ public class PaymentCouponService {
 
     private PaymentWithCouponsDTO buildPaymentWithCouponsDTO(Payment payment) {
         PaymentWithCouponsDTO dto = new PaymentWithCouponsDTO();
-        dto.setPaymentId(payment.getId());
+        dto.setId(payment.getId());
         dto.setRideId(payment.getRideId());
         dto.setUserId(payment.getUserId());
         dto.setAmount(payment.getAmount());

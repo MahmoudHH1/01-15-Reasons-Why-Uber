@@ -13,7 +13,7 @@ import java.util.Map;
 @Setter
 public class PaymentWithCouponsDTO {
 
-    private Long paymentId;
+    private Long id;
     private Long rideId;
     private Long userId;
     private Double amount;
