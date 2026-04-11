@@ -199,8 +199,8 @@ public class LocationService {
         long totalPoints = ((Number) row[0]).longValue();
         Double avgSpeed = (totalPoints > 0 && row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
         Double maxSpeed = row[2] != null ? ((Number) row[2]).doubleValue() : null;
-        LocalDateTime firstTs = row[3] != null ? ((java.sql.Timestamp) row[3]).toLocalDateTime() : null;
-        LocalDateTime lastTs  = row[4] != null ? ((java.sql.Timestamp) row[4]).toLocalDateTime() : null;
+        LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
+        LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
 
         return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
     }
