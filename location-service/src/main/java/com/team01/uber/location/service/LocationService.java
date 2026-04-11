@@ -197,7 +197,7 @@ public class LocationService {
         Object[] row = results.get(0);
 
         long totalPoints = ((Number) row[0]).longValue();
-        Double avgSpeed = row[1] != null ? ((Number) row[1]).doubleValue() : null;
+        Double avgSpeed = (totalPoints > 0 && row[1] != null) ? ((Number) row[1]).doubleValue() : 0.0;
         Double maxSpeed = row[2] != null ? ((Number) row[2]).doubleValue() : null;
         LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
         LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;

@@ -70,11 +70,11 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
 
     @Query(value = """
             SELECT
-                COUNT(*)                                       AS total_location_points,
-                AVG((metadata->>'speed')::numeric)             AS average_speed,
-                MAX((metadata->>'speed')::numeric)             AS max_speed,
-                MIN(timestamp)                                 AS first_timestamp,
-                MAX(timestamp)                                 AS last_timestamp
+                COUNT(*)                                                                AS total_location_points,
+                COALESCE(AVG(NULLIF(metadata->>'speed', '')::numeric), 0)              AS average_speed,
+                MAX(NULLIF(metadata->>'speed', '')::numeric)                           AS max_speed,
+                MIN(timestamp)                                                          AS first_timestamp,
+                MAX(timestamp)                                                          AS last_timestamp
             FROM locations
             WHERE driver_id = :driverId
               AND timestamp BETWEEN :startDate AND :endDate
