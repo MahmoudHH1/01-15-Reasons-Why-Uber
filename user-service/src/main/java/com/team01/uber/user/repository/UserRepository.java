@@ -7,10 +7,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
     boolean existsByPhone(String phone);
+    Optional<User> findByEmail(String email);
 
     @Query(value = """
             SELECT 
@@ -58,6 +60,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT COUNT(*) FROM rides WHERE user_id = :userId AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
     int countActiveRides(@Param("userId") Long userId);
+
     @Query(value = """
         SELECT u.* FROM users u
         WHERE u.preferences->>'language' = :lang
@@ -66,8 +69,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE r.user_id = u.id AND r.status = 'COMPLETED'
         ) >= :minRides
         """, nativeQuery = true)
-        List<User> findByLanguagePreferenceWithMinRides(
-        @Param("lang") String lang,
-        @Param("minRides") int minRides
-        );
+    List<User> findByLanguagePreferenceWithMinRides(
+            @Param("lang") String lang,
+            @Param("minRides") int minRides);
 }
