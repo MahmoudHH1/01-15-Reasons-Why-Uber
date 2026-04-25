@@ -90,18 +90,20 @@ public class UserService {
         getUserById(userId);
         Object[] row = userRepository.getRideSummary(userId);
         if (row == null || row.length == 0) {
-            return new UserRideSummaryDTO(userId, null, 0L, 0L, 0L, 0.0, 0.0);
+            return UserRideSummaryDTO.builder()
+                    .userId(userId)
+                    .build();
         }
         Object[] data = (Object[]) row[0];
-        return new UserRideSummaryDTO(
-            ((Number) data[0]).longValue(),
-            (String) data[1],
-            ((Number) data[2]).longValue(),
-            ((Number) data[3]).longValue(),
-            ((Number) data[4]).longValue(),
-            ((Number) data[5]).doubleValue(),
-            ((Number) data[6]).doubleValue()
-        );
+        return UserRideSummaryDTO.builder()
+                .userId(((Number) data[0]).longValue())
+                .name((String) data[1])
+                .totalRides(((Number) data[2]).longValue())
+                .completedRides(((Number) data[3]).longValue())
+                .cancelledRides(((Number) data[4]).longValue())
+                .totalSpent(((Number) data[5]).doubleValue())
+                .averageFare(((Number) data[6]).doubleValue())
+                .build();
     }
 
     public User updatePreferences(Long id, Map<String, Object> incoming) {
@@ -191,25 +193,26 @@ public class UserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         List<AddressDTO> addressDTOs = user.getSavedAddresses().stream()
-                .map(addr -> new AddressDTO(
-                        addr.getId(),
-                        addr.getLabel(),
-                        addr.getAddress(),
-                        addr.getLatitude(),
-                        addr.getLongitude(),
-                        addr.getIsDefault(),
-                        addr.getMetadata()
-                ))
+                .map(addr -> AddressDTO.builder()
+                        .id(addr.getId())
+                        .label(addr.getLabel())
+                        .address(addr.getAddress())
+                        .latitude(addr.getLatitude())
+                        .longitude(addr.getLongitude())
+                        .isDefault(addr.getIsDefault())
+                        .metadata(addr.getMetadata())
+                        .build())
                 .toList();
 
-        return new UserProfileDTO(
-                user.getId(),
-                user.getName(),
-                user.getEmail(),
-                user.getPhone(),
-                user.getPreferences(),
-                addressDTOs
-        );
+        return UserProfileDTO.builder()
+                .userId(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .preferences(user.getPreferences())
+                .savedAddresses(addressDTOs)
+                .totalAddresses(addressDTOs.size())
+                .build();
     }   
 
 
