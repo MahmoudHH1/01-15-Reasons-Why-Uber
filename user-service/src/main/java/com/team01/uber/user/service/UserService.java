@@ -1,5 +1,6 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.adapter.ObjectArrayDtoAdapter;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
@@ -24,6 +25,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final SavedAddressRepository savedAddressRepository;
+    private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
 
 
     public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository) {
@@ -92,18 +94,16 @@ public class UserService {
         if (row == null || row.length == 0) {
             return UserRideSummaryDTO.builder()
                     .userId(userId)
+                    .name(null)
+                    .totalRides(0L)
+                    .completedRides(0L)
+                    .cancelledRides(0L)
+                    .totalSpent(0.0)
+                    .averageFare(0.0)
                     .build();
         }
         Object[] data = (Object[]) row[0];
-        return UserRideSummaryDTO.builder()
-                .userId(((Number) data[0]).longValue())
-                .name((String) data[1])
-                .totalRides(((Number) data[2]).longValue())
-                .completedRides(((Number) data[3]).longValue())
-                .cancelledRides(((Number) data[4]).longValue())
-                .totalSpent(((Number) data[5]).doubleValue())
-                .averageFare(((Number) data[6]).doubleValue())
-                .build();
+        return objectArrayDtoAdapter.adaptToUserRideSummary(data);
     }
 
     public User updatePreferences(Long id, Map<String, Object> incoming) {
@@ -136,12 +136,7 @@ public class UserService {
         }
         return userRepository.findTopRiders(start, end, limit)
                 .stream()
-                .map(row -> new TopRiderDTO(
-                        ((Number) row[0]).longValue(),
-                        (String) row[1],
-                        ((Number) row[2]).doubleValue(),
-                        ((Number) row[3]).longValue()
-                ))
+                .map(row -> objectArrayDtoAdapter.adaptToTopRider((Object[]) row))
                 .toList();
     }
 
