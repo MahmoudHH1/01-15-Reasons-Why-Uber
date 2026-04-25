@@ -1,5 +1,6 @@
 package com.team01.uber.location.model;
 
+import com.team01.uber.location.observer.MongoEvent;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -7,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Document(collection = "location_events")
-public class LocationEvent {
+public class LocationEvent implements MongoEvent {
 
     @Id
     private String id;
