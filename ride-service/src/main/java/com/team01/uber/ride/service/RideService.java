@@ -85,9 +85,17 @@ public class RideService {
 
         long completedStops = stops.stream().filter(s -> s.status() == RideStopStatus.REACHED).count();
 
-        return new RideDetailsDTO(ride.getId(), ride.getUserId(), ride.getDriverId(),
-                ride.getStatus(), ride.getFare(), ride.getMetadata(),
-                stops, stops.size(), completedStops);
+        return RideDetailsDTO.builder()
+                .rideId(ride.getId())
+                .userId(ride.getUserId())
+                .driverId(ride.getDriverId())
+                .status(ride.getStatus())
+                .fare(ride.getFare())
+                .metadata(ride.getMetadata())
+                .stops(stops)
+                .totalStops(stops.size())
+                .completedStops(completedStops)
+                .build();
     }
 
     @Transactional
@@ -182,7 +190,12 @@ public class RideService {
 
         double fare = 15.0 * distance * surgeMultiplier;
 
-        return new FareEstimateDTO(distance, duration, fare, surgeMultiplier);
+        return FareEstimateDTO.builder()
+                .estimatedDistance(distance)
+                .estimatedDuration(duration)
+                .estimatedFare(fare)
+                .surgeMultiplier(surgeMultiplier)
+                .build();
     }
 
     public RideAnalyticsDTO getRideAnalytics(String startDateStr, String endDateStr) {
@@ -216,14 +229,14 @@ public class RideService {
                 ? ((double) completedRides / totalRides) * 100.0
                 : 0.0;
 
-        return new RideAnalyticsDTO(
-                totalRides,
-                completedRides,
-                cancelledRides,
-                totalRevenue,
-                averageFare,
-                completionRate
-        );
+        return RideAnalyticsDTO.builder()
+                .totalRides(totalRides)
+                .completedRides(completedRides)
+                .cancelledRides(cancelledRides)
+                .totalRevenue(totalRevenue)
+                .averageFare(averageFare)
+                .completionRate(completionRate)
+                .build();
     }
 
     private LocalDateTime parseStartDate(String dateStr) {
@@ -297,7 +310,7 @@ public class RideService {
                     ride.getDropoffLongitude()
             );
             FareEstimateDTO fareEstimate = estimateFare(fareRequest);
-            ride.setFare(fareEstimate.estimatedFare());
+            ride.setFare(fareEstimate.getEstimatedFare());
         }
 
         // Update driver status to AVAILABLE
