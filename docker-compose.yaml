@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17
     container_name: uber-db
     environment:
       POSTGRES_USER: postgres
@@ -10,6 +10,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -34,8 +40,9 @@ services:
     ports:
       - "8083:8080"
     depends_on:
-      - postgres
-  
+      postgres:
+        condition: service_healthy
+
   user-service:
     build:
       context: ./user-service
@@ -48,8 +55,9 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      - postgres
-      
+      postgres:
+        condition: service_healthy
+
   driver-service:
     build:
       context: ./driver-service
@@ -62,7 +70,8 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   location-service:
     build:
@@ -76,8 +85,9 @@ services:
     ports:
       - "8084:8080"
     depends_on:
-      - postgres
-      
+      postgres:
+        condition: service_healthy
+
   payment-service:
     build:
       context: ./payment-service
@@ -90,7 +100,8 @@ services:
     ports:
       - "8085:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   mongo:
     image: mongo:latest
@@ -172,7 +183,7 @@ services:
     volumes:
       - cassandra-data:/var/lib/cassandra
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES'"]
+      test: ["CMD-SHELL", "nodetool status | grep UN || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
