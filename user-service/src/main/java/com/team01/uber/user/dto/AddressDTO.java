@@ -4,24 +4,22 @@ import java.util.Map;
 
 public class AddressDTO {
 
-    private Long id;
-    private String label;
-    private String address;
-    private Double latitude;
-    private Double longitude;
-    private Boolean isDefault;
-    private Map<String, Object> metadata;
+    private final Long id;
+    private final String label;
+    private final String address;
+    private final Double latitude;
+    private final Double longitude;
+    private final Boolean isDefault;
+    private final Map<String, Object> metadata;
 
-    public AddressDTO(Long id, String label, String address,
-                      Double latitude, Double longitude,
-                      Boolean isDefault, Map<String, Object> metadata) {
-        this.id = id;
-        this.label = label;
-        this.address = address;
-        this.latitude = latitude;
-        this.longitude = longitude;
-        this.isDefault = isDefault;
-        this.metadata = metadata;
+    private AddressDTO(Builder builder) {
+        this.id = builder.id;
+        this.label = builder.label;
+        this.address = builder.address;
+        this.latitude = builder.latitude;
+        this.longitude = builder.longitude;
+        this.isDefault = builder.isDefault;
+        this.metadata = builder.metadata;
     }
 
     public Long getId() { return id; }
@@ -31,4 +29,30 @@ public class AddressDTO {
     public Double getLongitude() { return longitude; }
     public Boolean getIsDefault() { return isDefault; }
     public Map<String, Object> getMetadata() { return metadata; }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Long id;
+        private String label;
+        private String address;
+        private Double latitude;
+        private Double longitude;
+        private Boolean isDefault;
+        private Map<String, Object> metadata;
+
+        public Builder id(Long id) { this.id = id; return this; }
+        public Builder label(String label) { this.label = label; return this; }
+        public Builder address(String address) { this.address = address; return this; }
+        public Builder latitude(Double latitude) { this.latitude = latitude; return this; }
+        public Builder longitude(Double longitude) { this.longitude = longitude; return this; }
+        public Builder isDefault(Boolean isDefault) { this.isDefault = isDefault; return this; }
+        public Builder metadata(Map<String, Object> metadata) { this.metadata = metadata; return this; }
+
+        public AddressDTO build() {
+            return new AddressDTO(this);
+        }
+    }
 }
