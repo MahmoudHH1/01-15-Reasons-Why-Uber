@@ -1,7 +1,7 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.common.observer.EntityObserver;
 import com.team01.uber.common.observer.Observable;
-import com.team01.uber.common.observer.Observer;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
@@ -29,7 +29,7 @@ public class UserService implements Observable{
 
     private final UserRepository userRepository;
     private final SavedAddressRepository savedAddressRepository;
-    private final List<Observer> observers = new ArrayList<>();
+    private final List<EntityObserver> observers = new ArrayList<>();
 
     public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository, MongoEventLogger mongoEventLogger) {
         this.savedAddressRepository = savedAddressRepository;
@@ -38,7 +38,7 @@ public class UserService implements Observable{
     }
 
     @Override
-    public void registerObserver(Observer observer) {
+    public void registerObserver(EntityObserver observer) {
         observers.add(observer);
     }
 
@@ -48,7 +48,7 @@ public class UserService implements Observable{
     }
 
     @Override
-    public void unregisterObserver(Observer observer) {
+    public void unregisterObserver(EntityObserver observer) {
         observers.remove(observer);
     }
 

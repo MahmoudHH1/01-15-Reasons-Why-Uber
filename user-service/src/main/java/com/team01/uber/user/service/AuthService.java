@@ -1,7 +1,7 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.common.observer.EntityObserver;
 import com.team01.uber.common.observer.Observable;
-import com.team01.uber.common.observer.Observer;
 import com.team01.uber.user.dto.AuthResponse;
 import com.team01.uber.user.dto.RegisterRequest;
 import com.team01.uber.user.model.mongo.AuthEvent;
@@ -27,7 +27,7 @@ public class AuthService implements Observable {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final List<Observer> observers = new ArrayList<>();
+    private final List<EntityObserver> observers = new ArrayList<>();
 
     public AuthService(UserRepository userRepository,
                        AuthEventRepository authEventRepository,
@@ -41,12 +41,12 @@ public class AuthService implements Observable {
     }
 
     @Override
-    public void registerObserver(Observer observer) {
+    public void registerObserver(EntityObserver observer) {
         observers.add(observer);
     }
 
     @Override
-    public void unregisterObserver(Observer observer) {
+    public void unregisterObserver(EntityObserver observer) {
         observers.remove(observer);
     }
 
