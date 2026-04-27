@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,9 +19,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final JdbcTemplate jdbcTemplate;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, JdbcTemplate jdbcTemplate) {
         this.jwtService = jwtService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -34,34 +37,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // ── Handler 1: TokenExtractionHandler ──
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Missing or malformed Authorization header");
-            return;
+        AuthContext ctx = new AuthContext(request, response);
+
+        // Build the Chain of Responsibility
+        AuthHandler head = new TokenExtractionHandler();
+        head.setNext(new SignatureValidationHandler(jwtService))
+            .setNext(new UserLoaderHandler(jdbcTemplate))
+            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN"))); // Accepts RIDER or ADMIN for M2 defaults
+
+        try {
+            if (head.handle(ctx)) {
+                var auth = new UsernamePasswordAuthenticationToken(
+                        ctx.getEmail(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
+                );
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+
+                filterChain.doFilter(request, response);
+            }
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.getWriter().write("Authentication processing error");
         }
-        String token = authHeader.substring(7);
-
-        // ── Handler 2: SignatureValidationHandler ──
-        if (!jwtService.isTokenValid(token)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Invalid or expired token");
-            return;
-        }
-
-        // ── Handler 3: UserLoaderHandler & RoleAuthorizationHandler ──
-        String email = jwtService.extractEmail(token);
-        String role = jwtService.extractRole(token);
-
-        var auth = new UsernamePasswordAuthenticationToken(
-                email,
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-        );
-        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        SecurityContextHolder.getContext().setAuthentication(auth);
-
-        filterChain.doFilter(request, response);
     }
 }
