@@ -92,7 +92,14 @@ public class DriverService {
         existing.setEmail(updated.getEmail());
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
-        existing.setVehicleDetails(updated.getVehicleDetails());
+
+        Map<String, Object> incomingDetails = updated.getVehicleDetails();
+        if (incomingDetails == null) {
+            incomingDetails = new HashMap<>();
+        }
+        incomingDetails.putIfAbsent("description", "");
+        existing.setVehicleDetails(incomingDetails);
+
         return driverRepository.save(existing);
     }
 
