@@ -26,11 +26,18 @@ public class DriverService {
     }
 
     public Driver createDriver(Driver driver) {
-        driver.setId(null); // Ensure ID is null for new document
+        driver.setId(null);
         driver.setCreatedAt(LocalDateTime.now());
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.OFFLINE);
         }
+
+        Map<String, Object> details = driver.getVehicleDetails();
+        if (details == null) {
+            details = new HashMap<>();
+        }
+        details.putIfAbsent("description", "");
+        driver.setVehicleDetails(details);
 
         if (driverRepository.findByLicenseNumber(driver.getLicenseNumber()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "License number already in use");
