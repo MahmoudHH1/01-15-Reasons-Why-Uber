@@ -2,18 +2,25 @@ package com.team01.uber.payment.service;
 
 import com.team01.uber.payment.dto.AppliedCouponDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
+import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
+import com.team01.uber.payment.strategy.RefundResult;
+import com.team01.uber.payment.strategy.RefundStrategy;
+import com.team01.uber.payment.strategy.RefundStrategySelector;
+import com.team01.uber.payment.strategy.NoRefundStrategy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,9 +29,31 @@ import java.util.Map;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final RefundStrategySelector strategySelector;
+    private final CacheInvalidationService cacheInvalidationService;
 
-    public PaymentService(PaymentRepository paymentRepository) {
+    private final List<EntityObserver> observers = new ArrayList<>();
+
+    public PaymentService(PaymentRepository paymentRepository,
+                          RefundStrategySelector strategySelector,
+                          CacheInvalidationService cacheInvalidationService) {
         this.paymentRepository = paymentRepository;
+        this.strategySelector = strategySelector;
+        this.cacheInvalidationService = cacheInvalidationService;
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    private void notifyObservers(String eventType, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(eventType, payload);
+        }
     }
 
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
@@ -77,7 +106,76 @@ public class PaymentService {
         payment.getTransactionDetails().put("refundReason", reason);
         payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+
+        notifyObservers("REFUNDED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of("reason", reason)
+        ));
+
+        return saved;
+    }
+
+    @Transactional
+    public Payment processRefundSurgeAdjusted(Long id, RefundSurgeRequest request) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only COMPLETED payments can be refunded");
+        }
+
+        RefundStrategy strategy = strategySelector.select(payment, request);
+
+        if (strategy instanceof NoRefundStrategy) {
+            // Log REFUND_DENIED and invalidate analytics caches before throwing
+            notifyObservers("REFUND_DENIED", Map.of(
+                    "paymentId", payment.getId(),
+                    "method", payment.getMethod().name(),
+                    "amount", payment.getAmount(),
+                    "details", Map.of(
+                            "strategyName", "NoRefundStrategy",
+                            "denialReason", "refund window expired"
+                    )
+            ));
+            cacheInvalidationService.invalidatePaymentCaches(id);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "refund window expired");
+        }
+
+        RefundResult result = strategy.calculateRefund(payment, request);
+        boolean surgeIncluded = result.getReasonCode().equals("full_refund_with_surge");
+        String strategyName = strategy.getClass().getSimpleName();
+
+        payment.setStatus(PaymentStatus.REFUNDED);
+
+        if (payment.getTransactionDetails() == null) {
+            payment.setTransactionDetails(new HashMap<>());
+        }
+        payment.getTransactionDetails().put("refundAmount", result.getAmount());
+        payment.getTransactionDetails().put("refundSurgeIncluded", surgeIncluded);
+        payment.getTransactionDetails().put("refundReason", request.getReason());
+        payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+
+        Payment saved = paymentRepository.save(payment);
+
+        notifyObservers("REFUNDED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of(
+                        "strategyName", strategyName,
+                        "reason", request.getReason(),
+                        "refundAmount", result.getAmount(),
+                        "refundSurgeIncluded", surgeIncluded
+                )
+        ));
+
+        cacheInvalidationService.invalidatePaymentCaches(id);
+
+        return saved;
     }
 
     public Payment getPaymentById(Long id) {
