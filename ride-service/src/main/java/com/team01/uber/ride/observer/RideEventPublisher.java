@@ -2,9 +2,9 @@ package com.team01.uber.ride.observer;
 
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 public class RideEventPublisher implements Observable {
@@ -12,7 +12,7 @@ public class RideEventPublisher implements Observable {
     private final List<EntityObserver> observers;
 
     public RideEventPublisher(List<EntityObserver> observers) {
-        this.observers = new ArrayList<>(observers);
+        this.observers = new CopyOnWriteArrayList<>(observers);
     }
 
     @Override
