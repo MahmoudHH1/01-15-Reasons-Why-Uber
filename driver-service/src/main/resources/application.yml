@@ -21,6 +21,12 @@ spring:
       schema-locations: classpath:schema.sql
       separator: ^^
 
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: redispass
+
 server:
   port: 8080
 
