@@ -1,5 +1,9 @@
 package com.team01.uber.location.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.cassandra.core.cql.Ordering;
 import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
@@ -9,6 +13,10 @@ import org.springframework.data.cassandra.core.mapping.Table;
 import java.time.Instant;
 
 @Table("location_tracking_events")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class LocationTrackingEvent {
 
     @PrimaryKeyColumn(name = "driver_id", type = PrimaryKeyType.PARTITIONED)
@@ -37,31 +45,4 @@ public class LocationTrackingEvent {
 
     @Column("notes")
     private String notes;
-
-    public Long getDriverId() { return driverId; }
-    public void setDriverId(Long driverId) { this.driverId = driverId; }
-
-    public Instant getTimestamp() { return timestamp; }
-    public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
-
-    public Double getLatitude() { return latitude; }
-    public void setLatitude(Double latitude) { this.latitude = latitude; }
-
-    public Double getLongitude() { return longitude; }
-    public void setLongitude(Double longitude) { this.longitude = longitude; }
-
-    public Double getSpeed() { return speed; }
-    public void setSpeed(Double speed) { this.speed = speed; }
-
-    public Double getHeading() { return heading; }
-    public void setHeading(Double heading) { this.heading = heading; }
-
-    public Double getAccuracy() { return accuracy; }
-    public void setAccuracy(Double accuracy) { this.accuracy = accuracy; }
-
-    public Long getRideId() { return rideId; }
-    public void setRideId(Long rideId) { this.rideId = rideId; }
-
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
 }
