@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: location-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/uberdb
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      separator: "^^"
+
+  cassandra:
+    contact-points: cassandra
+    port: 9042
+    local-datacenter: datacenter1
+    keyspace-name: uberks
+    schema-action: CREATE_IF_NOT_EXISTS
+
+  data:
+    mongodb:
+      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
+
+server:
+  port: 8080
+
+jwt:
+  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+  expiration: 86400000

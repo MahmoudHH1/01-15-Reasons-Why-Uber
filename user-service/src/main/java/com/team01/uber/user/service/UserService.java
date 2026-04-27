@@ -2,6 +2,7 @@ package com.team01.uber.user.service;
 
 import com.team01.uber.common.observer.EntityObserver;
 import com.team01.uber.common.observer.Observable;
+import com.team01.uber.user.adapter.ObjectArrayDtoAdapter;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
@@ -30,6 +31,7 @@ public class UserService implements Observable{
     private final UserRepository userRepository;
     private final SavedAddressRepository savedAddressRepository;
     private final List<EntityObserver> observers = new ArrayList<>();
+    private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
 
     public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository, MongoEventLogger mongoEventLogger) {
         this.savedAddressRepository = savedAddressRepository;
@@ -116,18 +118,18 @@ public class UserService implements Observable{
         getUserById(userId);
         Object[] row = userRepository.getRideSummary(userId);
         if (row == null || row.length == 0) {
-            return new UserRideSummaryDTO(userId, null, 0L, 0L, 0L, 0.0, 0.0);
+            return UserRideSummaryDTO.builder()
+                    .userId(userId)
+                    .name(null)
+                    .totalRides(0L)
+                    .completedRides(0L)
+                    .cancelledRides(0L)
+                    .totalSpent(0.0)
+                    .averageFare(0.0)
+                    .build();
         }
         Object[] data = (Object[]) row[0];
-        return new UserRideSummaryDTO(
-            ((Number) data[0]).longValue(),
-            (String) data[1],
-            ((Number) data[2]).longValue(),
-            ((Number) data[3]).longValue(),
-            ((Number) data[4]).longValue(),
-            ((Number) data[5]).doubleValue(),
-            ((Number) data[6]).doubleValue()
-        );
+        return objectArrayDtoAdapter.adaptToUserRideSummary(data);
     }
 
     public User updatePreferences(Long id, Map<String, Object> incoming) {
@@ -162,12 +164,7 @@ public class UserService implements Observable{
         }
         return userRepository.findTopRiders(start, end, limit)
                 .stream()
-                .map(row -> new TopRiderDTO(
-                        ((Number) row[0]).longValue(),
-                        (String) row[1],
-                        ((Number) row[2]).doubleValue(),
-                        ((Number) row[3]).longValue()
-                ))
+                .map(row -> objectArrayDtoAdapter.adaptToTopRider((Object[]) row))
                 .toList();
     }
 
@@ -220,25 +217,26 @@ public class UserService implements Observable{
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         List<AddressDTO> addressDTOs = user.getSavedAddresses().stream()
-                .map(addr -> new AddressDTO(
-                        addr.getId(),
-                        addr.getLabel(),
-                        addr.getAddress(),
-                        addr.getLatitude(),
-                        addr.getLongitude(),
-                        addr.getIsDefault(),
-                        addr.getMetadata()
-                ))
+                .map(addr -> AddressDTO.builder()
+                        .id(addr.getId())
+                        .label(addr.getLabel())
+                        .address(addr.getAddress())
+                        .latitude(addr.getLatitude())
+                        .longitude(addr.getLongitude())
+                        .isDefault(addr.getIsDefault())
+                        .metadata(addr.getMetadata())
+                        .build())
                 .toList();
 
-        return new UserProfileDTO(
-                user.getId(),
-                user.getName(),
-                user.getEmail(),
-                user.getPhone(),
-                user.getPreferences(),
-                addressDTOs
-        );
+        return UserProfileDTO.builder()
+                .userId(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .preferences(user.getPreferences())
+                .savedAddresses(addressDTOs)
+                .totalAddresses(addressDTOs.size())
+                .build();
     }   
 
 

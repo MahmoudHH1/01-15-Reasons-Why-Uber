@@ -87,6 +87,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      cassandra:
+        condition: service_healthy
 
   payment-service:
     build:
