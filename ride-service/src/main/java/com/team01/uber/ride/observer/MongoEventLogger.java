@@ -1,0 +1,44 @@
+package com.team01.uber.ride.observer;
+
+import com.team01.uber.ride.enums.EventType;
+import com.team01.uber.ride.factory.EventFactory;
+import com.team01.uber.ride.model.MongoEvent;
+import com.team01.uber.ride.model.RideEvent;
+import com.team01.uber.ride.repository.RideEventRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Slf4j
+@Component
+public class MongoEventLogger implements EntityObserver {
+
+    private final EventFactory eventFactory;
+    private final RideEventRepository rideEventRepository;
+    private final EventType boundEventType;
+
+    public MongoEventLogger(EventFactory eventFactory, RideEventRepository rideEventRepository) {
+        this.eventFactory = eventFactory;
+        this.rideEventRepository = rideEventRepository;
+        this.boundEventType = EventType.RIDE;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void onEvent(String action, Object payload) {
+        try {
+            Map<String, Object> params = new HashMap<>((Map<String, Object>) payload);
+            params.put("action", action);
+            params.put("details", payload);
+
+            MongoEvent event = eventFactory.createEvent(boundEventType, params);
+            if (event instanceof RideEvent rideEvent) {
+                rideEventRepository.save(rideEvent);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to log event to MongoDB: {}", e.getMessage());
+        }
+    }
+}

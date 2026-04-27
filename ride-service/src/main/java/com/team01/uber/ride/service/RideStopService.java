@@ -6,6 +6,7 @@ import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
+import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import org.springframework.http.HttpStatus;
@@ -15,17 +16,22 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RideStopService {
 
     private final RideStopRepository rideStopRepository;
     private final RideRepository rideRepository;
+    private final RideEventPublisher rideEventPublisher;
 
-    public RideStopService(RideStopRepository rideStopRepository, RideRepository rideRepository) {
+    public RideStopService(RideStopRepository rideStopRepository, RideRepository rideRepository,
+                           RideEventPublisher rideEventPublisher) {
         this.rideStopRepository = rideStopRepository;
         this.rideRepository = rideRepository;
+        this.rideEventPublisher = rideEventPublisher;
     }
 
     @Transactional
@@ -66,6 +72,14 @@ public class RideStopService {
                 .sorted(Comparator.comparingInt(RideStop::getStopOrder))
                 .toList();
 
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", rideId);
+        payload.put("addedStopsCount", newStops.size());
+        payload.put("totalStops", allStops.size());
+        payload.put("stopIds", newStops.stream().map(RideStop::getId).toList());
+        payload.put("rideStatus", ride.getStatus().name());
+        rideEventPublisher.notifyObservers("RIDE_STOPS_ADDED", payload);
+
         return new RideWithStopsDTO(ride, allStops);
     }
 
@@ -76,7 +90,9 @@ public class RideStopService {
         if (stop.getStatus() == null) {
             stop.setStatus(RideStopStatus.PENDING);
         }
-        return rideStopRepository.save(stop);
+        RideStop savedStop = rideStopRepository.save(stop);
+        rideEventPublisher.notifyObservers("RIDE_STOP_CREATED", buildStopPayload(savedStop));
+        return savedStop;
     }
 
     public List<RideStop> getStopsByRideId(Long rideId) {
@@ -105,13 +121,16 @@ public class RideStopService {
 
         existing.setMetadata(updated.getMetadata()); // nullable field on the DB
 
-        return rideStopRepository.save(existing);
+        RideStop savedStop = rideStopRepository.save(existing);
+        rideEventPublisher.notifyObservers("RIDE_STOP_UPDATED", buildStopPayload(savedStop));
+        return savedStop;
     }
 
     public void deleteStop(Long rideId, Long stopId) {
         RideStop stop = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
         rideStopRepository.delete(stop);
+        rideEventPublisher.notifyObservers("RIDE_STOP_DELETED", buildStopPayload(stop));
     }
 
     private void validateRequiredUpdateKeys(RideStop updated) {
@@ -130,5 +149,18 @@ public class RideStopService {
         if (updated.getStatus() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing required field: status");
         }
+    }
+
+    private Map<String, Object> buildStopPayload(RideStop stop) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", stop.getRide().getId());
+        payload.put("stopId", stop.getId());
+        payload.put("stopOrder", stop.getStopOrder());
+        payload.put("status", stop.getStatus() == null ? null : stop.getStatus().name());
+        payload.put("address", stop.getAddress());
+        payload.put("latitude", stop.getLatitude());
+        payload.put("longitude", stop.getLongitude());
+        payload.put("metadata", stop.getMetadata());
+        return payload;
     }
 }
