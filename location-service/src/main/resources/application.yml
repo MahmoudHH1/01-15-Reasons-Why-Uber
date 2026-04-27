@@ -28,5 +28,9 @@ spring:
     keyspace-name: uberks
     schema-action: CREATE_IF_NOT_EXISTS
 
+  data:
+    mongodb:
+      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
+
 server:
   port: 8080
