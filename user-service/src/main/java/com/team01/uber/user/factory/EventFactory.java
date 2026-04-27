@@ -1,7 +1,7 @@
 package com.team01.uber.user.factory;
 
-import com.team01.uber.common.mongo.EventType;
-import com.team01.uber.common.mongo.MongoEvent;
+import com.team01.uber.user.mongo.EventType;
+import com.team01.uber.user.mongo.MongoEvent;
 import com.team01.uber.user.model.mongo.AuthEvent;
 
 import java.time.LocalDateTime;

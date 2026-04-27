@@ -1,6 +1,6 @@
 package com.team01.uber.user.model.mongo;
 
-import com.team01.uber.common.mongo.MongoEvent;
+import com.team01.uber.user.mongo.MongoEvent;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

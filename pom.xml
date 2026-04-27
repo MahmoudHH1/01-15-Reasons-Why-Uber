@@ -20,7 +20,6 @@
         <module>ride-service</module>
         <module>location-service</module>
         <module>payment-service</module>
-        <module>common</module>
     </modules>
 
     <build>

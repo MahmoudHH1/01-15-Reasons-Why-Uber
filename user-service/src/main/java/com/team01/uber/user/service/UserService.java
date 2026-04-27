@@ -1,7 +1,7 @@
 package com.team01.uber.user.service;
 
-import com.team01.uber.common.observer.EntityObserver;
-import com.team01.uber.common.observer.Observable;
+import com.team01.uber.user.observer.EntityObserver;
+import com.team01.uber.user.observer.Observable;
 import com.team01.uber.user.adapter.ObjectArrayDtoAdapter;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.AddressDTO;

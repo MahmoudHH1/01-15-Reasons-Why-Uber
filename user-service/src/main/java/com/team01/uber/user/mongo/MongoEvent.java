@@ -1,4 +1,4 @@
-package com.team01.uber.common.mongo;
+package com.team01.uber.user.mongo;
 
 import java.time.LocalDateTime;
 import java.util.Map;

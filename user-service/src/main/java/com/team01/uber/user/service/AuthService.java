@@ -1,7 +1,7 @@
 package com.team01.uber.user.service;
 
-import com.team01.uber.common.observer.EntityObserver;
-import com.team01.uber.common.observer.Observable;
+import com.team01.uber.user.observer.EntityObserver;
+import com.team01.uber.user.observer.Observable;
 import com.team01.uber.user.dto.AuthResponse;
 import com.team01.uber.user.dto.RegisterRequest;
 import com.team01.uber.user.model.mongo.AuthEvent;

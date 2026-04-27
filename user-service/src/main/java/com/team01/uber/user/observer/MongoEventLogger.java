@@ -1,7 +1,6 @@
 package com.team01.uber.user.observer;
 
-import com.team01.uber.common.mongo.EventType;
-import com.team01.uber.common.observer.EntityObserver;
+import com.team01.uber.user.mongo.EventType;
 import com.team01.uber.user.factory.EventFactory;
 import com.team01.uber.user.model.mongo.AuthEvent;
 import com.team01.uber.user.repository.AuthEventRepository;

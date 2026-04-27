@@ -1,4 +1,4 @@
-package com.team01.uber.common.observer;
+package com.team01.uber.user.observer;
 
 import java.util.Map;
 
