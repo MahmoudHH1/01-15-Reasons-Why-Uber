@@ -22,6 +22,8 @@ spring:
       separator: ^^
 
   data:
+    mongodb:
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
       host: redis
       port: 6379
