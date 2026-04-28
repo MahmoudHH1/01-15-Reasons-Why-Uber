@@ -1,20 +1,23 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.adapter.MongoDocumentAdapter;
+import com.team01.uber.user.dto.*;
 import com.team01.uber.user.observer.EntityObserver;
 import com.team01.uber.user.observer.Observable;
 import com.team01.uber.user.adapter.ObjectArrayDtoAdapter;
-import com.team01.uber.user.dto.UserRideSummaryDTO;
-import com.team01.uber.user.dto.AddressDTO;
-import com.team01.uber.user.dto.TopRiderDTO;
-import com.team01.uber.user.dto.UserProfileDTO;
 import com.team01.uber.user.model.mongo.AuthEvent;
 import com.team01.uber.user.model.SavedAddress;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.observer.MongoEventLogger;
+import com.team01.uber.user.repository.AuthEventRepository;
 import com.team01.uber.user.repository.SavedAddressRepository;
 import com.team01.uber.user.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,13 +32,16 @@ import java.util.Map;
 public class UserService implements Observable{
 
     private final UserRepository userRepository;
+    private final AuthEventRepository authEventRepository;
+    private final MongoDocumentAdapter mongoDocumentAdapter = new MongoDocumentAdapter();
     private final SavedAddressRepository savedAddressRepository;
     private final List<EntityObserver> observers = new ArrayList<>();
     private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
 
-    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository, MongoEventLogger mongoEventLogger) {
+    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository, MongoEventLogger mongoEventLogger, AuthEventRepository authEventRepository) {
         this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
+        this.authEventRepository=authEventRepository;
         registerObserver(mongoEventLogger);
     }
 
@@ -237,7 +243,35 @@ public class UserService implements Observable{
                 .savedAddresses(addressDTOs)
                 .totalAddresses(addressDTOs.size())
                 .build();
-    }   
+    }
+
+
+    public ActivityFeedDTO getActivityFeed(Long userId, int page, int size) {
+
+        User authenticatedUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!authenticatedUser.getId().equals(userId) &&
+                !authenticatedUser.getRole().name().equals("ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        getUserById(userId);
+
+        int cappedSize = Math.min(size, 100);
+        Pageable pageable = PageRequest.of(page, cappedSize);
+        Page<AuthEvent> events = authEventRepository.findByUserIdOrderByTimestampDesc(userId, pageable);
+
+        List<ActivityEventDTO> content = events.getContent()
+                .stream()
+                .map(mongoDocumentAdapter::adapt)
+                .toList();
+
+        return ActivityFeedDTO.builder()
+                .content(content)
+                .page(page)
+                .size(cappedSize)
+                .totalElements(events.getTotalElements())
+                .build();
+    }
 
 
 }
