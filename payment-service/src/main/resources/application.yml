@@ -26,8 +26,8 @@ spring:
       host: redis
       port: 6379
       password: redispass
-    mongodb:
-      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+  mongodb:
+    uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
 
 server:
   port: 8080
