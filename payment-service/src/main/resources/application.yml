@@ -3,13 +3,13 @@ spring:
     name: payment-service
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/uberdb
+    url: jdbc:postgresql://localhost:5432/uberdb
     username: postgres
     password: postgres
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -23,15 +23,15 @@ spring:
 
   data:
     redis:
-      host: redis
+      host: localhost
       port: 6379
       password: redispass
     mongodb:
-      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
 
 server:
   port: 8080
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
-  expiration: 86400000 # 24 hours in ms
+  expiration: 86400000
