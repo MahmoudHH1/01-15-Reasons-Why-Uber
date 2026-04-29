@@ -5,6 +5,7 @@ import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,7 @@ public class DriverDocumentService {
         return driverDocumentRepository.findByDriverId(driverId);
     }
 
+    @Cacheable(value = "driver-service::driver-document", key = "#driverId + ':' + #docId")
     public DriverDocument getDocumentById(Long driverId, Long docId) {
         return driverDocumentRepository.findByIdAndDriverId(docId, driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
@@ -102,6 +104,7 @@ public class DriverDocumentService {
         return driver;
     }
 
+    @Cacheable(value = "driver-service::S2-F9")
     @Transactional(readOnly = true)
     public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
         List<DriverDocument> expired = driverDocumentRepository.findByExpiryDateBefore(LocalDate.now());
