@@ -1,0 +1,41 @@
+# Reference application.yml for ride-service (port 8083 host, 8080 container)
+# Source: Uber_descriptionM2.pdf §6.5
+# Drop into ride-service/src/main/resources/application.yml.
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ride-service
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/uberdb
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: redispass
+    mongodb:
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+
+    # Ride-service only: Neo4j (recommendation graph)
+    neo4j:
+      uri: bolt://neo4j:7687
+      username: neo4j
+      password: neo4jpass
+
+jwt:
+  # Base64-encoded ≥32-byte secret, MUST be identical across all 5 services
+  # (user-service issues tokens, every other service verifies independently — §5.1).
+  # Hardcoded here intentionally — keep the same value in every service's application.yml.
+  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+  expiration: 86400000
