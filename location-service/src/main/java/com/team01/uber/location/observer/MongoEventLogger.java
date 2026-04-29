@@ -1,6 +1,9 @@
 package com.team01.uber.location.observer;
 
+import com.team01.uber.location.enums.EventType;
+import com.team01.uber.location.factory.EventFactory;
 import com.team01.uber.location.model.LocationEvent;
+import com.team01.uber.location.model.MongoEvent;
 import com.team01.uber.location.repository.LocationEventRepository;
 import org.springframework.stereotype.Component;
 
@@ -10,9 +13,11 @@ import java.util.Map;
 public class MongoEventLogger implements EntityObserver {
 
     private final LocationEventRepository locationEventRepository;
+    private final EventFactory eventFactory;
 
-    public MongoEventLogger(LocationEventRepository locationEventRepository) {
+    public MongoEventLogger(LocationEventRepository locationEventRepository, EventFactory eventFactory) {
         this.locationEventRepository = locationEventRepository;
+        this.eventFactory = eventFactory;
     }
 
     @Override
@@ -22,7 +27,7 @@ public class MongoEventLogger implements EntityObserver {
         @SuppressWarnings("unchecked")
         Map<String, Object> params = (Map<String, Object>) raw;
 
-        MongoEvent event = EventFactory.createEvent(EventType.LOCATION,
+        MongoEvent event = eventFactory.createEvent(EventType.LOCATION,
                 Map.of("driverId", params.get("driverId"),
                        "action", action,
                        "latitude", params.getOrDefault("latitude", null),

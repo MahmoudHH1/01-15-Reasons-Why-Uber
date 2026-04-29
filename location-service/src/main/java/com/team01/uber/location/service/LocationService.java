@@ -17,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
@@ -41,13 +40,14 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate redisTemplate;
     private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
     private final LocationAdapter locationAdapter = new LocationAdapter();
 
+    @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
                            LocationTrackingEventRepository trackingRepository,
-                           RedisTemplate<String, Object> redisTemplate) {
+                           RedisTemplate redisTemplate) {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
@@ -296,10 +296,7 @@ public class LocationService {
         }
 
         return events.stream()
-                .map(e -> new LocationTrackingDTO(
-                        e.getTimestamp(), e.getLatitude(), e.getLongitude(),
-                        e.getSpeed(), e.getHeading(), e.getAccuracy(),
-                        e.getRideId(), e.getNotes()))
+                .map(locationAdapter::adaptToLocationTrackingDTO)
                 .toList();
     }
 
@@ -374,6 +371,6 @@ public class LocationService {
         payload.put("longitude", request.getLongitude());
         notifyObservers("TRACKING_RECORDED", payload);
 
-        return CassandraRowAdapter.adapt(event);
+        return locationAdapter.adaptToLocationTrackingDTO(event);
     }
 }

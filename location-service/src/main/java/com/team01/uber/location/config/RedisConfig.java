@@ -56,9 +56,10 @@ public class RedisConfig {
                 .build();
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory, RedisSerializer<Object> redisJsonSerializer) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
+    public RedisTemplate redisTemplate(RedisConnectionFactory factory, RedisSerializer<Object> redisJsonSerializer) {
+        RedisTemplate template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(redisJsonSerializer);
