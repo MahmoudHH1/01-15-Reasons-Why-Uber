@@ -29,6 +29,11 @@ public class CacheInvalidationService {
         }
     }
 
+    public void invalidateAnalyticsCaches() {
+        invalidatePattern("payment-service::S5-F10::*");
+        invalidatePattern("payment-service::S5-F11::*");
+    }
+
     public void invalidatePaymentCaches(Long paymentId) {
         invalidatePattern("payment-service::S5-F10::*");
         invalidatePattern("payment-service::S5-F11::*");
