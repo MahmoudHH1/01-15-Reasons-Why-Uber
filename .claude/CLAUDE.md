@@ -7,7 +7,7 @@ This is an auto-graded university project (Architecture of Massively Scalable Ap
 - **Milestone 1** = 15% of final grade, 45 features (9 per service) — DONE
 - **Milestone 2** = 15% of final grade, +15 features (F10–F12 per service), JWT auth, 5 NoSQL stores, 7 design patterns, Redis caching — IN PROGRESS
 - **Team** = 15 members, 3 per service
-- **Stack:** Java 25 / JDK 25 (Docker base `eclipse-temurin:25.0.2_10-jdk`), **Spring Boot 4.0.3**, Spring Data JPA, PostgreSQL 17 (NOT 18 — breaks Hibernate 7.2), Docker, Maven
+- **Stack:** Java 25 / JDK 25 (Docker base `eclipse-temurin:25.0.2_10-jdk`), **Spring Boot 4.0.4** (user-service still on 4.0.3 — bump in a separate `chore` commit), Spring Data JPA, PostgreSQL 17 (NOT 18 — breaks Hibernate 7.2), Docker, Maven
 - **No frontend** — backend architecture only
 
 ## Milestone 2 — Source of Truth

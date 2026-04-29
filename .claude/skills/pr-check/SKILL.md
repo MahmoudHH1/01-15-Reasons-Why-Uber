@@ -127,13 +127,29 @@ Scan for code style issues:
 
 ## Step 8: AI Authorship Hidden (CRITICAL)
 
-This is a hard rule from CLAUDE.md. Run:
+This is a hard rule from CLAUDE.md. Two scans:
+
+**Scan A — commit messages (no exclusions):**
 
 ```
-git log main..HEAD --format=%B | grep -iE "co-authored-by|generated.with|claude code|anthropic|openai|chatgpt|copilot"
+git log main..HEAD --format=%B | grep -iE "co-authored-by|generated.with|claude code|anthropic|openai|chatgpt|copilot|made.with.claude"
 ```
 
-The output MUST be empty. Also `git diff main..HEAD` for similar markers in source files. **FAIL** if any match — instruct the user to amend/rebase the commits to drop the trailer (or, if already pushed, force-push with the user's permission).
+Output MUST be empty. Commits should never carry these markers regardless of which files they touch.
+
+**Scan B — added diff lines, scoped to non-tooling paths:**
+
+The repo's `.claude/**`, `docs/m2/**`, and `.github/**` directories legitimately reference "Claude Code", "Anthropic", "Copilot", etc. by design (skill descriptions, agent prompts, doc references). A naïve `git diff` grep would false-fail every PR that touches those paths. Scope the scan to user-facing source files and only inspect added lines:
+
+```
+git diff main..HEAD -- ':!.claude/**' ':!docs/m2/**' ':!.github/**' \
+  | grep -E '^\+' \
+  | grep -iE "co-authored-by|generated.with|claude code|anthropic|openai|chatgpt|copilot|made.with.claude"
+```
+
+Output MUST be empty.
+
+**FAIL** if either scan matches — instruct the user to amend/rebase the commits to drop the trailer or remove the visible marker (or, if already pushed, force-push with the user's permission).
 
 ## Step 9: M2 Branch Conventions Sanity
 

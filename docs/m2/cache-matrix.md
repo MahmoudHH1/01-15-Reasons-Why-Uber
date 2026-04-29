@@ -46,7 +46,7 @@ Source of truth: `Uber_descriptionM2.pdf` §4.4 (cached reads, invalidation rule
 
 ---
 
-## M2 Read Features Cached (12 read endpoints)
+## M2 Read Features Cached (9 read endpoints)
 
 | Feature | Path | Key prefix | TTL |
 |---|---|---|---|
