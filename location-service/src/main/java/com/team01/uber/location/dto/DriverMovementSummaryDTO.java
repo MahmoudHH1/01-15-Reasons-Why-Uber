@@ -19,7 +19,6 @@ public class DriverMovementSummaryDTO {
         this.firstTimestamp = builder.firstTimestamp;
         this.lastTimestamp = builder.lastTimestamp;
     }
-
     public static Builder builder() {
         return new Builder();
     }
