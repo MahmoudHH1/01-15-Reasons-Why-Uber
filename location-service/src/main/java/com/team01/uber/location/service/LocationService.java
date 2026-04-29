@@ -14,11 +14,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
 import com.team01.uber.location.dto.LocationTrackingDTO;
+import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.model.Location;
@@ -34,6 +36,7 @@ public class LocationService {
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
@@ -271,5 +274,30 @@ public class LocationService {
                         e.getSpeed(), e.getHeading(), e.getAccuracy(),
                         e.getRideId(), e.getNotes()))
                 .toList();
+    }
+
+    @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
+    public LocationAnalyticsDTO getAnalytics(String startDate, String endDate) {
+        LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate cannot be after endDate");
+        }
+
+        List<Object[]> statsResults = locationRepository.getDashboardStats(start, end);
+        List<Object[]> hourlyResults = locationRepository.getEventsByHour(start, end);
+
+        if (statsResults.isEmpty() || statsResults.get(0)[0] == null) {
+            // Return empty analytics if no data found
+            return LocationAnalyticsDTO.builder()
+                    .totalLocationEvents(0L)
+                    .activeDrivers(0L)
+                    .averageSpeed(0.0)
+                    .eventsByHour(new java.util.HashMap<>())
+                    .build();
+        }
+
+        return locationAdapter.adaptToLocationAnalytics(statsResults.get(0), hourlyResults);
     }
 }
