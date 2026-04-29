@@ -62,7 +62,6 @@ public class LocationService {
         }
 
         Location location = new Location();
-        location.setId(null);
         location.setDriverId(driverId);
         location.setLatitude(latitude);
         location.setLongitude(longitude);
@@ -215,33 +214,40 @@ public class LocationService {
         LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
         LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
 
-        return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
+        return DriverMovementSummaryDTO.builder()
+                .driverId(driverId)
+                .totalLocationPoints(totalPoints)
+                .averageSpeed(avgSpeed)
+                .maxSpeed(maxSpeed)
+                .firstTimestamp(firstTs)
+                .lastTimestamp(lastTs)
+                .build();
     }
 
     @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
-        return results.stream().map(row -> new StationaryDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                row[4] != null ? ((Number) row[4]).doubleValue() : null,
-                (LocalDateTime) row[5]
-        )).toList();
+        return results.stream().map(row -> StationaryDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .lastSpeed(row[4] != null ? ((Number) row[4]).doubleValue() : null)
+                .lastUpdated((LocalDateTime) row[5])
+                .build()).toList();
     }
 
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
         List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
-        return results.stream().map(row -> new NearbyDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                (Double) row[4]
-        )).toList();
+        return results.stream().map(row -> NearbyDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .distanceKm((Double) row[4])
+                .build()).toList();
     }
 
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
