@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
@@ -25,10 +26,18 @@ public class DriverDocumentService {
 
     private final DriverDocumentRepository driverDocumentRepository;
     private final DriverService driverService;
+    private final CacheInvalidator cacheInvalidator;
 
-    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository, DriverService driverService) {
+    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
+                                 DriverService driverService,
+                                 CacheInvalidator cacheInvalidator) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
+        this.cacheInvalidator = cacheInvalidator;
+    }
+
+    private void invalidateDocumentFeatureCaches() {
+        cacheInvalidator.deleteByPattern("driver-service::S2-F9::*");
     }
 
     public DriverDocument createDocument(Long driverId, DriverDocument document) {
@@ -37,7 +46,9 @@ public class DriverDocumentService {
         document.setDriver(driver);
         document.setUploadedAt(LocalDateTime.now());
         document.setVerified(false);
-        return driverDocumentRepository.save(document);
+        DriverDocument saved = driverDocumentRepository.save(document);
+        invalidateDocumentFeatureCaches();
+        return saved;
     }
 
     public List<DriverDocument> getDocumentsByDriverId(Long driverId) {
@@ -58,7 +69,10 @@ public class DriverDocumentService {
         existing.setDocumentUrl(updated.getDocumentUrl());
         existing.setExpiryDate(updated.getExpiryDate());
         existing.setMetadata(updated.getMetadata());
-        return driverDocumentRepository.save(existing);
+        DriverDocument saved = driverDocumentRepository.save(existing);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        invalidateDocumentFeatureCaches();
+        return saved;
     }
 
     public void deleteDocument(Long driverId, Long docId) {
@@ -66,6 +80,8 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        invalidateDocumentFeatureCaches();
     }
 
     @Transactional
@@ -98,6 +114,10 @@ public class DriverDocumentService {
         document.setMetadata(metadata);
 
         driverDocumentRepository.save(document);
+
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + documentId);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDocumentFeatureCaches();
 
         // initialize the lazy collection within the transaction before returning
         driver.getDriverDocuments().size();
