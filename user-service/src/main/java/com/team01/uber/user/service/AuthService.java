@@ -13,7 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.team01.uber.user.dto.LoginRequest;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -74,6 +74,29 @@ public class AuthService {
         String token = jwtService.generateToken(user);
         return new AuthResponse(token, jwtService.getExpirationMs());
     }
+    public AuthResponse login(LoginRequest request) {
+    User user = userRepository.findByEmail(request.getEmail())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+
+    if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+    }
+
+    try {
+        AuthEvent event = new AuthEvent(
+                user.getId(),
+                "LOGGED_IN",
+                LocalDateTime.now(),
+                Map.of()
+        );
+        authEventRepository.save(event);
+    } catch (Exception e) {
+        log.warn("Failed to log LOGGED_IN event to MongoDB: {}", e.getMessage());
+    }
+
+    String token = jwtService.generateToken(user);
+    return new AuthResponse(token, jwtService.getExpirationMs());
+}
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
 }
