@@ -10,10 +10,8 @@ import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
-import com.team01.uber.payment.strategy.RefundResult;
-import com.team01.uber.payment.strategy.RefundStrategy;
+import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
-import com.team01.uber.payment.strategy.NoRefundStrategy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -128,54 +126,8 @@ public class PaymentService {
                     "Only COMPLETED payments can be refunded");
         }
 
-        RefundStrategy strategy = strategySelector.select(payment, request);
-
-        if (strategy instanceof NoRefundStrategy) {
-            // Log REFUND_DENIED and invalidate analytics caches before throwing
-            notifyObservers("REFUND_DENIED", Map.of(
-                    "paymentId", payment.getId(),
-                    "method", payment.getMethod().name(),
-                    "amount", payment.getAmount(),
-                    "details", Map.of(
-                            "strategyName", "NoRefundStrategy",
-                            "denialReason", "refund window expired"
-                    )
-            ));
-            cacheInvalidationService.invalidatePaymentCaches(id);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "refund window expired");
-        }
-
-        RefundResult result = strategy.calculateRefund(payment, request);
-        boolean surgeIncluded = result.getReasonCode().equals("full_refund_with_surge");
-        String strategyName = strategy.getClass().getSimpleName();
-
-        payment.setStatus(PaymentStatus.REFUNDED);
-
-        if (payment.getTransactionDetails() == null) {
-            payment.setTransactionDetails(new HashMap<>());
-        }
-        payment.getTransactionDetails().put("refundAmount", result.getAmount());
-        payment.getTransactionDetails().put("refundSurgeIncluded", surgeIncluded);
-        payment.getTransactionDetails().put("refundReason", request.getReason());
-        payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
-
-        Payment saved = paymentRepository.save(payment);
-
-        notifyObservers("REFUNDED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of(
-                        "strategyName", strategyName,
-                        "reason", request.getReason(),
-                        "refundAmount", result.getAmount(),
-                        "refundSurgeIncluded", surgeIncluded
-                )
-        ));
-
-        cacheInvalidationService.invalidatePaymentCaches(id);
-
-        return saved;
+        RefundContext ctx = new RefundContext(paymentRepository, this::notifyObservers, cacheInvalidationService);
+        return strategySelector.select(payment, request).execute(payment, request, ctx);
     }
 
     public Payment getPaymentById(Long id) {
