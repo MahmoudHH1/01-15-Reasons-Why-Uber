@@ -12,7 +12,6 @@ import com.team01.uber.payment.repository.PaymentCouponRepository;
 import com.team01.uber.payment.repository.PaymentRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
-import com.team01.uber.payment.service.CacheInvalidationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;

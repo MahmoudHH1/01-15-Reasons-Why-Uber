@@ -89,6 +89,11 @@ public class PaymentService {
         }
         Payment saved = paymentRepository.save(payment);
         cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) payload.put("method", saved.getMethod().name());
+        payload.put("amount", saved.getAmount());
+        notifyObservers("PAYMENT_CREATED", payload);
         return saved;
     }
 
@@ -159,6 +164,11 @@ public class PaymentService {
         existing.setTransactionDetails(payment.getTransactionDetails());
         Payment saved = paymentRepository.save(existing);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
+        updatePayload.put("amount", saved.getAmount());
+        notifyObservers("PAYMENT_UPDATED", updatePayload);
         return saved;
     }
 
@@ -168,6 +178,9 @@ public class PaymentService {
         }
         paymentRepository.deleteById(id);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        Map<String, Object> deletePayload = new HashMap<>();
+        deletePayload.put("paymentId", id);
+        notifyObservers("PAYMENT_DELETED", deletePayload);
     }
 
     @Transactional
@@ -293,6 +306,12 @@ public class PaymentService {
 
         Payment saved = paymentRepository.save(payment);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        Map<String, Object> retryPayload = new HashMap<>();
+        retryPayload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) retryPayload.put("method", saved.getMethod().name());
+        retryPayload.put("amount", saved.getAmount());
+        retryPayload.put("retryAttempt", currentRetry + 1);
+        notifyObservers("RETRY_ATTEMPTED", retryPayload);
         return saved;
     }
 
