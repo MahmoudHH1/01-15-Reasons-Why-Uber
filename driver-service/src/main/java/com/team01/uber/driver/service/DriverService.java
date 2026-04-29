@@ -1,5 +1,6 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
@@ -21,9 +22,19 @@ import java.util.Map;
 public class DriverService {
 
     private final DriverRepository driverRepository;
+    private final CacheInvalidator cacheInvalidator;
 
-    public DriverService(DriverRepository driverRepository) {
+    public DriverService(DriverRepository driverRepository, CacheInvalidator cacheInvalidator) {
         this.driverRepository = driverRepository;
+        this.cacheInvalidator = cacheInvalidator;
+    }
+
+    private void invalidateDriverFeatureCaches() {
+        cacheInvalidator.deleteByPattern("driver-service::S2-F1::*");
+        cacheInvalidator.deleteByPattern("driver-service::S2-F5::*");
+        cacheInvalidator.deleteByPattern("driver-service::S2-F6::*");
+        cacheInvalidator.deleteByPattern("driver-service::S2-F9::*");
+        cacheInvalidator.deleteByPattern("driver-service::S2-F10::*");
     }
 
     public Driver createDriver(Driver driver) {
@@ -40,7 +51,9 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
         }
 
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteByPattern("driver-service::S2-F10::*");
+        return saved;
     }
 
     @Cacheable(value = "driver-service::driver", key = "#id")
@@ -91,7 +104,10 @@ public class DriverService {
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
         existing.setVehicleDetails(updated.getVehicleDetails());
-        return driverRepository.save(existing);
+        Driver saved = driverRepository.save(existing);
+        cacheInvalidator.deleteEntity("driver", id);
+        invalidateDriverFeatureCaches();
+        return saved;
     }
 
     @Transactional
@@ -108,6 +124,8 @@ public class DriverService {
 
         driver.setStatus(status);
         driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", id);
+        invalidateDriverFeatureCaches();
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -121,7 +139,10 @@ public class DriverService {
         }
         existing.putAll(updates);
         driver.setVehicleDetails(existing);
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", id);
+        invalidateDriverFeatureCaches();
+        return saved;
     }
 
     public void deleteDriver(Long id) {
@@ -129,6 +150,8 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
         driverRepository.deleteById(id);
+        cacheInvalidator.deleteEntity("driver", id);
+        invalidateDriverFeatureCaches();
     }
 
     @Transactional
@@ -164,7 +187,10 @@ public class DriverService {
         driver.setRating(newRating);
         driver.setTotalRatings(totalRatings + 1);
 
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDriverFeatureCaches();
+        return saved;
     }
 
     @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")
