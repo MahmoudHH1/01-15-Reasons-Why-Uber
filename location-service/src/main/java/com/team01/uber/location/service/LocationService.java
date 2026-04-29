@@ -1,5 +1,6 @@
 package com.team01.uber.location.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -18,11 +19,14 @@ import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
+import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.model.Location;
+import com.team01.uber.location.model.LocationTrackingEvent;
 import com.team01.uber.location.repository.LocationRepository;
+import com.team01.uber.location.repository.LocationTrackingEventRepository;
 
 import jakarta.transaction.Transactional;
 
@@ -30,12 +34,16 @@ import jakarta.transaction.Transactional;
 public class LocationService {
 
     private final LocationRepository locationRepository;
+    private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
-    public LocationService(LocationRepository locationRepository, RedisTemplate redisTemplate) {
+    public LocationService(LocationRepository locationRepository,
+                           LocationTrackingEventRepository trackingRepository,
+                           RedisTemplate redisTemplate) {
         this.locationRepository = locationRepository;
+        this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
     }
 
@@ -249,6 +257,30 @@ public class LocationService {
                 .longitude((Double) row[3])
                 .distanceKm((Double) row[4])
                 .build()).toList();
+    }
+
+    @Cacheable(value = "location-service::S4-F12",
+               key = "#driverId + ':' + #startTime + ':' + #endTime")
+    public List<LocationTrackingDTO> getTrackingTimeline(Long driverId, String startTime, String endTime) {
+        if (locationRepository.countDriverById(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        List<LocationTrackingEvent> events;
+        if (startTime != null && endTime != null) {
+            Instant start = Instant.parse(startTime);
+            Instant end = Instant.parse(endTime);
+            events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+        } else {
+            events = trackingRepository.findByDriverId(driverId);
+        }
+
+        return events.stream()
+                .map(e -> new LocationTrackingDTO(
+                        e.getTimestamp(), e.getLatitude(), e.getLongitude(),
+                        e.getSpeed(), e.getHeading(), e.getAccuracy(),
+                        e.getRideId(), e.getNotes()))
+                .toList();
     }
 
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")

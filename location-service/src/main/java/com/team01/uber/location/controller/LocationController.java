@@ -3,6 +3,7 @@ import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
+import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
@@ -155,5 +156,13 @@ public class LocationController {
             @RequestParam String operator,
             @RequestParam String value) {
         return ResponseEntity.ok(locationService.filterByMetadata(key, operator, value));
+    }
+
+    @GetMapping("/{driverId}/tracking")
+    public ResponseEntity<List<LocationTrackingDTO>> getTrackingTimeline(
+            @PathVariable Long driverId,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime) {
+        return ResponseEntity.ok(locationService.getTrackingTimeline(driverId, startTime, endTime));
     }
 }
