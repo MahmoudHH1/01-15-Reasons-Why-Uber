@@ -22,16 +22,16 @@ spring:
       separator: "^^"
 
   data:
+    mongodb:
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
       host: redis
       port: 6379
       password: redispass
-    mongodb:
-      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
 
 server:
   port: 8080
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
-  expiration: 86400000 # 24 hours in ms
+  expiration: 86400000
