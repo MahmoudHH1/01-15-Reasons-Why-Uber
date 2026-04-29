@@ -104,6 +104,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: redispass
+      SERVER_ERROR_INCLUDE_MESSAGE: always
     ports:
       - "8085:8080"
     depends_on:
