@@ -1,17 +1,20 @@
 package com.team01.uber.payment.strategy;
 
-import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.model.Payment;
 
 import java.util.Map;
 
-public class BaseFareOnlyRefundStrategy implements RefundStrategy {
+public class BaseFareOnlyRefundStrategy extends ApprovedRefundStrategy {
 
     @Override
-    public RefundResult calculateRefund(Payment payment, RefundSurgeRequest request) {
+    protected double computeRefundAmount(Payment payment) {
         double surgeFee = extractSurgeFee(payment);
-        double refundAmount = payment.getAmount() - surgeFee;
-        return new RefundResult(refundAmount, "base_fare_only");
+        return payment.getAmount() - surgeFee;
+    }
+
+    @Override
+    protected boolean isSurgeIncluded() {
+        return false;
     }
 
     private double extractSurgeFee(Payment payment) {
@@ -19,7 +22,6 @@ public class BaseFareOnlyRefundStrategy implements RefundStrategy {
         if (details != null && details.containsKey("surgeFee") && details.get("surgeFee") != null) {
             return ((Number) details.get("surgeFee")).doubleValue();
         }
-        // fallback: 15% of amount for pre-M2 payments without the key
         return payment.getAmount() * 0.15;
     }
 }

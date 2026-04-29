@@ -1,12 +1,16 @@
 package com.team01.uber.payment.strategy;
 
-import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.model.Payment;
 
-public class FullRefundWithSurgeStrategy implements RefundStrategy {
+public class FullRefundWithSurgeStrategy extends ApprovedRefundStrategy {
 
     @Override
-    public RefundResult calculateRefund(Payment payment, RefundSurgeRequest request) {
-        return new RefundResult(payment.getAmount(), "full_refund_with_surge");
+    protected double computeRefundAmount(Payment payment) {
+        return payment.getAmount();
+    }
+
+    @Override
+    protected boolean isSurgeIncluded() {
+        return true;
     }
 }
