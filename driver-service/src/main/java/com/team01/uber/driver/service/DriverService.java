@@ -5,6 +5,7 @@ import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.repository.DriverRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,7 @@ public class DriverService {
         return driverRepository.save(driver);
     }
 
+    @Cacheable(value = "driver-service::driver", key = "#id")
     public Driver getDriverById(Long id) {
         return driverRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
@@ -51,6 +53,7 @@ public class DriverService {
         return driverRepository.findAll();
     }
 
+    @Cacheable(value = "driver-service::S2-F6", key = "#limit")
     public List<TopDriverDTO> getTopRatedDrivers(int limit) {
         return driverRepository.findTopRatedDrivers(limit).stream()
                 .map(row -> new TopDriverDTO(
@@ -61,12 +64,14 @@ public class DriverService {
                 ))
                 .toList();
     }
+    @Cacheable(value = "driver-service::S2-F5", key = "#type + ':' + (#status == null ? 'ANY' : #status.name())")
     public List<Driver> filterByVehicleType(String type, DriverStatus status) {
         if (status == null) {
             return driverRepository.findByVehicleType(type);
         }
         return driverRepository.findByVehicleTypeAndStatus(type, status.name());
     }
+    @Cacheable(value = "driver-service::S2-F1", key = "(#status == null ? 'ANY' : #status.name()) + ':' + #minRating + ':' + #maxRating")
     public List<Driver> searchDrivers(DriverStatus status, Double minRating, Double maxRating) {
         if (minRating > maxRating) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");
@@ -162,6 +167,7 @@ public class DriverService {
         return driverRepository.save(driver);
     }
 
+    @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
 
