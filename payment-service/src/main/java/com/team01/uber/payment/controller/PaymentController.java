@@ -2,6 +2,7 @@ package com.team01.uber.payment.controller;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.model.Payment;
@@ -54,6 +55,12 @@ public class PaymentController {
     @PutMapping("/{id}/refund")
     public Payment refund(@PathVariable Long id, @Valid @RequestBody RefundRequest request) {
         return paymentService.processRefund(id, request.getReason());
+    }
+
+    @PostMapping("/{id}/refund-surge-adjusted")
+    public ResponseEntity<Payment> refundSurgeAdjusted(@PathVariable Long id,
+                                                        @Valid @RequestBody RefundSurgeRequest request) {
+        return ResponseEntity.ok(paymentService.processRefundSurgeAdjusted(id, request));
     }
 
     @PostMapping

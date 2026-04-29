@@ -28,7 +28,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().equals("/api/locations/health");
+        String path = request.getServletPath();
+        return path.equals("/api/locations/health");
     }
 
     @Override
@@ -36,47 +37,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        AuthContext ctx = new AuthContext(request);
+        AuthContext ctx = new AuthContext(request, response);
 
-        // ── Handler 1: TokenExtractionHandler ──
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Missing or malformed Authorization header");
-            return;
+        // Build the Chain of Responsibility
+        AuthHandler head = new TokenExtractionHandler();
+        head.setNext(new SignatureValidationHandler(jwtService))
+            .setNext(new UserLoaderHandler(jdbcTemplate))
+            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
+
+        try {
+            if (head.handle(ctx)) {
+                var auth = new UsernamePasswordAuthenticationToken(
+                        ctx.getEmail(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
+                );
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+
+                filterChain.doFilter(request, response);
+            }
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.getWriter().write("Authentication processing error");
         }
-        ctx.setToken(authHeader.substring(7));
-
-        // ── Handler 2: SignatureValidationHandler ──
-        if (!jwtService.isTokenValid(ctx.getToken())) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Invalid or expired token");
-            return;
-        }
-
-        // ── Handler 3: UserLoaderHandler ──
-        String email = jwtService.extractEmail(ctx.getToken());
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM users WHERE email = ?", Integer.class, email);
-        if (count == null || count == 0) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("User not found");
-            return;
-        }
-        ctx.setEmail(email);
-
-        // ── Handler 4: RoleAuthorizationHandler ──
-        String role = jwtService.extractRole(ctx.getToken());
-        ctx.setRole(role);
-
-        var auth = new UsernamePasswordAuthenticationToken(
-                email,
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-        );
-        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        SecurityContextHolder.getContext().setAuthentication(auth);
-
-        filterChain.doFilter(request, response);
     }
 }

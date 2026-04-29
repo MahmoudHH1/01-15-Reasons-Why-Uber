@@ -21,22 +21,18 @@ spring:
       schema-locations: classpath:schema.sql
       separator: "^^"
 
+  cassandra:
+    contact-points: cassandra
+    port: 9042
+    local-datacenter: datacenter1
+    keyspace-name: uberks
+    schema-action: CREATE_IF_NOT_EXISTS
+
   data:
-    cassandra:
-      contact-points: localhost
-      port: 9042
-      local-datacenter: datacenter1
-      keyspace-name: uberks
-      schema-action: create_if_not_exists
     mongodb:
-      host: localhost
-      port: 27017
-      username: root
-      password: rootpass
-      database: ubermongo
-      authentication-database: admin
+      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
     redis:
-      host: localhost
+      host: redis
       port: 6379
       password: redispass
 

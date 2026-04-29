@@ -31,6 +31,11 @@ public class JwtConfigurationManager {
         return instance;
     }
 
-    public String getSecret() { return secret; }
-    public long getExpirationMs() { return expirationMs; }
+    public String getSecret() {
+        return secret;
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
+    }
 }

@@ -26,8 +26,10 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // public endpoints
                 .requestMatchers(HttpMethod.GET, "/api/locations/health").permitAll()
                 .requestMatchers("/error").permitAll()
+                // everything else requires a valid JWT
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
