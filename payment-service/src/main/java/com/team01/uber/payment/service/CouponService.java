@@ -4,6 +4,7 @@ import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.model.Coupon;
 import com.team01.uber.payment.model.DiscountType;
 import com.team01.uber.payment.repository.CouponRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +26,7 @@ public class CouponService {
         return couponRepository.save(coupon);
     }
 
+    @Cacheable(value = "payment-service::coupon", key = "#id")
     public Coupon getCouponById(Long id) {
         return couponRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found"));

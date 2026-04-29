@@ -10,6 +10,7 @@ import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.repository.CouponRepository;
 import com.team01.uber.payment.repository.PaymentCouponRepository;
 import com.team01.uber.payment.repository.PaymentRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ public class PaymentCouponService {
         return paymentCouponRepository.save(paymentCoupon);
     }
 
+    @Cacheable(value = "payment-service::payment-coupon", key = "#id")
     public PaymentCoupon getPaymentCouponById(Long id) {
         return paymentCouponRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PaymentCoupon not found"));

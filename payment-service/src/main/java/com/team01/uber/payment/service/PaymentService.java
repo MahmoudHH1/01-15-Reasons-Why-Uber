@@ -12,6 +12,7 @@ import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
 import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -130,6 +131,7 @@ public class PaymentService {
         return strategySelector.select(payment, request).execute(payment, request, ctx);
     }
 
+    @Cacheable(value = "payment-service::payment", key = "#id")
     public Payment getPaymentById(Long id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
