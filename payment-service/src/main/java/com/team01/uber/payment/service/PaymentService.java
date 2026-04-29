@@ -55,6 +55,7 @@ public class PaymentService {
         }
     }
 
+    @Cacheable(value = "payment-service::S5-F9", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
         if (paymentRepository.countUsersById(userId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -224,6 +225,7 @@ public class PaymentService {
         return paymentRepository.save(payment);
     }
 
+    @Cacheable(value = "payment-service::S5-F8", key = "#paymentId")
     @Transactional(readOnly = true)
     public PaymentDetailsDTO getPaymentDetails(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
@@ -256,11 +258,13 @@ public class PaymentService {
         );
     }
 
+    @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
     }
 
+    @Cacheable(value = "payment-service::S5-F6", key = "#startDate + ':' + #endDate")
     public RevenueReportDTO getRevenueReport(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate.isAfter(endDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

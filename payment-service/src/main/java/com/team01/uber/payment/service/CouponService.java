@@ -56,6 +56,7 @@ public class CouponService {
         couponRepository.deleteById(id);
     }
 
+    @Cacheable(value = "payment-service::S5-F3", key = "#limit")
     public List<CouponUsageDTO> getMostUsedCoupons(int limit) {
         return couponRepository.findTopUsedCoupons(limit).stream()
                 .map(row -> new CouponUsageDTO(
