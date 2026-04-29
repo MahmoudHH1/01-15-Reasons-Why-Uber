@@ -1,35 +1,70 @@
 package com.team01.uber.location.controller;
-
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
+import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
+import com.team01.uber.location.enums.EventType;
+import com.team01.uber.location.factory.EventFactory;
 import com.team01.uber.location.model.Location;
+import com.team01.uber.location.model.LocationEvent;
+import com.team01.uber.location.repository.LocationEventRepository;
 import com.team01.uber.location.service.LocationService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/locations")
 public class LocationController {
 
     private final LocationService locationService;
+    private final LocationEventRepository locationEventRepository;
+    private final EventFactory eventFactory;
+    private static final Logger log = LoggerFactory.getLogger(LocationController.class);
 
-    public LocationController(LocationService locationService) {
+    public LocationController(LocationService locationService,
+                              LocationEventRepository locationEventRepository,
+                              EventFactory eventFactory) {
         this.locationService = locationService;
+        this.locationEventRepository = locationEventRepository;
+        this.eventFactory = eventFactory;
     }
 
     @GetMapping("/health")
     public String health() {
         return "OK";
+    }
+
+    @GetMapping("/analytics")
+    public ResponseEntity<LocationAnalyticsDTO> getAnalytics(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        // Log ANALYTICS_VIEWED event to MongoDB (must run on every invocation, even cache hits)
+        try {
+            locationEventRepository.save((LocationEvent) eventFactory.createEvent(EventType.LOCATION, Map.of(
+                    "action", "ANALYTICS_VIEWED",
+                    "driverId", 0L, // Global analytics, no specific driver
+                    "timestamp", LocalDateTime.now(),
+                    "details", Map.of("startDate", startDate, "endDate", endDate)
+            )));
+        } catch (Exception e) {
+            log.warn("Failed to log ANALYTICS_VIEWED event: {}", e.getMessage());
+        }
+
+        return ResponseEntity.ok(locationService.getAnalytics(startDate, endDate));
     }
 
     @PostMapping
