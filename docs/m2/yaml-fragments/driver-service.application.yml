@@ -1,3 +1,10 @@
+# Reference application.yml for driver-service (port 8082 host, 8080 container)
+# Source: Uber_descriptionM2.pdf §6.5
+# Drop into driver-service/src/main/resources/application.yml.
+
+server:
+  port: 8080
+
 spring:
   application:
     name: driver-service
@@ -22,19 +29,20 @@ spring:
       separator: "^^"
 
   data:
-    mongodb:
-      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
       host: redis
       port: 6379
       password: redispass
+    mongodb:
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
 
+  # Driver-service only: Elasticsearch (drivers index)
   elasticsearch:
     uris: http://elasticsearch:9200
 
-server:
-  port: 8080
-
 jwt:
+  # Base64-encoded ≥32-byte secret, MUST be identical across all 5 services
+  # (user-service issues tokens, every other service verifies independently — §5.1).
+  # Hardcoded here intentionally — keep the same value in every service's application.yml.
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
