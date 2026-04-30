@@ -11,7 +11,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -67,10 +69,20 @@ public class LocationService {
         }
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location create(Location location) {
         return locationRepository.save(location);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location createForDriver(Long driverId, DriverLocationCreateRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
@@ -110,6 +122,16 @@ public class LocationService {
         return locationRepository.findAll();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", key = "#id"),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location update(Long id, Location location) {
         Location existing = getById(id);
         if (location.getDriverId() != null) existing.setDriverId(location.getDriverId());
@@ -120,6 +142,16 @@ public class LocationService {
         return locationRepository.save(existing);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", key = "#id"),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public void delete(Long id) {
         if (!locationRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Error 404");
@@ -127,6 +159,13 @@ public class LocationService {
         locationRepository.deleteById(id);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#request.driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", key = "#request.driverId", condition = "#request.driverId != null"),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     @Transactional
     public BatchLocationResponse batchUpdate(BatchLocationRequest request) {
         Long driverId = request.getDriverId();
@@ -171,6 +210,16 @@ public class LocationService {
         return new BatchLocationResponse(toSave.size());
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     @Transactional
     public long purgeOlderThanDays(int olderThanDays) {
         if (olderThanDays < 0) {
@@ -325,6 +374,12 @@ public class LocationService {
         return locationAdapter.adaptToLocationAnalytics(statsResults.get(0), hourlyResults);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F12", allEntries = true)
+    })
     public LocationTrackingDTO recordGpsEvent(Long driverId, TrackingRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
@@ -357,13 +412,6 @@ public class LocationService {
 
         trackingRepository.save(event);
 
-        // Invalidate Redis caches for latest location and nearby drivers
-        redisTemplate.delete("location-service::S4-F12::" + driverId);
-        Set<String> keys = redisTemplate.keys("location-service::S4-F10::*");
-        if (keys != null) {
-            keys.forEach(redisTemplate::delete);
-        }
-
         // Notify observers (MongoDB event logging)
         Map<String, Object> payload = new HashMap<>();
         payload.put("driverId", driverId);
@@ -374,3 +422,4 @@ public class LocationService {
         return locationAdapter.adaptToLocationTrackingDTO(event);
     }
 }
+
