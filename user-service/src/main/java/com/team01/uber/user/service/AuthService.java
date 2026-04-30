@@ -29,19 +29,23 @@ public class AuthService implements Observable {
     private final UserRepository userRepository;
     private final AuthEventRepository authEventRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MongoEventLogger mongoEventLogger;
     private final JwtService jwtService;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public AuthService(UserRepository userRepository,
+                       AuthEventRepository authEventRepository,  // Add this parameter
                        PasswordEncoder passwordEncoder,
-                       JwtService jwtService) {
+                       JwtService jwtService,
+                       MongoEventLogger mongoEventLogger) {  // Add this parameter
         this.userRepository = userRepository;
         this.authEventRepository = authEventRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.mongoEventLogger = mongoEventLogger;  // Initialize the field
         registerObserver(mongoEventLogger);
     }
-
+    
     @Override
     public void registerObserver(EntityObserver observer) {
         observers.add(observer);
