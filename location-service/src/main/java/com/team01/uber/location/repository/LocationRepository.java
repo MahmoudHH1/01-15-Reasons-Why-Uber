@@ -100,4 +100,25 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     List<Object[]> findStationaryDrivers(@Param("maxSpeed") Double maxSpeed,
                                          @Param("since") LocalDateTime since);
 
+    @Query(value = """
+            SELECT
+                COUNT(*)                                                        AS total_location_events,
+                COUNT(DISTINCT driver_id)                                       AS active_drivers,
+                COALESCE(AVG(NULLIF(metadata->>'speed', '')::numeric), 0)      AS average_speed
+            FROM locations
+            WHERE timestamp BETWEEN :startDate AND :endDate
+            """, nativeQuery = true)
+    List<Object[]> getDashboardStats(@Param("startDate") LocalDateTime startDate,
+                                     @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = """
+            SELECT EXTRACT(HOUR FROM timestamp) AS hour, COUNT(*) AS count
+            FROM locations
+            WHERE timestamp BETWEEN :startDate AND :endDate
+            GROUP BY hour
+            ORDER BY hour
+            """, nativeQuery = true)
+    List<Object[]> getEventsByHour(@Param("startDate") LocalDateTime startDate,
+                                   @Param("endDate") LocalDateTime endDate);
+
 }

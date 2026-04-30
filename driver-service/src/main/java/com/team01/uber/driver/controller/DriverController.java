@@ -1,12 +1,13 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
-import com.team01.uber.driver.model.Driver;
-import com.team01.uber.driver.service.DriverDocumentService;
+import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.dto.TopDriverDTO;
-import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
+import com.team01.uber.driver.service.DriverDocumentService;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -112,6 +113,11 @@ public class DriverController {
                                                 @RequestParam LocalDate startDate,
                                                 @RequestParam LocalDate endDate) {
         return driverService.getEarningsSummary(id, startDate, endDate);
+    }
+
+    @GetMapping("/{id}/dashboard")
+    public ResponseEntity<DriverDashboardDTO> getDriverDashboard(@PathVariable Long id) {
+        return ResponseEntity.ok(driverService.getDriverDashboard(id));
     }
 }
 
