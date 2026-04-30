@@ -1,5 +1,6 @@
 package com.team01.uber.user.controller;
 
+import com.team01.uber.user.dto.ActivityFeedDTO;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.dto.UserProfileDTO;
@@ -104,5 +105,13 @@ public class UserController {
     @GetMapping("/{id}/profile")
     public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserProfile(id));
+    }
+
+    @GetMapping("/{id}/activity")
+    public ResponseEntity<ActivityFeedDTO> getActivityFeed(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(userService.getActivityFeed(id, page, size));
     }
 }

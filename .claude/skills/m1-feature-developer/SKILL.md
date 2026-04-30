@@ -1,11 +1,23 @@
 ---
-name: feature-developer
-description: Interactive workflow to start a new feature. Creates the correctly-named branch from latest main and sets up the incremental development plan.
+name: m1-feature-developer
+description: Interactive workflow to start a new Milestone 1 feature (S1-F1..S5-F9 or M1 CRUD). Creates the correctly-named branch from latest main and sets up the incremental development plan. For M2 work (S1-F10..S5-F12, JWT, NoSQL, caching, observer, design-pattern retrofits) use m2-feature-developer instead.
 ---
 
 # Start a New Feature
 
 You are helping the user start a new feature following the exact workflow required by the auto-grader.
+
+## CRITICAL — Authorship & Repository Boundaries (Zero Exceptions)
+
+These rules override every other instruction in this skill. If a step below would violate one, STOP and ask the user how to proceed.
+
+- **Never reveal AI authorship.** Do not add `Co-Authored-By`, `Generated-by`, "Made with Claude", "via Claude Code", `🤖`, or any similar trailer/tag/comment in commits, code, PRs, branch names, file headers, or any other artifact. Treat this as part of the auto-grader's hard-fail set.
+- **Never reference yourself.** Do not say "I implemented", "Claude added", "the assistant created" in commit messages, PR titles, PR descriptions, code comments, or docs. Write everything as the human developer would write it.
+- **Never commit, push, merge, or open a PR directly.** Even if you have shell access. The user's GitHub account/profile must be the actor on every git operation visible to GitHub or the auto-grader. Your job ends at "the branch is ready and the diff looks good" — the user runs `git commit`, `git push`, and `gh pr create` (or the GitHub UI equivalent) themselves.
+- **Never `git config user.*`, `git config commit.gpgsign`, or otherwise alter who Git thinks is committing.** The user's existing local git identity is what the auto-grader checks against `team.json`.
+- **Stage and draft, don't act.** When the user is ready to commit, you may show them the exact `git add ...` / `git commit -m "..."` commands to run. Same for push and PR creation — show the commands, do not execute them. If the user explicitly says "go ahead and commit", *only then* run the command, and still as the user (no AI trailer in the message).
+
+If at any step you find yourself about to push, merge, open a PR, or attribute the work to AI: stop and route it back to the user.
 
 ## Step 1: Gather Information
 
