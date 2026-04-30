@@ -1,6 +1,6 @@
 package com.team01.uber.driver.adapter;
 
-import com.team01.uber.driver.model.DriverEvent;
+import com.team01.uber.driver.dto.DriverEventDTO;
 import org.bson.Document;
 import org.springframework.stereotype.Component;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 @Component
 public class MongoDocumentAdapter {
 
-    public DriverEvent adapt(Document document) {
+    public DriverEventDTO adapt(Document document) {
         Long driverId = document.get("driverId") != null
                 ? ((Number) document.get("driverId")).longValue()
                 : null;
@@ -24,7 +24,7 @@ public class MongoDocumentAdapter {
                 ? (Map<String, Object>) m
                 : null;
 
-        return DriverEvent.builder()
+        return DriverEventDTO.builder()
                 .id(document.getString("_id") != null ? document.getString("_id") : document.getString("id"))
                 .driverId(driverId)
                 .action(document.getString("action"))
