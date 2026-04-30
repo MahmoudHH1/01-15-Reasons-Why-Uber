@@ -198,7 +198,27 @@ public class PaymentService {
 
         payment.setTransactionDetails(details);
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+
+        notifyObservers("CREATED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of("rideId", rideId)
+        ));
+
+        notifyObservers("COMPLETED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of(
+                        "gatewayResponse", "approved",
+                        "rideId", rideId,
+                        "surgeFee", surgeFee
+                )
+        ));
+
+        return saved;
     }
 
     private double computeSurgeFee(Long rideId, double amount) {
