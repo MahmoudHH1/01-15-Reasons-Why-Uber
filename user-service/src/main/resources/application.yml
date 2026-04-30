@@ -1,7 +1,6 @@
 spring:
   application:
     name: user-service
-
   datasource:
     url: jdbc:postgresql://localhost:5432/uberdb
     username: postgres
@@ -30,7 +29,7 @@ spring:
       password: redispass
 
 server:
-  port: 8080
+  port: 8081
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"

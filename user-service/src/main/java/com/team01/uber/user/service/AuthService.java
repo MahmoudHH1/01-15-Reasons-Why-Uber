@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import com.team01.uber.user.dto.LoginRequest;
+import java.time.LocalDateTime;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,21 +27,25 @@ import java.util.Map;
 public class AuthService implements Observable {
 
     private final UserRepository userRepository;
+    private final AuthEventRepository authEventRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MongoEventLogger mongoEventLogger;
     private final JwtService jwtService;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public AuthService(UserRepository userRepository,
-                       AuthEventRepository authEventRepository,
+                       AuthEventRepository authEventRepository,  // Add this parameter
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       MongoEventLogger mongoEventLogger) {
+                       MongoEventLogger mongoEventLogger) {  // Add this parameter
         this.userRepository = userRepository;
+        this.authEventRepository = authEventRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.mongoEventLogger = mongoEventLogger;  // Initialize the field
         registerObserver(mongoEventLogger);
     }
-
+    
     @Override
     public void registerObserver(EntityObserver observer) {
         observers.add(observer);
@@ -54,7 +60,6 @@ public class AuthService implements Observable {
     public void notifyObservers(String action, Map<String, Object> payload) {
         observers.forEach(o -> o.onEvent(action, payload));
     }
-
     public AuthResponse register(RegisterRequest request) {
         if (request.getName() == null || request.getName().isBlank() ||
                 request.getEmail() == null || request.getEmail().isBlank() ||
@@ -80,6 +85,20 @@ public class AuthService implements Observable {
         user = userRepository.save(user);
 
         notifyObservers(AuthEvent.ACTION_REGISTERED, Map.of("userId", user.getId(), "email", user.getEmail()));
+
+        String token = jwtService.generateToken(user);
+        return new AuthResponse(token, jwtService.getExpirationMs());
+    }
+    public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+
+        // TODO: Log LOGGED_IN event to MongoDB via Observer chain (Branch 2)
+        // For now, just generate token and return
 
         String token = jwtService.generateToken(user);
         return new AuthResponse(token, jwtService.getExpirationMs());
