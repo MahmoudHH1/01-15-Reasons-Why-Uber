@@ -192,9 +192,46 @@ public class PaymentService {
         if (request.getCardLastFour() != null) {
             details.put("cardLastFour", request.getCardLastFour());
         }
+
+        double surgeFee = computeSurgeFee(rideId, payment.getAmount());
+        details.put("surgeFee", surgeFee);
+
         payment.setTransactionDetails(details);
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+
+        notifyObservers("CREATED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of("rideId", rideId)
+        ));
+
+        notifyObservers("COMPLETED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of(
+                        "gatewayResponse", "approved",
+                        "rideId", rideId,
+                        "surgeFee", surgeFee
+                )
+        ));
+
+        return saved;
+    }
+
+    private double computeSurgeFee(Long rideId, double amount) {
+        try {
+            Double surgeMultiplier = paymentRepository.findRideSurgeMultiplierById(rideId);
+            if (surgeMultiplier != null && surgeMultiplier > 1.0) {
+                Double fare = paymentRepository.findRideFareById(rideId);
+                double baseFare = fare != null ? fare : amount;
+                return baseFare * (surgeMultiplier - 1.0);
+            }
+        } catch (Exception ignored) {
+        }
+        return amount * 0.15;
     }
 
     @Transactional
