@@ -77,7 +77,12 @@ public class PaymentService {
             totalAmount += amount;
         }
 
-        return new UserPaymentSummaryDTO(userId, totalPayments, totalAmount, methodBreakdown);
+        return UserPaymentSummaryDTO.builder()
+                .userId(userId)
+                .totalPayments(totalPayments)
+                .totalAmount(totalAmount)
+                .methodBreakdown(methodBreakdown)
+                .build();
     }
 
     public Payment createPayment(Payment payment) {
@@ -269,18 +274,18 @@ public class PaymentService {
                 .mapToDouble(AppliedCouponDTO::getDiscountApplied)
                 .sum();
 
-        return new PaymentDetailsDTO(
-                payment.getId(),
-                payment.getRideId(),
-                payment.getUserId(),
-                payment.getAmount(),
-                payment.getMethod(),
-                payment.getStatus(),
-                payment.getTransactionDetails(),
-                appliedCoupons,
-                totalDiscount,
-                payment.getAmount() - totalDiscount
-        );
+        return PaymentDetailsDTO.builder()
+                .paymentId(payment.getId())
+                .rideId(payment.getRideId())
+                .userId(payment.getUserId())
+                .originalAmount(payment.getAmount())
+                .method(payment.getMethod())
+                .status(payment.getStatus())
+                .transactionDetails(payment.getTransactionDetails())
+                .appliedCoupons(appliedCoupons)
+                .totalDiscount(totalDiscount)
+                .finalAmount(payment.getAmount() - totalDiscount)
+                .build();
     }
 
     @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
@@ -306,12 +311,12 @@ public class PaymentService {
         double refundedAmount = ((Number) refundedRow[0]).doubleValue();
         long refundCount = ((Number) refundedRow[1]).longValue();
 
-        RevenueReportDTO dto = new RevenueReportDTO();
-        dto.setTotalRevenue(totalRevenue);
-        dto.setTotalTransactions(totalTransactions);
-        dto.setAveragePayment(averagePayment);
-        dto.setRefundedAmount(refundedAmount);
-        dto.setRefundCount(refundCount);
-        return dto;
+        return RevenueReportDTO.builder()
+                .totalRevenue(totalRevenue)
+                .totalTransactions(totalTransactions)
+                .averagePayment(averagePayment)
+                .refundedAmount(refundedAmount)
+                .refundCount(refundCount)
+                .build();
     }
 }

@@ -116,8 +116,10 @@ public class RedisConfig implements CachingConfigurer {
                 "payment-service::S5-F6",         base.entryTtl(Duration.ofMinutes(10)),
                 "payment-service::S5-F8",         base.entryTtl(Duration.ofMinutes(15)),
                 "payment-service::S5-F9",         base.entryTtl(Duration.ofMinutes(10)),
+                "payment-service::S5-F10",         base.entryTtl(Duration.ofMinutes(10)),
                 "payment-service::payment",        base.entryTtl(Duration.ofMinutes(15)),
                 "payment-service::coupon",         base.entryTtl(Duration.ofMinutes(15)),
+
                 "payment-service::payment-coupon", base.entryTtl(Duration.ofMinutes(15))
         );
 
