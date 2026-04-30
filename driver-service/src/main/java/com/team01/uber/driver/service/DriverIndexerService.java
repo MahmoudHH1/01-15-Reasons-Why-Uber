@@ -29,13 +29,16 @@ public class DriverIndexerService {
 
     private final DriverSearchRepository searchRepository;
     private final ElasticsearchHitAdapter adapter;
+    private final CacheInvalidationService cacheInvalidationService;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverIndexerService(DriverSearchRepository searchRepository,
-                                ElasticsearchHitAdapter adapter) {
+                                ElasticsearchHitAdapter adapter,
+                                CacheInvalidationService cacheInvalidationService) {
         this.searchRepository = searchRepository;
         this.adapter = adapter;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     public void register(EntityObserver observer) {
@@ -75,6 +78,7 @@ public class DriverIndexerService {
         payload.put("details", details);
 
         notifyObservers("INDEXED", payload);
+        cacheInvalidationService.invalidateDriverIndexCaches(driver.getId());
     }
 
     public void removeFromIndex(Long driverId) {
@@ -97,5 +101,6 @@ public class DriverIndexerService {
         payload.put("details", details);
 
         notifyObservers("DRIVER_DELETED", payload);
+        cacheInvalidationService.invalidateDriverIndexCaches(driverId);
     }
 }
