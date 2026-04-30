@@ -57,5 +57,15 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
                                 @Param("startDate") LocalDate startDate,
                                 @Param("endDate") LocalDate endDate);
 
+    @Query(value = """
+            SELECT COUNT(r.id),
+                   COALESCE(SUM(p.amount), 0),
+                   COALESCE(AVG(p.amount), 0)
+            FROM rides r
+            LEFT JOIN payments p ON p.ride_id = r.id
+            WHERE r.driver_id = :driverId AND r.status = 'COMPLETED'
+            """, nativeQuery = true)
+    Object[] getDashboardStats(@Param("driverId") Long driverId);
+
 }
 

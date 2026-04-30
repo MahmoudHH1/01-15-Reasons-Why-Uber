@@ -1,5 +1,6 @@
 package com.team01.uber.location.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -13,14 +14,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
+import com.team01.uber.location.dto.LocationTrackingDTO;
+import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.model.Location;
+import com.team01.uber.location.model.LocationTrackingEvent;
 import com.team01.uber.location.repository.LocationRepository;
+import com.team01.uber.location.repository.LocationTrackingEventRepository;
 
 import jakarta.transaction.Transactional;
 
@@ -28,11 +34,16 @@ import jakarta.transaction.Transactional;
 public class LocationService {
 
     private final LocationRepository locationRepository;
+    private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
-    public LocationService(LocationRepository locationRepository, RedisTemplate redisTemplate) {
+    public LocationService(LocationRepository locationRepository,
+                           LocationTrackingEventRepository trackingRepository,
+                           RedisTemplate redisTemplate) {
         this.locationRepository = locationRepository;
+        this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
     }
 
@@ -212,32 +223,88 @@ public class LocationService {
         LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
         LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
 
-        return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
+        return DriverMovementSummaryDTO.builder()
+                .driverId(driverId)
+                .totalLocationPoints(totalPoints)
+                .averageSpeed(avgSpeed)
+                .maxSpeed(maxSpeed)
+                .firstTimestamp(firstTs)
+                .lastTimestamp(lastTs)
+                .build();
     }
 
     @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
-        return results.stream().map(row -> new StationaryDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                row[4] != null ? ((Number) row[4]).doubleValue() : null,
-                (LocalDateTime) row[5]
-        )).toList();
+        return results.stream().map(row -> StationaryDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .lastSpeed(row[4] != null ? ((Number) row[4]).doubleValue() : null)
+                .lastUpdated((LocalDateTime) row[5])
+                .build()).toList();
     }
 
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
         List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
-        return results.stream().map(row -> new NearbyDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                (Double) row[4]
-        )).toList();
+        return results.stream().map(row -> NearbyDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .distanceKm((Double) row[4])
+                .build()).toList();
+    }
+
+    @Cacheable(value = "location-service::S4-F12",
+               key = "#driverId + ':' + #startTime + ':' + #endTime")
+    public List<LocationTrackingDTO> getTrackingTimeline(Long driverId, String startTime, String endTime) {
+        if (locationRepository.countDriverById(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+
+        List<LocationTrackingEvent> events;
+        if (startTime != null && endTime != null) {
+            Instant start = Instant.parse(startTime);
+            Instant end = Instant.parse(endTime);
+            events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+        } else {
+            events = trackingRepository.findByDriverId(driverId);
+        }
+
+        return events.stream()
+                .map(e -> new LocationTrackingDTO(
+                        e.getTimestamp(), e.getLatitude(), e.getLongitude(),
+                        e.getSpeed(), e.getHeading(), e.getAccuracy(),
+                        e.getRideId(), e.getNotes()))
+                .toList();
+    }
+
+    @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
+    public LocationAnalyticsDTO getAnalytics(String startDate, String endDate) {
+        LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
+        LocalDateTime end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate cannot be after endDate");
+        }
+
+        List<Object[]> statsResults = locationRepository.getDashboardStats(start, end);
+        List<Object[]> hourlyResults = locationRepository.getEventsByHour(start, end);
+
+        if (statsResults.isEmpty() || statsResults.get(0)[0] == null) {
+            // Return empty analytics if no data found
+            return LocationAnalyticsDTO.builder()
+                    .totalLocationEvents(0L)
+                    .activeDrivers(0L)
+                    .averageSpeed(0.0)
+                    .eventsByHour(new java.util.HashMap<>())
+                    .build();
+        }
+
+        return locationAdapter.adaptToLocationAnalytics(statsResults.get(0), hourlyResults);
     }
 }
