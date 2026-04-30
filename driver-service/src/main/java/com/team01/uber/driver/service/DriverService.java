@@ -1,10 +1,18 @@
 package com.team01.uber.driver.service;
 
-import com.team01.uber.driver.dto.TopDriverDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
+import com.team01.uber.driver.observer.EntityObserver;
+import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverRepository;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,21 +20,53 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class DriverService {
 
-    private final DriverRepository driverRepository;
+    private static final Logger log = LoggerFactory.getLogger(DriverService.class);
+    private static final String CACHE_PREFIX = "driver-service::S2-F12::";
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public DriverService(DriverRepository driverRepository) {
+    private final DriverRepository driverRepository;
+    private final MongoEventLogger mongoEventLogger;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final List<EntityObserver> observers = new ArrayList<>();
+
+    public DriverService(DriverRepository driverRepository,
+                         MongoEventLogger mongoEventLogger,
+                         RedisTemplate<String, String> redisTemplate) {
         this.driverRepository = driverRepository;
+        this.mongoEventLogger = mongoEventLogger;
+        this.redisTemplate = redisTemplate;
+    }
+
+    @PostConstruct
+    void init() {
+        register(mongoEventLogger);
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    public void notifyObservers(String eventType, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(eventType, payload);
+        }
     }
 
     public Driver createDriver(Driver driver) {
-        driver.setId(null); // Ensure ID is null for new document
+        driver.setId(null);
         driver.setCreatedAt(LocalDateTime.now());
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.OFFLINE);
@@ -34,12 +74,13 @@ public class DriverService {
 
         if (driverRepository.findByLicenseNumber(driver.getLicenseNumber()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "License number already in use");
-        }
-        else if (driverRepository.findByEmail(driver.getEmail()).isPresent()) {
+        } else if (driverRepository.findByEmail(driver.getEmail()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
         }
 
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        notifyObservers("DRIVER_CREATED", Map.of("driverId", saved.getId()));
+        return saved;
     }
 
     public Driver getDriverById(Long id) {
@@ -61,21 +102,21 @@ public class DriverService {
                 ))
                 .toList();
     }
+
     public List<Driver> filterByVehicleType(String type, DriverStatus status) {
         if (status == null) {
             return driverRepository.findByVehicleType(type);
         }
         return driverRepository.findByVehicleTypeAndStatus(type, status.name());
     }
+
     public List<Driver> searchDrivers(DriverStatus status, Double minRating, Double maxRating) {
         if (minRating > maxRating) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");
         }
-
         if (status == null) {
             return driverRepository.findByRatingBetweenOrderByRatingDesc(minRating, maxRating);
         }
-
         return driverRepository.findByStatusAndRatingBetweenOrderByRatingDesc(status, minRating, maxRating);
     }
 
@@ -86,23 +127,25 @@ public class DriverService {
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
         existing.setVehicleDetails(updated.getVehicleDetails());
-        return driverRepository.save(existing);
+        Driver saved = driverRepository.save(existing);
+        notifyObservers("VEHICLE_DETAILS_UPDATED", Map.of("driverId", id));
+        invalidateDriverCaches(id);
+        return saved;
     }
 
     @Transactional
     public void updateAvailability(Long id, DriverStatus status) {
         Driver driver = getDriverById(id);
-
         if (status == DriverStatus.OFFLINE) {
             long activeRides = driverRepository.countActiveRidesByDriverId(id);
             if (activeRides > 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Cannot go OFFLINE with active rides");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot go OFFLINE with active rides");
             }
         }
-
         driver.setStatus(status);
         driverRepository.save(driver);
+        notifyObservers("AVAILABILITY_UPDATED", Map.of("driverId", id));
+        invalidateDriverCaches(id);
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -116,7 +159,10 @@ public class DriverService {
         }
         existing.putAll(updates);
         driver.setVehicleDetails(existing);
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        notifyObservers("VEHICLE_DETAILS_UPDATED", Map.of("driverId", id));
+        invalidateDriverCaches(id);
+        return saved;
     }
 
     public void deleteDriver(Long id) {
@@ -124,56 +170,100 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
         driverRepository.deleteById(id);
+        notifyObservers("DRIVER_DELETED", Map.of("driverId", id));
+        invalidateDriverCaches(id);
     }
 
     @Transactional
     public Driver rateDriver(Long driverId, Long rideId, Integer rating) {
-        // 1. Find driver — 404 if not found
         Driver driver = getDriverById(driverId);
-
-        // 2. Validate rating range — 400 if out of bounds
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-
-        // 3. Verify ride exists — 404 if not found
         if (!driverRepository.rideExists(rideId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
         }
-
-        // 4. Verify ride belongs to this driver — 400 if not
         if (!driverRepository.rideBelongsToDriver(rideId, driverId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
         }
-
-        // 5. Verify ride is COMPLETED — 400 if not
         String rideStatus = driverRepository.getRideStatus(rideId);
         if (!"COMPLETED".equals(rideStatus)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not completed");
         }
-
-        // 6. Recalculate running average and update driver
         int totalRatings = driver.getTotalRatings();
         double newRating = (driver.getRating() * totalRatings + rating) / (totalRatings + 1.0);
-
         driver.setRating(newRating);
         driver.setTotalRatings(totalRatings + 1);
-
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        notifyObservers("RATING_RECORDED", Map.of("driverId", driverId, "rating", rating));
+        invalidateDriverCaches(driverId);
+        return saved;
     }
 
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
-
         Object[] row = driverRepository.getEarningsSummary(driverId, startDate, endDate);
         if (row.length > 0 && row[0] instanceof Object[]) {
             row = (Object[]) row[0];
         }
-
         Long totalRides = ((Number) row[0]).longValue();
         Double totalEarnings = ((Number) row[1]).doubleValue();
         Double averageFare = ((Number) row[2]).doubleValue();
-
         return new DriverEarningsDTO(driver.getId(), driver.getName(), totalRides, totalEarnings, averageFare);
+    }
+
+    public DriverDashboardDTO getDriverDashboard(Long id) {
+        Driver driver = getDriverById(id);
+
+        // Always log DASHBOARD_VIEWED — even on cache hits, per spec
+        notifyObservers("DASHBOARD_VIEWED", Map.of("driverId", id));
+
+        // Try cache first
+        String cacheKey = CACHE_PREFIX + id;
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return MAPPER.readValue(cached, DriverDashboardDTO.class);
+            }
+        } catch (Exception e) {
+            log.warn("Redis cache read failed for key {}: {}", cacheKey, e.getMessage());
+        }
+
+        // Query PostgreSQL
+        Object[] row = driverRepository.getDashboardStats(id);
+        if (row.length > 0 && row[0] instanceof Object[]) {
+            row = (Object[]) row[0];
+        }
+
+        long totalRides = ((Number) row[0]).longValue();
+        double totalEarnings = ((Number) row[1]).doubleValue();
+        double averageRideFare = ((Number) row[2]).doubleValue();
+
+        DriverDashboardDTO dto = DriverDashboardDTO.builder()
+                .driverId(id)
+                .name(driver.getName())
+                .totalRides(totalRides)
+                .totalEarnings(totalEarnings)
+                .averageRideFare(averageRideFare)
+                .averageRating(driver.getRating())
+                .totalRatings(driver.getTotalRatings())
+                .build();
+
+        // Cache for 10 minutes
+        try {
+            redisTemplate.opsForValue().set(cacheKey, MAPPER.writeValueAsString(dto), 10, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("Redis cache write failed for key {}: {}", cacheKey, e.getMessage());
+        }
+
+        return dto;
+    }
+
+    private void invalidateDriverCaches(Long driverId) {
+        try {
+            redisTemplate.delete(CACHE_PREFIX + driverId);
+        } catch (Exception e) {
+            log.warn("Redis cache invalidation failed for driver {}: {}", driverId, e.getMessage());
+        }
     }
 }
