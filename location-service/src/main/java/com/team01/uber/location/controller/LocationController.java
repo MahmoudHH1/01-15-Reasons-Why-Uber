@@ -1,30 +1,41 @@
 package com.team01.uber.location.controller;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
 import com.team01.uber.location.dto.DriverMovementSummaryDTO;
-import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
+import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
-import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
+import com.team01.uber.location.dto.StationaryDriverDTO;
+import com.team01.uber.location.dto.TrackingRequest;
 import com.team01.uber.location.enums.EventType;
 import com.team01.uber.location.factory.EventFactory;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationEvent;
 import com.team01.uber.location.repository.LocationEventRepository;
 import com.team01.uber.location.service.LocationService;
-import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/locations")
@@ -164,5 +175,12 @@ public class LocationController {
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime) {
         return ResponseEntity.ok(locationService.getTrackingTimeline(driverId, startTime, endTime));
+    }
+
+    @PostMapping("/{driverId}/tracking")
+    public ResponseEntity<LocationTrackingDTO> recordGpsEvent(
+            @PathVariable Long driverId,
+            @RequestBody TrackingRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(locationService.recordGpsEvent(driverId, request));
     }
 }

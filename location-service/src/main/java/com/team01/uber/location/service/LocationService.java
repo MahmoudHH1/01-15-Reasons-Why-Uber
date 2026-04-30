@@ -5,8 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -23,8 +26,10 @@ import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
+import com.team01.uber.location.dto.TrackingRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationTrackingEvent;
+import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationRepository;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
 
@@ -35,7 +40,8 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate redisTemplate;
+    private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
     private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
@@ -45,6 +51,20 @@ public class LocationService {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    private void notifyObservers(String action, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(action, payload);
+        }
     }
 
     public Location create(Location location) {
@@ -276,10 +296,7 @@ public class LocationService {
         }
 
         return events.stream()
-                .map(e -> new LocationTrackingDTO(
-                        e.getTimestamp(), e.getLatitude(), e.getLongitude(),
-                        e.getSpeed(), e.getHeading(), e.getAccuracy(),
-                        e.getRideId(), e.getNotes()))
+                .map(locationAdapter::adaptToLocationTrackingDTO)
                 .toList();
     }
 
@@ -306,5 +323,54 @@ public class LocationService {
         }
 
         return locationAdapter.adaptToLocationAnalytics(statsResults.get(0), hourlyResults);
+    }
+
+    public LocationTrackingDTO recordGpsEvent(Long driverId, TrackingRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
+        }
+        if (locationRepository.countDriverById(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+        if (request.getLatitude() == null || request.getLongitude() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
+        }
+        if (request.getLatitude() < -90 || request.getLatitude() > 90) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude must be between -90 and 90");
+        }
+        if (request.getLongitude() < -180 || request.getLongitude() > 180) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Longitude must be between -180 and 180");
+        }
+
+        Instant now = Instant.now();
+
+        LocationTrackingEvent event = new LocationTrackingEvent();
+        event.setDriverId(driverId);
+        event.setTimestamp(now);
+        event.setLatitude(request.getLatitude());
+        event.setLongitude(request.getLongitude());
+        event.setSpeed(request.getSpeed());
+        event.setHeading(request.getHeading());
+        event.setAccuracy(request.getAccuracy());
+        event.setRideId(request.getRideId());
+        event.setNotes(request.getNotes());
+
+        trackingRepository.save(event);
+
+        // Invalidate Redis caches for latest location and nearby drivers
+        redisTemplate.delete("location-service::S4-F12::" + driverId);
+        Set<String> keys = redisTemplate.keys("location-service::S4-F10::*");
+        if (keys != null) {
+            keys.forEach(redisTemplate::delete);
+        }
+
+        // Notify observers (MongoDB event logging)
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("driverId", driverId);
+        payload.put("latitude", request.getLatitude());
+        payload.put("longitude", request.getLongitude());
+        notifyObservers("TRACKING_RECORDED", payload);
+
+        return locationAdapter.adaptToLocationTrackingDTO(event);
     }
 }
