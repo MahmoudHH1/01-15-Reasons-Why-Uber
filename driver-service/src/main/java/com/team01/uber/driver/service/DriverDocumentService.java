@@ -47,6 +47,7 @@ public class DriverDocumentService {
         document.setUploadedAt(LocalDateTime.now());
         document.setVerified(false);
         DriverDocument saved = driverDocumentRepository.save(document);
+        cacheInvalidator.deleteEntity("driver", driverId) ;
         invalidateDocumentFeatureCaches();
         return saved;
     }
@@ -71,6 +72,7 @@ public class DriverDocumentService {
         existing.setMetadata(updated.getMetadata());
         DriverDocument saved = driverDocumentRepository.save(existing);
         cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteEntity("driver", driverId) ;
         invalidateDocumentFeatureCaches();
         return saved;
     }
@@ -81,6 +83,7 @@ public class DriverDocumentService {
         }
         driverDocumentRepository.deleteById(docId);
         cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteEntity("driver", driverId);
         invalidateDocumentFeatureCaches();
     }
 
