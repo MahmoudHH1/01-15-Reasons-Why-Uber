@@ -227,6 +227,20 @@ git push origin feat/<service>/<feature-ID>/<studentId>
 # Create PR on GitHub, get 1+ teammate review, merge with regular merge commit
 ```
 
+## Testing Workflow — Tests Live On Disk
+
+**Tests for a feature must be persisted as a runnable shell script** at `<service>/scripts/test-<feature-id>.sh`, committed on the feature branch as a `test(<service>): ...` commit, **before** the PR is opened. Inline ad-hoc curl chains pasted into chat are not acceptable — they evaporate the second the conversation ends and cannot be re-run by graders, teammates, or future-you.
+
+Every feature test script must:
+
+1. **Cover all 7 case categories** (per `m2-orchestrator` Stage 5a): spec scenarios, boundary, auth & ownership, cross-DB consistency, cache, idempotency, error paths. A category with no applicable cases for the feature must be explicitly noted (`# (no idempotency cases — endpoint is read-only)`), not silently omitted.
+2. **Tie every assertion to a spec citation.** Each case must map to a §10.x clause / `docs/m2/cache-matrix.md` row / `docs/m2/event-actions.md` row. Tests that assert implementation defaults beyond what the spec mandates are over-constraints — drop them.
+3. **Be idempotent across runs.** Derive unique fixtures from `RUN_ID="$(date +%s)$$"` so re-running the script doesn't crash on unique constraints. Drop the ES index / clear the `<service>_events` Mongo collection at the top.
+4. **Be configurable.** Every stack-config value (service URLs, Mongo creds, Redis password) must be overridable via env var with a default that matches `docker-compose.yaml`.
+5. **Exit zero only when every case passes.** Exit code = number of FAIL assertions. Final line: `TOTALS: <PASS> PASS / <FAIL> FAIL`. CI integration: `./script && echo green`.
+
+The orchestrator's `Stage 5a` writes the script, `Stage 5b` runs it via `Bash` (NOT via the `feature-tester` agent — that agent is read-only and cannot author or amend the script during the fix loop), `Stage 5d` commits it. The `feature-tester` agent is reserved for retro-coverage runs on already-merged features.
+
 ## Code Style — Human-Like Code
 
 - **Comments:** Use sparingly. Only when the logic is genuinely non-obvious. Keep them short and natural.
