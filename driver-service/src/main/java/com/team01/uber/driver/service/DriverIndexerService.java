@@ -1,10 +1,11 @@
 package com.team01.uber.driver.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
+import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.model.Driver;
-import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.observer.EntityObserver;
+import com.team01.uber.driver.observer.MongoEventLogger;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,8 +34,8 @@ public class DriverIndexerService {
             "id", "name", "vehicleType", "description", "rating", "status"
     );
 
-    private final ElasticsearchHitAdapter adapter;
-    private final CacheInvalidationService cacheInvalidationService;
+    private final CacheInvalidator cacheInvalidator;
+    private final MongoEventLogger mongoEventLogger;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
@@ -43,12 +44,17 @@ public class DriverIndexerService {
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
-    public DriverIndexerService(ElasticsearchHitAdapter adapter,
-                                CacheInvalidationService cacheInvalidationService,
+    public DriverIndexerService(CacheInvalidator cacheInvalidator,
+                                MongoEventLogger mongoEventLogger,
                                 @Value("${spring.elasticsearch.uris:http://elasticsearch:9200}") String esBaseUri) {
-        this.adapter = adapter;
-        this.cacheInvalidationService = cacheInvalidationService;
+        this.cacheInvalidator = cacheInvalidator;
+        this.mongoEventLogger = mongoEventLogger;
         this.esBaseUri = esBaseUri;
+    }
+
+    @PostConstruct
+    void init() {
+        register(mongoEventLogger);
     }
 
     public void register(EntityObserver observer) {
@@ -70,10 +76,10 @@ public class DriverIndexerService {
             return;
         }
 
-        DriverSearchDocument document = adapter.toDocument(driver);
+        Map<String, Object> doc = toEsDocument(driver);
 
         try {
-            String body = objectMapper.writeValueAsString(document);
+            String body = objectMapper.writeValueAsString(doc);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(esBaseUri + "/drivers/_doc/" + driver.getId() + "?refresh=wait_for"))
                     .timeout(Duration.ofSeconds(3))
@@ -98,7 +104,7 @@ public class DriverIndexerService {
         payload.put("details", details);
 
         notifyObservers("INDEXED", payload);
-        cacheInvalidationService.invalidateDriverIndexCaches(driver.getId());
+        invalidateIndexCaches(driver.getId());
     }
 
     public void removeFromIndex(Long driverId) {
@@ -120,14 +126,37 @@ public class DriverIndexerService {
             log.warn("Failed to remove driver {} from Elasticsearch: {}", driverId, e.getMessage());
         }
 
-        Map<String, Object> details = new HashMap<>();
-        details.put("driverId", driverId);
+        invalidateIndexCaches(driverId);
+    }
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("driverId", driverId);
-        payload.put("details", details);
+    private Map<String, Object> toEsDocument(Driver driver) {
+        Map<String, Object> details = driver.getVehicleDetails();
+        String description = "";
+        String vehicleType = null;
+        if (details != null) {
+            Object rawDescription = details.get("description");
+            if (rawDescription != null) {
+                description = String.valueOf(rawDescription);
+            }
+            Object rawType = details.get("vehicleType");
+            if (rawType != null) {
+                vehicleType = String.valueOf(rawType);
+            }
+        }
 
-        notifyObservers("DRIVER_DELETED", payload);
-        cacheInvalidationService.invalidateDriverIndexCaches(driverId);
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("id", driver.getId());
+        doc.put("name", driver.getName());
+        doc.put("vehicleType", vehicleType);
+        doc.put("description", description);
+        doc.put("rating", driver.getRating());
+        doc.put("status", driver.getStatus() != null ? driver.getStatus().name() : null);
+        return doc;
+    }
+
+    private void invalidateIndexCaches(Long driverId) {
+        cacheInvalidator.deleteByPattern("driver-service::S2-F10::*");
+        cacheInvalidator.deleteEntity("driver", driverId);
+        cacheInvalidator.deleteByPattern("driver-service::S2-F12::" + driverId);
     }
 }
