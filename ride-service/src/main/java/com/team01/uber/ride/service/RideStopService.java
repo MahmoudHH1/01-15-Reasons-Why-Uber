@@ -8,6 +8,8 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,11 @@ public class RideStopService {
     }
 
     // S3-F8
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     @Transactional
     public RideWithStopsDTO addStops(Long rideId, List<StopRequestDTO> requests) {
         Ride ride = rideRepository.findById(rideId)
@@ -71,6 +78,11 @@ public class RideStopService {
         return new RideWithStopsDTO(ride, allStops);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public RideStop createStop(Long rideId, RideStop stop) {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
@@ -94,6 +106,12 @@ public class RideStopService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId"),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public RideStop updateStop(Long rideId, Long stopId, RideStop updated) {
         RideStop existing = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
@@ -111,6 +129,12 @@ public class RideStopService {
         return rideStopRepository.save(existing);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId"),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public void deleteStop(Long rideId, Long stopId) {
         RideStop stop = rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));

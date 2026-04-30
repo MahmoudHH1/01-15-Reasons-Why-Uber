@@ -95,6 +95,8 @@ public class RedisConfig implements CachingConfigurer {
                 "ride-service::S3-F5",         base.entryTtl(Duration.ofMinutes(5)),
                 "ride-service::S3-F6",         base.entryTtl(Duration.ofMinutes(10)),
                 "ride-service::S3-F9",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F10",        base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F12",        base.entryTtl(Duration.ofMinutes(5)),
                 "ride-service::ride",         base.entryTtl(Duration.ofMinutes(15)),
                 "ride-service::rideStop",        base.entryTtl(Duration.ofMinutes(15))
         );
