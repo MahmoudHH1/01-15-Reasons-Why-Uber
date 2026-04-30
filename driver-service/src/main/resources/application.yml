@@ -19,7 +19,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
-      separator: ^^
+      separator: "^^"
 
   data:
     mongodb:
@@ -37,4 +37,4 @@ server:
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
-  expiration: 86400000 # 24 hours in ms
+  expiration: 86400000

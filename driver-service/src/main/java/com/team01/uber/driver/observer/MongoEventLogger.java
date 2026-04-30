@@ -1,8 +1,8 @@
 package com.team01.uber.driver.observer;
 
-import com.team01.uber.driver.enums.EventType;
 import com.team01.uber.driver.factory.EventFactory;
 import com.team01.uber.driver.model.DriverEvent;
+import com.team01.uber.driver.model.EventType;
 import com.team01.uber.driver.model.MongoEvent;
 import com.team01.uber.driver.repository.DriverEventRepository;
 import org.slf4j.Logger;
@@ -17,33 +17,31 @@ public class MongoEventLogger implements EntityObserver {
 
     private static final Logger log = LoggerFactory.getLogger(MongoEventLogger.class);
 
-    private static final EventType BOUND_TYPE = EventType.DRIVER;
-
-    private final DriverEventRepository repository;
     private final EventFactory eventFactory;
+    private final DriverEventRepository driverEventRepository;
 
-    public MongoEventLogger(DriverEventRepository repository, EventFactory eventFactory) {
-        this.repository = repository;
+    // driver-service binds DRIVER EventType at construction time
+    private final EventType boundEventType = EventType.DRIVER;
+
+    public MongoEventLogger(EventFactory eventFactory, DriverEventRepository driverEventRepository) {
         this.eventFactory = eventFactory;
+        this.driverEventRepository = driverEventRepository;
     }
 
     @Override
-    public void onEvent(String action, Object payload) {
+    public void onEvent(String eventType, Object payload) {
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = payload instanceof Map<?, ?>
-                    ? (Map<String, Object>) payload
-                    : new HashMap<>();
+            Map<String, Object> params = new HashMap<>();
+            params.put("action", eventType);
 
-            Map<String, Object> params = new HashMap<>(data);
-            params.put("action", action);
-
-            MongoEvent event = eventFactory.createEvent(BOUND_TYPE, params);
-            if (event instanceof DriverEvent driverEvent) {
-                repository.save(driverEvent);
+            if (payload instanceof Map<?, ?> map) {
+                map.forEach((k, v) -> params.put(k.toString(), v));
             }
+
+            MongoEvent event = eventFactory.createEvent(boundEventType, params);
+            driverEventRepository.save((DriverEvent) event);
         } catch (Exception e) {
-            log.warn("Failed to write {} event to MongoDB: {}", action, e.getMessage());
+            log.warn("Failed to log driver event to MongoDB: {}", e.getMessage());
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.team01.uber.driver.factory;
 
-import com.team01.uber.driver.enums.EventType;
 import com.team01.uber.driver.model.DriverEvent;
+import com.team01.uber.driver.model.EventType;
 import com.team01.uber.driver.model.MongoEvent;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +20,16 @@ public class EventFactory {
                 ? (Map<String, Object>) m : Map.of();
 
         return switch (type) {
-            case DRIVER -> new DriverEvent(
-                    (Long) params.get("driverId"), action, timestamp, details);
+            case DRIVER -> {
+                Long driverId = params.get("driverId") instanceof Long id ? id
+                        : params.get("driverId") instanceof Number n ? n.longValue() : null;
+                yield DriverEvent.builder()
+                        .driverId(driverId)
+                        .action(action)
+                        .timestamp(timestamp)
+                        .details(details)
+                        .build();
+            }
             default -> throw new UnsupportedOperationException(
                     "Event type " + type + " is not handled by driver-service");
         };

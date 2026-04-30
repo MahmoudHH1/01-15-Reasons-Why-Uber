@@ -28,8 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        return path.equals("/api/drivers/health");
+        return request.getServletPath().equals("/api/drivers/health");
     }
 
     @Override
@@ -37,28 +36,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        AuthContext ctx = new AuthContext(request, response);
+        AuthHandler tokenExtractor = new TokenExtractionHandler();
+        AuthHandler signatureValidator = new SignatureValidationHandler(jwtService);
+        AuthHandler userLoader = new UserLoaderHandler(jdbcTemplate);
+        AuthHandler roleAuthorizer = new RoleAuthorizationHandler("USER");
 
-        AuthHandler head = new TokenExtractionHandler();
-        head.setNext(new SignatureValidationHandler(jwtService))
-            .setNext(new UserLoaderHandler(jdbcTemplate))
-            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "DRIVER", "ADMIN")));
+        tokenExtractor.setNext(signatureValidator);
+        signatureValidator.setNext(userLoader);
+        userLoader.setNext(roleAuthorizer);
 
-        try {
-            if (head.handle(ctx)) {
-                var auth = new UsernamePasswordAuthenticationToken(
-                        ctx.getEmail(),
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
-                );
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+        AuthContext ctx = new AuthContext(request);
+        tokenExtractor.handle(ctx);
 
-                filterChain.doFilter(request, response);
-            }
-        } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write("Authentication processing error");
+        if (ctx.getErrorStatus() != null) {
+            response.setStatus(ctx.getErrorStatus());
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"" + ctx.getErrorMessage() + "\"}");
+            return;
         }
+
+        var auth = new UsernamePasswordAuthenticationToken(
+                ctx.getEmail(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
+        );
+        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        filterChain.doFilter(request, response);
     }
 }

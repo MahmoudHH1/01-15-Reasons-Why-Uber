@@ -51,6 +51,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query(value = "SELECT user_id FROM rides WHERE id = :rideId", nativeQuery = true)
     Long findRideUserIdById(@Param("rideId") Long rideId);
 
+    @Query(value = "SELECT (metadata->>'surgeMultiplier')::numeric FROM rides WHERE id = :rideId", nativeQuery = true)
+    Double findRideSurgeMultiplierById(@Param("rideId") Long rideId);
+
     Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
 
     boolean existsByRideIdAndStatus(Long rideId, PaymentStatus status);

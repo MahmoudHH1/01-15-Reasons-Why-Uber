@@ -1,8 +1,7 @@
 package com.team01.uber.driver.security;
 
-import jakarta.servlet.http.HttpServletResponse;
-
 public class SignatureValidationHandler extends AuthHandler {
+
     private final JwtService jwtService;
 
     public SignatureValidationHandler(JwtService jwtService) {
@@ -10,15 +9,15 @@ public class SignatureValidationHandler extends AuthHandler {
     }
 
     @Override
-    protected boolean process(AuthContext ctx) throws Exception {
+    public void handle(AuthContext ctx) {
         if (!jwtService.isTokenValid(ctx.getToken())) {
-            ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            ctx.getResponse().getWriter().write("Invalid or expired token");
-            return false;
+            ctx.setErrorStatus(401);
+            ctx.setErrorMessage("Invalid or expired token");
+            return;
         }
         ctx.setEmail(jwtService.extractEmail(ctx.getToken()));
+        ctx.setUid(jwtService.extractUserId(ctx.getToken()));
         ctx.setRole(jwtService.extractRole(ctx.getToken()));
-        ctx.setUserId(jwtService.extractUserId(ctx.getToken()));
-        return true;
+        passToNext(ctx);
     }
 }

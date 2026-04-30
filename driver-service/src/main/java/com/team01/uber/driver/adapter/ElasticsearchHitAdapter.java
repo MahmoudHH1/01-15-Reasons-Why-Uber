@@ -1,7 +1,7 @@
 package com.team01.uber.driver.adapter;
 
-import com.team01.uber.driver.model.Driver;
-import com.team01.uber.driver.model.DriverSearchDocument;
+import com.team01.uber.driver.dto.DriverSearchResultDTO;
+import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -9,29 +9,19 @@ import java.util.Map;
 @Component
 public class ElasticsearchHitAdapter {
 
-    public DriverSearchDocument toDocument(Driver driver) {
-        Map<String, Object> details = driver.getVehicleDetails();
+    public DriverSearchResultDTO adapt(SearchHit<Map<String, Object>> hit) {
+        Map<String, Object> source = hit.getContent();
 
-        String description = "";
-        String vehicleType = null;
-        if (details != null) {
-            Object rawDescription = details.get("description");
-            if (rawDescription != null) {
-                description = String.valueOf(rawDescription);
-            }
-            Object rawType = details.get("vehicleType");
-            if (rawType != null) {
-                vehicleType = String.valueOf(rawType);
-            }
-        }
+        Long id = source.get("id") != null ? ((Number) source.get("id")).longValue() : null;
+        Double rating = source.get("rating") != null ? ((Number) source.get("rating")).doubleValue() : null;
 
-        return new DriverSearchDocument(
-                String.valueOf(driver.getId()),
-                driver.getName(),
-                vehicleType,
-                description,
-                driver.getRating(),
-                driver.getStatus() != null ? driver.getStatus().name() : null
-        );
+        return DriverSearchResultDTO.builder()
+                .id(id)
+                .name((String) source.get("name"))
+                .vehicleType((String) source.get("vehicleType"))
+                .description((String) source.get("description"))
+                .rating(rating)
+                .status((String) source.get("status"))
+                .build();
     }
 }

@@ -13,13 +13,11 @@ import java.util.Date;
 public class JwtService {
 
     private final SecretKey signingKey;
-    private final long expirationMs;
 
     public JwtService() {
         JwtConfigurationManager config = JwtConfigurationManager.getInstance();
         byte[] keyBytes = Base64.getDecoder().decode(config.getSecret());
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
-        this.expirationMs = config.getExpirationMs();
     }
 
     public Claims extractAllClaims(String token) {
@@ -49,9 +47,5 @@ public class JwtService {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    public long getExpirationMs() {
-        return expirationMs;
     }
 }

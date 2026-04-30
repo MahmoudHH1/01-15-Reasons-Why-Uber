@@ -1,22 +1,24 @@
 package com.team01.uber.driver.security;
 
-import jakarta.servlet.http.HttpServletResponse;
-import java.util.List;
-
 public class RoleAuthorizationHandler extends AuthHandler {
-    private final List<String> allowedRoles;
 
-    public RoleAuthorizationHandler(List<String> allowedRoles) {
-        this.allowedRoles = allowedRoles;
+    private final String requiredRole;
+
+    public RoleAuthorizationHandler(String requiredRole) {
+        this.requiredRole = requiredRole;
     }
 
     @Override
-    protected boolean process(AuthContext ctx) throws Exception {
-        if (ctx.getRole() == null || (!allowedRoles.isEmpty() && !allowedRoles.contains(ctx.getRole()))) {
-            ctx.getResponse().setStatus(HttpServletResponse.SC_FORBIDDEN);
-            ctx.getResponse().getWriter().write("Insufficient role");
-            return false;
+    public void handle(AuthContext ctx) {
+        if ("USER".equals(requiredRole)) {
+            passToNext(ctx);
+            return;
         }
-        return true;
+        if (!requiredRole.equals(ctx.getRole())) {
+            ctx.setErrorStatus(403);
+            ctx.setErrorMessage("Insufficient role");
+            return;
+        }
+        passToNext(ctx);
     }
 }
