@@ -172,6 +172,7 @@ public class PaymentService {
         }
 
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .or(() -> paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.FAILED))
                 .orElseGet(() -> {
                     Payment newPayment = new Payment();
                     newPayment.setRideId(rideId);
