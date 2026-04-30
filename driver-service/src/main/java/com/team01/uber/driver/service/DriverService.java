@@ -155,6 +155,11 @@ public class DriverService {
         driverIndexerService.removeFromIndex(id);
     }
 
+    public void indexDriver(Long id) {
+        Driver driver = getDriverById(id);
+        driverIndexerService.index(driver, "explicit");
+    }
+
     @Transactional
     public Driver rateDriver(Long driverId, Long rideId, Integer rating) {
         // 1. Find driver — 404 if not found
