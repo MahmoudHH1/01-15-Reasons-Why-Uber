@@ -21,20 +21,16 @@ import java.util.Map;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final AuthEventRepository authEventRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
     public AuthService(UserRepository userRepository,
-                       AuthEventRepository authEventRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtService jwtService) {
+                    PasswordEncoder passwordEncoder,
+                    JwtService jwtService) {
         this.userRepository = userRepository;
-        this.authEventRepository = authEventRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
-
     public AuthResponse register(RegisterRequest request) {
         if (request.getName() == null || request.getName().isBlank() ||
             request.getEmail() == null || request.getEmail().isBlank() ||
@@ -75,28 +71,19 @@ public class AuthService {
         return new AuthResponse(token, jwtService.getExpirationMs());
     }
     public AuthResponse login(LoginRequest request) {
-    User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
-    if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+
+        // TODO: Log LOGGED_IN event to MongoDB via Observer chain (Branch 2)
+        // For now, just generate token and return
+
+        String token = jwtService.generateToken(user);
+        return new AuthResponse(token, jwtService.getExpirationMs());
     }
-
-    try {
-        AuthEvent event = new AuthEvent(
-                user.getId(),
-                "LOGGED_IN",
-                LocalDateTime.now(),
-                Map.of()
-        );
-        authEventRepository.save(event);
-    } catch (Exception e) {
-        log.warn("Failed to log LOGGED_IN event to MongoDB: {}", e.getMessage());
-    }
-
-    String token = jwtService.generateToken(user);
-    return new AuthResponse(token, jwtService.getExpirationMs());
-}
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
 }
