@@ -40,9 +40,10 @@ Stage 2 — Prerequisite verification                     → STOP if anything m
 Stage 3 — Plan implementation                           → AskUserQuestion checkpoint
 Stage 4 — Implementation (per-commit)                   → checkpoint per commit
 Stage 5a — Author test script on disk                   → AskUserQuestion checkpoint
-Stage 5b — Run script (Bash) + iterate until 0 FAIL     → fail → return to Stage 4
-Stage 5c — Cache audit                                  → fail → return to Stage 4
-Stage 5d — Commit test script as test(<service>): ...   → no separate checkpoint
+Stage 5b — Spec-compliance audit of every assertion     → AskUserQuestion checkpoint
+Stage 5c — Run script (Bash) + iterate until 0 FAIL     → fail → return to Stage 4
+Stage 5d — Cache audit                                  → fail → return to Stage 4
+Stage 5e — Commit test script as test(<service>): ...   → no separate checkpoint
 Stage 6 — pr-check + PR description                     → READY → user pushes
 ```
 
@@ -182,19 +183,48 @@ After all commits land:
 
 5. **Checkpoint:** AskUserQuestion — "any cases to add or remove before we run them?" The user can add domain-specific edge cases the orchestrator missed.
 
-## Stage 5b — Run the Script via Bash, Iterate Until 0 FAIL
+## Stage 5b — Spec-Compliance Audit of Every Assertion
+
+**Hard rule: every assertion must trace to a spec clause before the script is allowed to run.** Tests that enforce implementation defaults beyond the spec become future-test-debt and over-constrain other features (e.g., a S2-F11 test that asserts `driver::{id}` invalidation on `/index` blocks anyone trying to keep the entity-detail cache fresh during indexing-only operations). Catch this in a focused audit pass, not when rerunning failures.
+
+This stage is a **separate review of the script you just wrote**. It is read-only — no execution yet — so there is no flakiness or stack dependency to muddy the signal.
+
+1. **Build an audit table** with one row per assertion. Columns:
+   - **Case ID** (e.g., `(a3)`, `(c2)`, `(au4)`).
+   - **What it asserts** — one-line summary of the input + expected.
+   - **Spec citation** — the §10.x clause, `docs/m2/cache-matrix.md` row, `docs/m2/event-actions.md` row, `docs/m2/design-patterns.md` rule, JWT-contract clause from CLAUDE.md, or M1-CRUD baseline.
+   - **Verdict** — one of: `KEEP` (clean citation), `WEAKEN` (spec is silent — convert to non-blocking smoke check, or drop), `CONTRADICTS` (assertion enforces something the spec rules out — must fix or drop), `MOVE` (citation belongs in a different test category — re-label).
+
+2. **Use `pdf-clause-finder` whenever in doubt.** If you cannot recall a verbatim clause that backs an assertion, dispatch the agent for a §10.x lookup. Do not guess. The cost of a one-off agent call is trivial vs. the cost of an over-constraining test landing in the PR.
+
+3. **Cross-check against the M2 invariant docs:**
+   - **Status codes** — every error case in the script must match a spec error code (S2-F11 has 401 / 404; no 400, no 403, no 409). If the script asserts a code the spec doesn't mention → `CONTRADICTS`.
+   - **Cache keys + TTLs + invalidation patterns** — every Redis assertion must match a row in `docs/m2/cache-matrix.md`. Asserting `<service>::<entity>::{id}` invalidation on a non-PG-mutating endpoint is `WEAKEN`. Asserting a TTL the matrix doesn't list is `CONTRADICTS`.
+   - **Action vocabulary** — every Mongo `action` value must be in `docs/m2/event-actions.md` (UPPER_SNAKE_CASE). Lowercase actions, kebab-case, or made-up actions → `CONTRADICTS`.
+   - **Design pattern hard rules** — assertions about `RefundStrategy` outside payment-service, Spring stereotypes on `JwtConfigurationManager`, `new <Event>(...)` outside `EventFactory`, etc. — must reflect the actual spec rules. Asserting a pattern in a service the spec doesn't mention → `CONTRADICTS`.
+   - **Endpoint coexistence** — for distinct-path features (S2-F10 vs M1 `/search`, S3-F10 vs M1 `/analytics`, S5-F12 vs M1 `/refund`): the script must not assert the M1 endpoint is gone.
+
+4. **Watch for "implementation detail" assertions** — these are the most common over-constraints:
+   - The spec mandates X happens; your code also (defensively) does Y; your test asserts Y. Drop or downgrade to `WEAKEN`.
+   - Example from S2-F11 audit: `(c3) /index invalidates driver::{id}` — cache-matrix only mandates `S2-F10::*`. The implementation does invalidate `driver::{id}` defensively, but spec doesn't require it. **Verdict was `WEAKEN` → dropped.**
+
+5. **Display the audit table** to the user. For every `WEAKEN` / `CONTRADICTS` / `MOVE` row, propose the concrete edit (line numbers in the script, the diff). Apply edits via `Edit` once the user confirms.
+
+6. **Checkpoint:** AskUserQuestion — "audit complete: <N> KEEP / <M> WEAKENED-or-DROPPED / <K> FIXED. Run the script?" The user can call out anything that looks wrong before execution wastes time on over-constrained tests.
+
+## Stage 5c — Run the Script via Bash, Iterate Until 0 FAIL
 
 1. Run the script directly via the `Bash` tool: `./<service>/scripts/test-<feature-id>.sh`. **Do NOT delegate to the `feature-tester` agent for orchestrator runs** — that agent is `Read-only on the codebase` (no `Write` tool), so it cannot author or amend the script when iteration is required. Save `feature-tester` for *retro-coverage* (an already-merged feature, no script exists yet, no fix loop needed).
 
 2. The script's stdout becomes the test report — surface the `TOTALS:` line and any `FAIL` rows verbatim to the user.
 
 3. **Checkpoint:**
-   - If any case FAIL → diagnose. If the cause is a code bug → return to Stage 4. If the cause is a flaky assertion or a wrong expected value (re-check spec) → fix the script and re-run.
-   - If all PASS → proceed to 5c.
+   - If any case FAIL → diagnose. If the cause is a code bug → return to Stage 4. If the cause is a flaky assertion or a wrong expected value (re-check spec) → return to Stage 5b for a re-audit of the affected assertion, *not* a quiet edit-and-rerun. The audit is the single place where spec compliance lives.
+   - If all PASS → proceed to 5d.
 
 4. Repeat until exit code 0 / `0 FAIL`.
 
-## Stage 5c — Cache Audit (Skill Dispatch)
+## Stage 5d — Cache Audit (Skill Dispatch)
 
 Once functional tests pass, dispatch the `cache-audit` skill scoped to the affected endpoints. This catches caching-specific issues (TTL drift, missing invalidation paths, key-format violations) that case-by-case tests don't always surface.
 
@@ -202,7 +232,7 @@ Display PASS/FAIL per check.
 
 **Checkpoint:** if anything fails → return to Stage 4.
 
-## Stage 5d — Commit the Test Script
+## Stage 5e — Commit the Test Script
 
 The script lands on the same feature branch as a single commit. This guarantees the PR ships a re-runnable artifact.
 
