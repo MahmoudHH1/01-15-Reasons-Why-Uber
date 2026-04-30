@@ -58,7 +58,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             SELECT
                 d.vehicle_details->>'vehicleType' AS vehicle_type,
                 SUM(p.amount) AS total_revenue,
-                SUM(CASE WHEN p.transaction_details ? 'surgeFee'
+                SUM(CASE WHEN p.transaction_details->>'surgeFee' IS NOT NULL
                          THEN (p.transaction_details->>'surgeFee')::numeric
                          ELSE p.amount * 0.15 END) AS surge_fee_revenue,
                 COUNT(DISTINCT p.ride_id) AS ride_count
