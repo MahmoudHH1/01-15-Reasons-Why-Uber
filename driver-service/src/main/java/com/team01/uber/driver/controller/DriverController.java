@@ -3,6 +3,7 @@ package com.team01.uber.driver.controller;
 import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
@@ -64,6 +65,16 @@ public class DriverController {
                                       @RequestParam(required = false, defaultValue = "0.0") Double minRating,
                                       @RequestParam(required = false, defaultValue = "5.0") Double maxRating) {
         return driverService.searchDrivers(status, minRating, maxRating);
+    }
+
+    @GetMapping("/search/full-text")
+    public List<DriverSearchResultDTO> searchDriversFullText(
+            @RequestParam String query,
+            @RequestParam(required = false) String vehicleType,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Double minRating,
+            @RequestParam(required = false) Double maxRating) {
+        return driverService.searchDriversFullText(query, vehicleType, status, minRating, maxRating);
     }
 
     @PutMapping("/{id}")
