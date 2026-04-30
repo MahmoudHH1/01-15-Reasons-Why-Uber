@@ -1,6 +1,6 @@
 package com.team01.uber.user.repository;
 
-import com.team01.uber.user.model.AuthEvent;
+import com.team01.uber.user.model.mongo.AuthEvent;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface AuthEventRepository extends MongoRepository<AuthEvent, String> {

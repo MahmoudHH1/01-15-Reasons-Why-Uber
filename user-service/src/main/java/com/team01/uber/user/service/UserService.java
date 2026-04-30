@@ -1,13 +1,17 @@
 package com.team01.uber.user.service;
 
+import com.team01.uber.user.observer.EntityObserver;
+import com.team01.uber.user.observer.Observable;
 import com.team01.uber.user.adapter.ObjectArrayDtoAdapter;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.AddressDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.dto.UserProfileDTO;
+import com.team01.uber.user.model.mongo.AuthEvent;
 import com.team01.uber.user.model.SavedAddress;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
+import com.team01.uber.user.observer.MongoEventLogger;
 import com.team01.uber.user.repository.SavedAddressRepository;
 import com.team01.uber.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -17,20 +21,37 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Service
-public class UserService {
+public class UserService implements Observable{
 
     private final UserRepository userRepository;
     private final SavedAddressRepository savedAddressRepository;
+    private final List<EntityObserver> observers = new ArrayList<>();
     private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
 
-
-    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository) {
+    public UserService(UserRepository userRepository, SavedAddressRepository savedAddressRepository, MongoEventLogger mongoEventLogger) {
         this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
+        registerObserver(mongoEventLogger);
+    }
+
+    @Override
+    public void registerObserver(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    @Override
+    public void notifyObservers(String action, Map<String, Object> payload) {
+        observers.forEach(o -> o.onEvent(action, payload));
+    }
+
+    @Override
+    public void unregisterObserver(EntityObserver observer) {
+        observers.remove(observer);
     }
 
     public User createUser(User user) {
@@ -38,7 +59,9 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
         if (userRepository.existsByPhone(user.getPhone()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Phone already exists");
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        notifyObservers(AuthEvent.ACTION_USER_CREATED, Map.of("userId", saved.getId(), "email", saved.getEmail()));
+        return saved;
     }
 
     public User getUserById(Long id) {
@@ -63,7 +86,9 @@ public class UserService {
         existing.setStatus(updated.getStatus());
         existing.setPreferences(updated.getPreferences());
 
-        return userRepository.save(existing);
+        User saved = userRepository.save(existing);
+        notifyObservers(AuthEvent.ACTION_USER_UPDATED, Map.of("userId", saved.getId()));
+        return saved;
     }
 
     public void deleteUser(Long id) {
@@ -71,6 +96,7 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         userRepository.deleteById(id);
+        notifyObservers(AuthEvent.ACTION_USER_DELETED, Map.of("userId", id));
     }
 
     private void validateRequiredUpdateKeys(User updated) {
@@ -115,7 +141,9 @@ public class UserService {
             current.putAll(incoming);
             user.setPreferences(current);
         }
-        return userRepository.save(user);
+        User saved= userRepository.save(user);
+        notifyObservers(AuthEvent.ACTION_USER_UPDATED, Map.of("userId", saved.getId(), "updatedKeys", incoming.keySet()));
+        return saved;
     }
 
     public List<User> searchUsers(String name, String email, String role) {
@@ -155,8 +183,9 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides and cannot be deactivated");
         }
         user.setStatus(UserStatus.DEACTIVATED);
-        return userRepository.save(user);
-    }
+        User saved = userRepository.save(user);
+        notifyObservers(AuthEvent.ACTION_USER_DEACTIVATED, Map.of("userId", saved.getId()));
+        return saved;    }
 
     @Transactional
     public User setDefaultAddress(Long userId, Long addressId) {
@@ -173,7 +202,7 @@ public class UserService {
         savedAddressRepository.clearDefaultForUser(userId);
         target.setIsDefault(true);
         savedAddressRepository.save(target);
-
+        notifyObservers(AuthEvent.ACTION_DEFAULT_ADDRESS_SET, Map.of("userId", userId, "addressId", addressId));
         return userRepository.findById(userId).get();
     }
     public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
