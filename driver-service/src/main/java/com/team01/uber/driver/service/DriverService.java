@@ -4,6 +4,7 @@ import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
+import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.repository.DriverRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +23,24 @@ public class DriverService {
 
     private final DriverRepository driverRepository;
 
+    private final List<EntityObserver> observers = new ArrayList<>();
+
     public DriverService(DriverRepository driverRepository) {
         this.driverRepository = driverRepository;
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    protected void notifyObservers(String action, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(action, payload);
+        }
     }
 
     public Driver createDriver(Driver driver) {
