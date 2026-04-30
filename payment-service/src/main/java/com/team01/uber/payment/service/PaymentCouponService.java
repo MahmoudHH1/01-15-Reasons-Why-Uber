@@ -131,6 +131,9 @@ public class PaymentCouponService {
         coupon.setCurrentUses(currentUses + 1);
         couponRepository.save(coupon);
 
+        cacheInvalidationService.invalidateCouponCaches(couponId);
+        cacheInvalidationService.invalidatePattern("payment-service::S5-F8::" + paymentId);
+
         return buildPaymentWithCouponsDTO(payment);
     }
 
