@@ -22,11 +22,14 @@ import java.util.Map;
 public class DriverService {
 
     private final DriverRepository driverRepository;
+    private final DriverIndexerService driverIndexerService;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
-    public DriverService(DriverRepository driverRepository) {
+    public DriverService(DriverRepository driverRepository,
+                         DriverIndexerService driverIndexerService) {
         this.driverRepository = driverRepository;
+        this.driverIndexerService = driverIndexerService;
     }
 
     public void register(EntityObserver observer) {
@@ -57,7 +60,9 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
         }
 
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        driverIndexerService.index(saved, "auto_crud_create");
+        return saved;
     }
 
     public Driver getDriverById(Long id) {
@@ -104,7 +109,9 @@ public class DriverService {
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
         existing.setVehicleDetails(updated.getVehicleDetails());
-        return driverRepository.save(existing);
+        Driver saved = driverRepository.save(existing);
+        driverIndexerService.index(saved, "auto_crud_update");
+        return saved;
     }
 
     @Transactional
@@ -120,7 +127,8 @@ public class DriverService {
         }
 
         driver.setStatus(status);
-        driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        driverIndexerService.index(saved, "auto_crud_update");
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -134,7 +142,9 @@ public class DriverService {
         }
         existing.putAll(updates);
         driver.setVehicleDetails(existing);
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        driverIndexerService.index(saved, "auto_crud_update");
+        return saved;
     }
 
     public void deleteDriver(Long id) {
@@ -142,6 +152,7 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
         driverRepository.deleteById(id);
+        driverIndexerService.removeFromIndex(id);
     }
 
     @Transactional
@@ -177,7 +188,9 @@ public class DriverService {
         driver.setRating(newRating);
         driver.setTotalRatings(totalRatings + 1);
 
-        return driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+        driverIndexerService.index(saved, "auto_crud_update");
+        return saved;
     }
 
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
