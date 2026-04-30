@@ -1,14 +1,20 @@
 package com.team01.uber.driver.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.observer.EntityObserver;
-import com.team01.uber.driver.repository.DriverSearchRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,18 +33,22 @@ public class DriverIndexerService {
             "id", "name", "vehicleType", "description", "rating", "status"
     );
 
-    private final DriverSearchRepository searchRepository;
     private final ElasticsearchHitAdapter adapter;
     private final CacheInvalidationService cacheInvalidationService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
+    private final String esBaseUri;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
-    public DriverIndexerService(DriverSearchRepository searchRepository,
-                                ElasticsearchHitAdapter adapter,
-                                CacheInvalidationService cacheInvalidationService) {
-        this.searchRepository = searchRepository;
+    public DriverIndexerService(ElasticsearchHitAdapter adapter,
+                                CacheInvalidationService cacheInvalidationService,
+                                @Value("${spring.elasticsearch.uris:http://elasticsearch:9200}") String esBaseUri) {
         this.adapter = adapter;
         this.cacheInvalidationService = cacheInvalidationService;
+        this.esBaseUri = esBaseUri;
     }
 
     public void register(EntityObserver observer) {
@@ -63,7 +73,17 @@ public class DriverIndexerService {
         DriverSearchDocument document = adapter.toDocument(driver);
 
         try {
-            searchRepository.save(document);
+            String body = objectMapper.writeValueAsString(document);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(esBaseUri + "/drivers/_doc/" + driver.getId() + "?refresh=wait_for"))
+                    .timeout(Duration.ofSeconds(3))
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() / 100 != 2) {
+                log.warn("ES index returned {} for driver {}: {}", resp.statusCode(), driver.getId(), resp.body());
+            }
         } catch (Exception e) {
             log.warn("Failed to index driver {} to Elasticsearch: {}", driver.getId(), e.getMessage());
         }
@@ -86,9 +106,16 @@ public class DriverIndexerService {
             return;
         }
 
-        String docId = String.valueOf(driverId);
         try {
-            searchRepository.deleteById(docId);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(esBaseUri + "/drivers/_doc/" + driverId + "?refresh=wait_for"))
+                    .timeout(Duration.ofSeconds(3))
+                    .DELETE()
+                    .build();
+            HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() / 100 != 2 && resp.statusCode() != 404) {
+                log.warn("ES delete returned {} for driver {}: {}", resp.statusCode(), driverId, resp.body());
+            }
         } catch (Exception e) {
             log.warn("Failed to remove driver {} from Elasticsearch: {}", driverId, e.getMessage());
         }
