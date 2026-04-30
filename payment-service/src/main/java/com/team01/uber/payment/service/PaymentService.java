@@ -11,6 +11,8 @@ import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
 import com.team01.uber.payment.strategy.RefundContext;
+import com.team01.uber.payment.strategy.RefundResult;
+import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -127,7 +129,9 @@ public class PaymentService {
         }
 
         RefundContext ctx = new RefundContext(paymentRepository, this::notifyObservers, cacheInvalidationService);
-        return strategySelector.select(payment, request).execute(payment, request, ctx);
+        RefundStrategy strategy = strategySelector.select(payment, request);
+        RefundResult result = strategy.calculateRefund(payment, request);
+        return result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
     }
 
     public Payment getPaymentById(Long id) {
