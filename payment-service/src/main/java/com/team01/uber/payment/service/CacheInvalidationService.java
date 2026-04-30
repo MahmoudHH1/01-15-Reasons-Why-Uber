@@ -34,4 +34,28 @@ public class CacheInvalidationService {
         invalidatePattern("payment-service::S5-F11::*");
         invalidatePattern("payment-service::payment::" + paymentId);
     }
+
+    public void invalidateAllPaymentFeatureCaches(Long paymentId) {
+        invalidatePattern("payment-service::S5-F1::*");
+        invalidatePattern("payment-service::S5-F6::*");
+        invalidatePattern("payment-service::S5-F8::*");
+        invalidatePattern("payment-service::S5-F9::*");
+        invalidatePattern("payment-service::S5-F10::*");
+        invalidatePattern("payment-service::S5-F11::*");
+        invalidatePattern("payment-service::payment::" + paymentId);
+    }
+
+    public void invalidateCouponCaches(Long couponId) {
+        invalidatePattern("payment-service::coupon::" + couponId);
+        invalidatePattern("payment-service::S5-F3::*");
+    }
+
+    public void invalidatePaymentCouponCaches(Long paymentCouponId) {
+        invalidatePattern("payment-service::payment-coupon::" + paymentCouponId);
+        invalidatePattern("payment-service::S5-F1::*");
+        invalidatePattern("payment-service::S5-F8::*");
+        invalidatePattern("payment-service::S5-F9::*");
+        invalidatePattern("payment-service::S5-F10::*");
+        invalidatePattern("payment-service::S5-F11::*");
+    }
 }

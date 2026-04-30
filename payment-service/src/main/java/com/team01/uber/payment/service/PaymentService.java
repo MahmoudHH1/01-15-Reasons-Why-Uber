@@ -115,6 +115,7 @@ public class PaymentService {
                 "details", Map.of("reason", reason)
         ));
 
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
         return saved;
     }
 
@@ -150,7 +151,9 @@ public class PaymentService {
         existing.setMethod(payment.getMethod());
         existing.setStatus(payment.getStatus());
         existing.setTransactionDetails(payment.getTransactionDetails());
-        return paymentRepository.save(existing);
+        Payment saved = paymentRepository.save(existing);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        return saved;
     }
 
     public void deletePayment(Long id) {
@@ -158,6 +161,7 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");
         }
         paymentRepository.deleteById(id);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
     }
 
     @Transactional
@@ -197,7 +201,9 @@ public class PaymentService {
         }
         payment.setTransactionDetails(details);
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        return saved;
     }
 
     @Transactional
@@ -222,7 +228,9 @@ public class PaymentService {
         details.put("retryAttempt", currentRetry + 1);
         details.put("gatewayResponse", "approved");
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        return saved;
     }
 
     @Cacheable(value = "payment-service::S5-F8", key = "#paymentId")

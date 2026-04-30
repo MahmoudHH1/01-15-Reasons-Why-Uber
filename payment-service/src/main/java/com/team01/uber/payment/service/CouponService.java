@@ -2,6 +2,7 @@ package com.team01.uber.payment.service;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.model.Coupon;
+import com.team01.uber.payment.service.CacheInvalidationService;
 import com.team01.uber.payment.model.DiscountType;
 import com.team01.uber.payment.repository.CouponRepository;
 import org.springframework.cache.annotation.Cacheable;
@@ -17,9 +18,12 @@ import java.util.stream.Collectors;
 public class CouponService {
 
     private final CouponRepository couponRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
-    public CouponService(CouponRepository couponRepository) {
+    public CouponService(CouponRepository couponRepository,
+                         CacheInvalidationService cacheInvalidationService) {
         this.couponRepository = couponRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     public Coupon createCoupon(Coupon coupon) {
@@ -46,7 +50,9 @@ public class CouponService {
         existing.setExpiryDate(coupon.getExpiryDate());
         existing.setActive(coupon.getActive());
         existing.setMetadata(coupon.getMetadata());
-        return couponRepository.save(existing);
+        Coupon saved = couponRepository.save(existing);
+        cacheInvalidationService.invalidateCouponCaches(id);
+        return saved;
     }
 
     public void deleteCoupon(Long id) {
@@ -54,6 +60,7 @@ public class CouponService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Coupon not found");
         }
         couponRepository.deleteById(id);
+        cacheInvalidationService.invalidateCouponCaches(id);
     }
 
     @Cacheable(value = "payment-service::S5-F3", key = "#limit")
