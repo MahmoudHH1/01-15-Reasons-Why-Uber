@@ -72,6 +72,13 @@ public class DriverService {
             driver.setStatus(DriverStatus.OFFLINE);
         }
 
+        Map<String, Object> details = driver.getVehicleDetails();
+        if (details == null) {
+            details = new HashMap<>();
+        }
+        details.putIfAbsent("description", "");
+        driver.setVehicleDetails(details);
+
         if (driverRepository.findByLicenseNumber(driver.getLicenseNumber()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "License number already in use");
         } else if (driverRepository.findByEmail(driver.getEmail()).isPresent()) {
@@ -121,17 +128,31 @@ public class DriverService {
     }
 
     public Driver updateDriver(Long id, Driver updated) {
+
         Driver existing = getDriverById(id);
         existing.setName(updated.getName());
         existing.setEmail(updated.getEmail());
         existing.setPhone(updated.getPhone());
         existing.setLicenseNumber(updated.getLicenseNumber());
-        existing.setVehicleDetails(updated.getVehicleDetails());
+
+        // 1. From HEAD: Safe map handling and default values
+        Map<String, Object> incomingDetails = updated.getVehicleDetails();
+        if (incomingDetails == null) {
+            incomingDetails = new HashMap<>();
+        }
+        incomingDetails.putIfAbsent("description", "");
+        existing.setVehicleDetails(incomingDetails);
+
+        // 2. Save the entity
         Driver saved = driverRepository.save(existing);
+
+        // 3. From origin/main: Trigger side-effects and cache invalidation
         notifyObservers("VEHICLE_DETAILS_UPDATED", Map.of("driverId", id));
         invalidateDriverCaches(id);
+
         return saved;
     }
+
 
     @Transactional
     public void updateAvailability(Long id, DriverStatus status) {
