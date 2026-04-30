@@ -6,6 +6,7 @@ import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
@@ -318,5 +319,37 @@ public class PaymentService {
                 .refundedAmount(refundedAmount)
                 .refundCount(refundCount)
                 .build();
+    }
+
+    @Cacheable(value = "payment-service::S5-F10", key = "#startDate + ':' + #endDate")
+    public List<VehicleTypeRevenueDTO> getVehicleTypeRevenue(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "startDate must be before endDate");
+        }
+
+        List<Object[]> rows = paymentRepository.findRevenueByVehicleType(startDate, endDate);
+
+        return rows.stream().map(row -> {
+            String vehicleType    = (String) row[0];
+            double totalRevenue   = ((Number) row[1]).doubleValue();
+            double surgeFeeRevenue = ((Number) row[2]).doubleValue();
+            double baseFareRevenue = totalRevenue - surgeFeeRevenue;
+            long rideCount        = ((Number) row[3]).longValue();
+
+            return VehicleTypeRevenueDTO.builder()
+                    .vehicleType(vehicleType)
+                    .baseFareRevenue(baseFareRevenue)
+                    .surgeFeeRevenue(surgeFeeRevenue)
+                    .totalRevenue(totalRevenue)
+                    .rideCount(rideCount)
+                    .build();
+        }).toList();
+    }
+
+    public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
+        notifyObservers("ANALYTICS_VIEWED", Map.of(
+                "details", Map.of("startDate", startDate.toString(), "endDate", endDate.toString())
+        ));
     }
 }
