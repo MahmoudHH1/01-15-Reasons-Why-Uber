@@ -158,7 +158,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request) {
+    public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
         String rideStatus = paymentRepository.findRideStatusById(rideId);
         if (rideStatus == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
@@ -172,6 +172,7 @@ public class PaymentService {
         }
 
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .or(() -> paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.FAILED))
                 .orElseGet(() -> {
                     Payment newPayment = new Payment();
                     newPayment.setRideId(rideId);
@@ -183,11 +184,31 @@ public class PaymentService {
                 });
 
         payment.setMethod(request.getMethod());
-        payment.setStatus(PaymentStatus.COMPLETED);
 
         Map<String, Object> details = payment.getTransactionDetails() != null
                 ? payment.getTransactionDetails()
                 : new HashMap<>();
+
+        if (simulateFailure) {
+            payment.setStatus(PaymentStatus.FAILED);
+            details.put("gatewayResponse", "declined");
+            details.put("failureReason", "simulated gateway failure");
+            payment.setTransactionDetails(details);
+
+            Payment saved = paymentRepository.save(payment);
+            notifyObservers("FAILED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of(
+                            "failureReason", "simulated gateway failure",
+                            "rideId", rideId
+                    )
+            ));
+            return saved;
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
         details.put("gatewayResponse", "approved");
         if (request.getCardLastFour() != null) {
             details.put("cardLastFour", request.getCardLastFour());
