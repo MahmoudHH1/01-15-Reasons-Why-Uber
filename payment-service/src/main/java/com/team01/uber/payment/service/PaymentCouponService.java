@@ -10,7 +10,9 @@ import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.repository.CouponRepository;
 import com.team01.uber.payment.repository.PaymentCouponRepository;
 import com.team01.uber.payment.repository.PaymentRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
+import com.team01.uber.payment.service.CacheInvalidationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,13 +27,16 @@ public class PaymentCouponService {
     private final PaymentCouponRepository paymentCouponRepository;
     private final PaymentRepository paymentRepository;
     private final CouponRepository couponRepository;
+    private final CacheInvalidationService cacheInvalidationService;
 
     public PaymentCouponService(PaymentCouponRepository paymentCouponRepository,
                                 PaymentRepository paymentRepository,
-                                CouponRepository couponRepository) {
+                                CouponRepository couponRepository,
+                                CacheInvalidationService cacheInvalidationService) {
         this.paymentCouponRepository = paymentCouponRepository;
         this.paymentRepository = paymentRepository;
         this.couponRepository = couponRepository;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     public PaymentCoupon createPaymentCoupon(Long paymentId, Long couponId, PaymentCoupon paymentCoupon) {
@@ -44,6 +49,7 @@ public class PaymentCouponService {
         return paymentCouponRepository.save(paymentCoupon);
     }
 
+    @Cacheable(value = "payment-service::payment-coupon", key = "#id")
     public PaymentCoupon getPaymentCouponById(Long id) {
         return paymentCouponRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PaymentCoupon not found"));
@@ -63,7 +69,9 @@ public class PaymentCouponService {
         existing.setAppliedAt(paymentCoupon.getAppliedAt());
         existing.setPayment(payment);
         existing.setCoupon(coupon);
-        return paymentCouponRepository.save(existing);
+        PaymentCoupon saved = paymentCouponRepository.save(existing);
+        cacheInvalidationService.invalidatePaymentCouponCaches(id);
+        return saved;
     }
 
     public void deletePaymentCoupon(Long id) {
@@ -71,6 +79,7 @@ public class PaymentCouponService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "PaymentCoupon not found");
         }
         paymentCouponRepository.deleteById(id);
+        cacheInvalidationService.invalidatePaymentCouponCaches(id);
     }
 
     @Transactional
@@ -121,6 +130,9 @@ public class PaymentCouponService {
 
         coupon.setCurrentUses(currentUses + 1);
         couponRepository.save(coupon);
+
+        cacheInvalidationService.invalidateCouponCaches(couponId);
+        cacheInvalidationService.invalidatePattern("payment-service::S5-F8::" + paymentId);
 
         return buildPaymentWithCouponsDTO(payment);
     }
