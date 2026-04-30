@@ -8,6 +8,7 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class RideStopService {
         this.rideRepository = rideRepository;
     }
 
+    // S3-F8
     @Transactional
     public RideWithStopsDTO addStops(Long rideId, List<StopRequestDTO> requests) {
         Ride ride = rideRepository.findById(rideId)
@@ -86,6 +88,7 @@ public class RideStopService {
         return rideStopRepository.findByRideId(rideId);
     }
 
+    @Cacheable(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId")
     public RideStop getStopById(Long rideId, Long stopId) {
         return rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
