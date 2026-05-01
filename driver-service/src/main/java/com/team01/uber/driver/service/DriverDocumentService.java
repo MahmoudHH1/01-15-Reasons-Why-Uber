@@ -4,18 +4,21 @@ import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
+import com.team01.uber.driver.observer.EntityObserver;
+import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,13 +30,36 @@ public class DriverDocumentService {
     private final DriverDocumentRepository driverDocumentRepository;
     private final DriverService driverService;
     private final CacheInvalidator cacheInvalidator;
+    private final MongoEventLogger mongoEventLogger;
+    private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
                                  DriverService driverService,
-                                 CacheInvalidator cacheInvalidator) {
+                                 CacheInvalidator cacheInvalidator,
+                                 MongoEventLogger mongoEventLogger) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
         this.cacheInvalidator = cacheInvalidator;
+        this.mongoEventLogger = mongoEventLogger;
+    }
+
+    @PostConstruct
+    void init() {
+        register(mongoEventLogger);
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    public void notifyObservers(String eventType, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(eventType, payload);
+        }
     }
 
     private void invalidateDocumentFeatureCaches() {
@@ -117,6 +143,14 @@ public class DriverDocumentService {
         document.setMetadata(metadata);
 
         driverDocumentRepository.save(document);
+
+        notifyObservers("DOCUMENT_VERIFIED", Map.of(
+                "driverId", driverId,
+                "details", Map.of(
+                        "verifiedBy", verifiedBy,
+                        "documentId", documentId
+                )
+        ));
 
         cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + documentId);
         cacheInvalidator.deleteEntity("driver", driverId);
