@@ -12,16 +12,25 @@ public class ElasticsearchHitAdapter {
     public DriverSearchResultDTO adapt(SearchHit<Map<String, Object>> hit) {
         Map<String, Object> source = hit.getContent();
 
-        Long id = source.get("id") != null ? ((Number) source.get("id")).longValue() : null;
-        Double rating = source.get("rating") != null ? ((Number) source.get("rating")).doubleValue() : null;
-
         return DriverSearchResultDTO.builder()
-                .id(id)
+                .id(toLong(source.get("id")))
                 .name((String) source.get("name"))
                 .vehicleType((String) source.get("vehicleType"))
                 .description((String) source.get("description"))
-                .rating(rating)
+                .rating(toDouble(source.get("rating")))
                 .status((String) source.get("status"))
                 .build();
+    }
+
+    private static Long toLong(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number n) return n.longValue();
+        return Long.parseLong(v.toString());
+    }
+
+    private static Double toDouble(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number n) return n.doubleValue();
+        return Double.parseDouble(v.toString());
     }
 }
