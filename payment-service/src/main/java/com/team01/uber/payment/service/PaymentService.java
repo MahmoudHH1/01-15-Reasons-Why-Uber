@@ -42,6 +42,7 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
+
     }
 
     public void register(EntityObserver observer) {

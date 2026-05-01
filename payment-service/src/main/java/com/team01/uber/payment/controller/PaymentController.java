@@ -94,9 +94,11 @@ public class PaymentController {
     public ResponseEntity<List<VehicleTypeRevenueDTO>> getVehicleTypeRevenue(
             @RequestParam String startDate,
             @RequestParam String endDate) {
-        List<VehicleTypeRevenueDTO> result = paymentService.getVehicleTypeRevenue(
-                parseStartDate(startDate), parseEndDate(endDate));
-        paymentService.logAnalyticsViewed(parseStartDate(startDate), parseEndDate(endDate));
+        LocalDateTime start = parseStartDate(startDate);
+        LocalDateTime end   = parseEndDate(endDate);
+
+        List<VehicleTypeRevenueDTO> result = paymentService.getVehicleTypeRevenue(start, end);
+        paymentService.logAnalyticsViewed(start, end);
         return ResponseEntity.ok(result);
     }
 

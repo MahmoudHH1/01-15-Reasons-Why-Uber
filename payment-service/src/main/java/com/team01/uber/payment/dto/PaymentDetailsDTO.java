@@ -1,5 +1,7 @@
 package com.team01.uber.payment.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.team01.uber.payment.model.PaymentMethod;
 import com.team01.uber.payment.model.PaymentStatus;
 import lombok.AllArgsConstructor;
@@ -10,6 +12,7 @@ import java.util.Map;
 
 @Getter
 @AllArgsConstructor
+@JsonDeserialize(builder = PaymentDetailsDTO.Builder.class)
 public class PaymentDetailsDTO {
     private Long paymentId;
     private Long rideId;
@@ -23,7 +26,7 @@ public class PaymentDetailsDTO {
     private Double finalAmount;
 
     public static Builder builder() { return new Builder(); }
-
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long paymentId;
         private Long rideId;

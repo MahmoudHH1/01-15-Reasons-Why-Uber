@@ -1,5 +1,9 @@
 package com.team01.uber.payment.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+@JsonDeserialize(builder = VehicleTypeRevenueDTO.Builder.class)
 public class VehicleTypeRevenueDTO {
 
     private String vehicleType;
@@ -22,8 +26,10 @@ public class VehicleTypeRevenueDTO {
     public Double getTotalRevenue()    { return totalRevenue; }
     public Long getRideCount()         { return rideCount; }
 
+
     public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private String vehicleType;
         private Double baseFareRevenue;

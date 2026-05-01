@@ -134,7 +134,9 @@ public class PaymentCouponService {
         cacheInvalidationService.invalidateCouponCaches(couponId);
         cacheInvalidationService.invalidatePattern("payment-service::S5-F8::" + paymentId);
 
-        return buildPaymentWithCouponsDTO(payment);
+        Payment freshPayment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        return buildPaymentWithCouponsDTO(freshPayment);
     }
 
     private PaymentWithCouponsDTO buildPaymentWithCouponsDTO(Payment payment) {
