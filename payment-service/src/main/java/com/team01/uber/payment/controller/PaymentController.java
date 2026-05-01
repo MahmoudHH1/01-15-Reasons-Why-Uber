@@ -118,7 +118,7 @@ public class PaymentController {
         try {
             return LocalDateTime.parse(dateStr);
         } catch (java.time.format.DateTimeParseException e) {
-            return LocalDate.parse(dateStr).atTime(23, 59, 59);
+            return LocalDate.parse(dateStr).atTime(23, 59, 59, 999_000_000);
         }
     }
     @PutMapping("/{id}/retry")
