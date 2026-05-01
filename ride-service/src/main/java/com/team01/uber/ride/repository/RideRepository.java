@@ -73,4 +73,12 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
                        @Param("userId") Long userId,
                        @Param("amount") Double amount,
                        @Param("createdAt") LocalDateTime createdAt);
+
+    @Query(value = "SELECT COALESCE(SUM(p.amount), 0) FROM payments p " +
+            "JOIN rides r ON p.ride_id = r.id " +
+            "WHERE r.status = 'COMPLETED' AND p.status = 'COMPLETED' " +
+            "AND r.requested_at >= :start AND r.requested_at < :end",
+            nativeQuery = true)
+    double getTotalRevenueForCompletedRidesFromPayments(@Param("start") LocalDateTime start,
+                                            @Param("end") LocalDateTime end);
 }

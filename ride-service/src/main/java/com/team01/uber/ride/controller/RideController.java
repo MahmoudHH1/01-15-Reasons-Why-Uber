@@ -1,10 +1,7 @@
 package com.team01.uber.ride.controller;
 
-import com.team01.uber.ride.dto.FareEstimateDTO;
-import com.team01.uber.ride.dto.FareEstimateRequestDTO;
-import com.team01.uber.ride.dto.RideAnalyticsDTO;
+import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
-import com.team01.uber.ride.dto.RideDetailsDTO;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -103,5 +100,14 @@ public class RideController {
     @PutMapping("/{id}/assign")
     public Ride assignDriver(@PathVariable Long id, @RequestParam Long driverId) {
         return rideService.assignDriver(id, driverId);
+    }
+
+    @GetMapping("/analytics/dashboard")
+    public ResponseEntity<RideAnalyticsDashboardDTO> getAnalyticsDashboard(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate) {
+        RideAnalyticsDashboardDTO dashboard = rideService.getRideAnalyticsDashboard(startDate, endDate);
+        rideService.logDashboardViewed(startDate, endDate);
+        return ResponseEntity.ok(dashboard);
     }
 }
