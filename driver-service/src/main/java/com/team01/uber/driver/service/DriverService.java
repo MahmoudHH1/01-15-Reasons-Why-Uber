@@ -1,19 +1,24 @@
 package com.team01.uber.driver.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverRepository;
+import com.team01.uber.driver.repository.DriverSearchEsRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,6 +44,8 @@ public class DriverService {
     private final MongoEventLogger mongoEventLogger;
     private final RedisTemplate<String, String> redisTemplate;
     private final CacheInvalidator cacheInvalidator;
+    private final DriverSearchEsRepository searchEsRepository;
+    private final ElasticsearchHitAdapter searchHitAdapter;
     private final DriverIndexerService driverIndexerService;
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -46,11 +53,15 @@ public class DriverService {
                          MongoEventLogger mongoEventLogger,
                          RedisTemplate<String, String> redisTemplate,
                          CacheInvalidator cacheInvalidator,
+                         DriverSearchEsRepository searchEsRepository,
+                         ElasticsearchHitAdapter searchHitAdapter, 
                          DriverIndexerService driverIndexerService) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
         this.redisTemplate = redisTemplate;
         this.cacheInvalidator = cacheInvalidator;
+        this.searchEsRepository = searchEsRepository;
+        this.searchHitAdapter = searchHitAdapter;
         this.driverIndexerService = driverIndexerService;
     }
 
@@ -145,6 +156,29 @@ public class DriverService {
             return driverRepository.findByRatingBetweenOrderByRatingDesc(minRating, maxRating);
         }
         return driverRepository.findByStatusAndRatingBetweenOrderByRatingDesc(status, minRating, maxRating);
+    }
+
+    @Cacheable(value = "driver-service::S2-F10",
+            key = "(#query == null ? '' : #query) + ':' + " +
+                  "(#vehicleType == null ? 'ANY' : #vehicleType) + ':' + " +
+                  "(#status == null ? 'ANY' : #status) + ':' + " +
+                  "(#minRating == null ? 'ANY' : #minRating) + ':' + " +
+                  "(#maxRating == null ? 'ANY' : #maxRating)")
+    public List<DriverSearchResultDTO> searchDriversFullText(String query,
+                                                             String vehicleType,
+                                                             String status,
+                                                             Double minRating,
+                                                             Double maxRating) {
+        @SuppressWarnings("rawtypes")
+        SearchHits<Map> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
+        return hits.getSearchHits().stream()
+                .map(this::adaptHit)
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private DriverSearchResultDTO adaptHit(SearchHit<?> hit) {
+        return searchHitAdapter.adapt((SearchHit<Map<String, Object>>) hit);
     }
 
     public Driver updateDriver(Long id, Driver updated) {
