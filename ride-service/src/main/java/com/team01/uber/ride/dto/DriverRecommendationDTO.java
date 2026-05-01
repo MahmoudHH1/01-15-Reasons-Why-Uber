@@ -1,5 +1,9 @@
 package com.team01.uber.ride.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+@JsonDeserialize(builder = DriverRecommendationDTO.Builder.class)
 public class DriverRecommendationDTO {
     private final Long driverId;
     private final String name;
@@ -25,7 +29,7 @@ public class DriverRecommendationDTO {
         return new Builder();
     }
 
-    // Static Inner Builder Class
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long driverId;
         private String name;
