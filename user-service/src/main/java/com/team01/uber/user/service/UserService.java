@@ -13,6 +13,9 @@ import com.team01.uber.user.observer.MongoEventLogger;
 import com.team01.uber.user.repository.AuthEventRepository;
 import com.team01.uber.user.repository.SavedAddressRepository;
 import com.team01.uber.user.repository.UserRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -60,6 +63,10 @@ public class UserService implements Observable{
         observers.remove(observer);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::S1-F1", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F6", allEntries = true)
+    })
     public User createUser(User user) {
         if (userRepository.existsByEmail(user.getEmail()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
@@ -70,6 +77,7 @@ public class UserService implements Observable{
         return saved;
     }
 
+    @Cacheable(value = "user-service::user", key = "#id")
     public User getUserById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -79,6 +87,16 @@ public class UserService implements Observable{
         return userRepository.findAll();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F1", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F3", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F5", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F6", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F8", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F9", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F12", allEntries = true)
+    })
     public User updateUser(Long id, User updated) {
         User existing = getUserById(id);
 
@@ -97,6 +115,11 @@ public class UserService implements Observable{
         return saved;
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F1", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F6", allEntries = true)
+    })
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -120,6 +143,7 @@ public class UserService implements Observable{
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status cannot be null");
     }
 
+    @Cacheable(value = "user-service::S1-F3", key = "#userId")
     public UserRideSummaryDTO getRideSummary(Long userId) {
         getUserById(userId);
         Object[] row = userRepository.getRideSummary(userId);
@@ -138,6 +162,12 @@ public class UserService implements Observable{
         return objectArrayDtoAdapter.adaptToUserRideSummary(data);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F3", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F9", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F12", allEntries = true)
+    })
     public User updatePreferences(Long id, Map<String, Object> incoming) {
         User user = getUserById(id);
         Map<String, Object> current = user.getPreferences();
@@ -152,10 +182,12 @@ public class UserService implements Observable{
         return saved;
     }
 
+    @Cacheable(value = "user-service::S1-F1", key = "#name + '-' + #email + '-' + #role")
     public List<User> searchUsers(String name, String email, String role) {
         return userRepository.searchUsers(name, email, role);
     }
 
+    @Cacheable(value = "user-service::S1-F6", key = "#startDate + '-' + #endDate + '-' + #limit")
     public List<TopRiderDTO> getTopRiders(String startDate, String endDate, int limit) {
         LocalDateTime start;
         LocalDateTime end;
@@ -174,6 +206,7 @@ public class UserService implements Observable{
                 .toList();
     }
 
+    @Cacheable(value = "user-service::S1-F5", key = "#key + '-' + #value")
     public List<User> searchByPreference(String key, String value) {
         if (key == null || key.isBlank() || value == null || value.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Key and value must not be blank");
@@ -181,6 +214,11 @@ public class UserService implements Observable{
         return userRepository.findByPreference(key, value);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#userId"),
+            @CacheEvict(value = "user-service::S1-F1", allEntries = true),
+            @CacheEvict(value = "user-service::S1-F12", allEntries = true)
+    })
     @Transactional
     public User deactivateUser(Long userId) {
         User user = userRepository.findById(userId)
@@ -191,8 +229,14 @@ public class UserService implements Observable{
         user.setStatus(UserStatus.DEACTIVATED);
         User saved = userRepository.save(user);
         notifyObservers(AuthEvent.ACTION_USER_DEACTIVATED, Map.of("userId", saved.getId()));
-        return saved;    }
+        return saved;
+    }
 
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#userId"),
+            @CacheEvict(value = "user-service::savedAddress", key = "#addressId"),
+            @CacheEvict(value = "user-service::S1-F9", key = "#userId")
+    })
     @Transactional
     public User setDefaultAddress(Long userId, Long addressId) {
         User user = userRepository.findById(userId)
@@ -212,33 +256,6 @@ public class UserService implements Observable{
         return userRepository.findById(userId).get();
     }
 
-    public User updateUserRole(Long id, String newRole) {
-        User user = getUserById(id);
-        
-        // Validate role is ADMIN or RIDER
-        try {
-            com.team01.uber.user.model.UserRole role = 
-                com.team01.uber.user.model.UserRole.valueOf(newRole.toUpperCase());
-            
-            String oldRole = user.getRole().name();
-            user.setRole(role);
-            User saved = userRepository.save(user);
-            
-            // Notify observers: role changed
-            notifyObservers(
-                AuthEvent.ACTION_ROLE_CHANGED,
-                Map.of(
-                    "userId", saved.getId(),
-                    "oldRole", oldRole,
-                    "newRole", role.name()
-                )
-            );
-            
-            return saved;
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role value");
-        }
-    }
     public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
         if (lang == null || lang.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
@@ -246,6 +263,7 @@ public class UserService implements Observable{
         return userRepository.findByLanguagePreferenceWithMinRides(lang, minRides);
     }
 
+    @Cacheable(value = "user-service::S1-F8", key = "#userId")
     public UserProfileDTO getUserProfile(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -273,7 +291,7 @@ public class UserService implements Observable{
                 .build();
     }
 
-
+    @Cacheable(value = "user-service::S1-F12", key = "#userId + '-' + #page + '-' + #size")
     public ActivityFeedDTO getActivityFeed(Long userId, int page, int size) {
 
         User authenticatedUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -301,5 +319,33 @@ public class UserService implements Observable{
                 .build();
     }
 
-
+    @Caching(evict = {
+            @CacheEvict(value = "user-service::user", key = "#id"),
+            @CacheEvict(value = "user-service::S1-F12", allEntries = true)
+    })
+    public User updateUserRole(Long id, String newRole) {
+        User user = getUserById(id);
+        
+        try {
+            com.team01.uber.user.model.UserRole role = 
+                com.team01.uber.user.model.UserRole.valueOf(newRole.toUpperCase());
+            
+            String oldRole = user.getRole().name();
+            user.setRole(role);
+            User saved = userRepository.save(user);
+            
+            notifyObservers(
+                AuthEvent.ACTION_ROLE_CHANGED,
+                Map.of(
+                    "userId", saved.getId(),
+                    "oldRole", oldRole,
+                    "newRole", role.name()
+                )
+            );
+            
+            return saved;
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role value");
+        }
+    }
 }
