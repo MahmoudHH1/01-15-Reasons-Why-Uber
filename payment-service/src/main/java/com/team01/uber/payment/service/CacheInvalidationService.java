@@ -22,7 +22,7 @@ public class CacheInvalidationService {
         try {
             Set<String> keys = redisTemplate.keys(pattern);
             if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
+                redisTemplate.unlink(keys);
             }
         } catch (Exception e) {
             log.warn("Redis invalidation failed for pattern {}: {}", pattern, e.getMessage());

@@ -85,7 +85,9 @@ public class PaymentService {
         if (payment.getStatus() == null) {
             payment.setStatus(PaymentStatus.PENDING);
         }
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
+        return saved;
     }
 
     @Transactional
