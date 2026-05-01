@@ -1,7 +1,10 @@
 package com.team01.uber.ride.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import java.util.Map;
 
+@JsonDeserialize(builder = RideAnalyticsDashboardDTO.Builder.class)
 public class RideAnalyticsDashboardDTO {
     private final long totalRides;
     private final double totalRevenue;
@@ -28,6 +31,7 @@ public class RideAnalyticsDashboardDTO {
         return new Builder();
     }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private long totalRides;
         private double totalRevenue;

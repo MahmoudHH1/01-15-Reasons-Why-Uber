@@ -94,50 +94,40 @@ public class RedisConfig implements CachingConfigurer {
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory,
                                                        RedisSerializer<Object> redisJsonSerializer) {
-        try {
-            RedisTemplate<String, Object> template = new RedisTemplate<>();
-            template.setConnectionFactory(connectionFactory);
-            template.setKeySerializer(new StringRedisSerializer());
-            template.setValueSerializer(redisJsonSerializer);
-            return template;
-        } catch (Exception e) {
-            log.warn("Failed to initialize RedisTemplate: {}. Running without Redis support.", e.getMessage());
-            return null;
-        }
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(redisJsonSerializer);
+        return template;
     }
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory,
                                           RedisSerializer<Object> redisJsonSerializer) {
-        try {
-            RedisSerializationContext.SerializationPair<Object> jsonPair =
-                    RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer);
+        RedisSerializationContext.SerializationPair<Object> jsonPair =
+                RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer);
 
-            RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
-                    .serializeKeysWith(RedisSerializationContext.SerializationPair
-                            .fromSerializer(new StringRedisSerializer()))
-                    .serializeValuesWith(jsonPair)
-                    .disableCachingNullValues();
+        RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
+                .serializeKeysWith(RedisSerializationContext.SerializationPair
+                        .fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(jsonPair)
+                .disableCachingNullValues();
 
-            Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
-                    "ride-service::S3-F1",         base.entryTtl(Duration.ofMinutes(5)),
-                    "ride-service::S3-F3",         base.entryTtl(Duration.ofMinutes(10)),
-                    "ride-service::S3-F5",         base.entryTtl(Duration.ofMinutes(5)),
-                    "ride-service::S3-F6",         base.entryTtl(Duration.ofMinutes(10)),
-                    "ride-service::S3-F9",         base.entryTtl(Duration.ofMinutes(10)),
-                    "ride-service::S3-F10",        base.entryTtl(Duration.ofMinutes(10)),
-                    "ride-service::S3-F12",        base.entryTtl(Duration.ofMinutes(5)),
-                    "ride-service::ride",         base.entryTtl(Duration.ofMinutes(15)),
-                    "ride-service::rideStop",        base.entryTtl(Duration.ofMinutes(15))
-            );
+        Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
+                "ride-service::S3-F1",         base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::S3-F3",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F5",         base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::S3-F6",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F9",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F10",        base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F12",        base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::ride",         base.entryTtl(Duration.ofMinutes(15)),
+                "ride-service::rideStop",        base.entryTtl(Duration.ofMinutes(15))
+        );
 
-            return RedisCacheManager.builder(connectionFactory)
-                    .cacheDefaults(base.entryTtl(Duration.ofMinutes(15)))
-                    .withInitialCacheConfigurations(cacheConfigs)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to initialize RedisCacheManager: {}. Running without Redis cache.", e.getMessage());
-            return null;
-        }
+        return RedisCacheManager.builder(connectionFactory)
+                .cacheDefaults(base.entryTtl(Duration.ofMinutes(15)))
+                .withInitialCacheConfigurations(cacheConfigs)
+                .build();
     }
 }

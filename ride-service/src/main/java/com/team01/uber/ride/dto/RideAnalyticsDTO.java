@@ -1,5 +1,9 @@
 package com.team01.uber.ride.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+@JsonDeserialize(builder = RideAnalyticsDTO.Builder.class)
 public class RideAnalyticsDTO {
     private final long totalRides;
     private final long completedRides;
@@ -28,6 +32,7 @@ public class RideAnalyticsDTO {
         return new Builder();
     }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private long totalRides;
         private long completedRides;
