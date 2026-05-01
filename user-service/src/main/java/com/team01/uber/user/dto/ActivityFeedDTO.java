@@ -1,7 +1,11 @@
 package com.team01.uber.user.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
 import java.util.List;
 
+@JsonDeserialize(builder = ActivityFeedDTO.Builder.class)
 public class ActivityFeedDTO {
 
     private final List<ActivityEventDTO> content;
@@ -21,10 +25,9 @@ public class ActivityFeedDTO {
     public int getSize() { return size; }
     public long getTotalElements() { return totalElements; }
 
-    public static Builder builder() {
-        return new Builder();
-    }
+    public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private List<ActivityEventDTO> content;
         private int page;
@@ -36,8 +39,6 @@ public class ActivityFeedDTO {
         public Builder size(int size) { this.size = size; return this; }
         public Builder totalElements(long totalElements) { this.totalElements = totalElements; return this; }
 
-        public ActivityFeedDTO build() {
-            return new ActivityFeedDTO(this);
-        }
+        public ActivityFeedDTO build() { return new ActivityFeedDTO(this); }
     }
 }
