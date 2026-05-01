@@ -1,10 +1,6 @@
 package com.team01.uber.ride.service;
 
-import com.team01.uber.ride.dto.FareEstimateDTO;
-import com.team01.uber.ride.dto.FareEstimateRequestDTO;
-import com.team01.uber.ride.dto.RideAnalyticsDTO;
-import com.team01.uber.ride.dto.RideDetailsDTO;
-import com.team01.uber.ride.dto.StopDetailDTO;
+import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.DriverNode;
@@ -37,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -425,6 +422,57 @@ public class RideService {
         rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
         return savedRide;
 
+    }
+
+    // S3-F10
+    @Cacheable(value = "ride-service::S3-F10", key="#startDate.toString() + '-' + #endDate.toString()")
+    public RideAnalyticsDashboardDTO getRideAnalyticsDashboard(LocalDate startDate, LocalDate endDate) {
+
+        if (startDate == null || endDate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date and end date parameters are required");
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date must be on or before end date");
+        }
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        List<Ride> rides = rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+
+        long totalRides = rides.size();
+
+        double totalRevenue = rideRepository.getTotalRevenueForCompletedRidesFromPayments(start, end);
+
+        long completedRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED)
+                .count();
+
+        double averageRideFare = completedRides > 0 ? totalRevenue / completedRides : 0.0;
+
+        double completionRate = totalRides > 0
+                ? ((double) completedRides / totalRides) * 100.0
+                : 0.0;
+
+        Map<RideStatus, Long> ridesByStatus = rides.stream()
+                .collect(Collectors.groupingBy(Ride::getStatus, Collectors.counting()));
+
+        return RideAnalyticsDashboardDTO.builder()
+                .totalRides(totalRides)
+                .totalRevenue(totalRevenue)
+                .averageRideFare(averageRideFare)
+                .completionRate(completionRate)
+                .ridesByStatus(ridesByStatus)
+                .build();
+    }
+
+    public void logDashboardViewed(LocalDate startDate, LocalDate endDate) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("startDate", startDate.toString());
+        payload.put("endDate", endDate.toString());
+        payload.put("timestamp", LocalDateTime.now().toString());
+        rideEventPublisher.notifyObservers("ANALYTICS_VIEWED", payload);
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
