@@ -136,8 +136,8 @@ sleep 2
 http_auth GET "$BASE/api/drivers/search/full-text?query=toyota" "$TOKEN"
 assert_status 200 "S2-F10 query=toyota"
 hit="$(echo "$LAST_BODY" | jq -r '.[].id // empty' 2>/dev/null | grep -c "^${D_TOYOTA}$")"
-[ "${hit:-0}" -ge 1 ] && pass "S2-F10 returns D_TOYOTA for query=toyota" \
-                     || skip "S2-F10 returns D_TOYOTA for query=toyota" "feature may be missing per catalog"
+[ "${hit:-0}" -ge 1 ] && pass "S2-F10 returns D_TOYOTA for query=toyota (§10.2.1.a)" \
+                     || fail "S2-F10 returns D_TOYOTA for query=toyota (§10.2.1.a)" "got hits=$hit"
 
 # (b) vehicleType filter
 http_auth GET "$BASE/api/drivers/search/full-text?query=toyota&vehicleType=SEDAN" "$TOKEN"
@@ -155,14 +155,14 @@ assert_status_in "S2-F10 minRating=4.5" 200 204
 http_auth GET "$BASE/api/drivers/search/full-text?query=zzzzzzzz" "$TOKEN"
 assert_status 200 "S2-F10 nonsense query → 200 (§10.2.1.f)"
 empty="$(echo "$LAST_BODY" | jq -r 'length // 0' 2>/dev/null)"
-[ "${empty:-99}" = "0" ] && pass "S2-F10 empty array on no matches" \
-                         || skip "S2-F10 empty array on no matches" "got $empty"
+[ "${empty:-99}" = "0" ] && pass "S2-F10 empty array on no matches (§10.2.1.f)" \
+                         || fail "S2-F10 empty array on no matches (§10.2.1.f)" "got length=$empty"
 
 # (f) cache for 5 min
 http_auth GET "$BASE/api/drivers/search/full-text?query=toyota" "$TOKEN" >/dev/null
 [ "$(redis_count_keys 'driver-service::S2-F10::*')" -ge 1 ] \
   && pass "S2-F10 caches driver-service::S2-F10::*" \
-  || skip "S2-F10 caches driver-service::S2-F10::*" "feature may be missing per catalog"
+  || fail "S2-F10 caches driver-service::S2-F10::* (§4.4.1, §8.1)"
 
 # (g) no token
 http GET "$BASE/api/drivers/search/full-text?query=toyota"
@@ -179,21 +179,21 @@ EOF
 sleep 2
 http_auth GET "$BASE/api/drivers/search/full-text?query=Renamed" "$TOKEN"
 hit="$(echo "$LAST_BODY" | jq -r '.[].id // empty' 2>/dev/null | grep -c "^${D_VAN}$")"
-[ "${hit:-0}" -ge 1 ] && pass "S2-F10 reflects auto-indexed PUT" \
-                     || skip "S2-F10 reflects auto-indexed PUT" "auto-index retrofit may be missing"
+[ "${hit:-0}" -ge 1 ] && pass "S2-F10 reflects auto-indexed PUT (§4.5 auto-index)" \
+                     || fail "S2-F10 reflects auto-indexed PUT (§4.5 auto-index)" "post-PUT search did not return D_VAN"
 
 # (i) Auto-deindex on DELETE
 http_auth DELETE "$BASE/api/drivers/$D_VAN" "$TOKEN" >/dev/null
 sleep 2
 http_auth GET "$BASE/api/drivers/search/full-text?query=Renamed" "$TOKEN"
 gone="$(echo "$LAST_BODY" | jq -r '.[].id // empty' 2>/dev/null | grep -c "^${D_VAN}$")"
-[ "${gone:-99}" = "0" ] && pass "S2-F10 deleted driver disappears from index" \
-                       || skip "S2-F10 deleted driver disappears from index" "auto-deindex may be missing"
+[ "${gone:-99}" = "0" ] && pass "S2-F10 deleted driver disappears from index (§4.5 auto-deindex)" \
+                       || fail "S2-F10 deleted driver disappears from index (§4.5 auto-deindex)" "search still returns D_VAN"
 
-# DELETE emits DRIVER_DELETED
-del_count="$(mongo_count driver_events "{ driverId: $D_VAN, action: 'DRIVER_DELETED' }")"
-[ "${del_count:-0}" -ge 1 ] && pass "DELETE emits DRIVER_DELETED" \
-                            || skip "DELETE emits DRIVER_DELETED" "may rely on DELETE emitting INDEXED instead"
+# DELETE emits DRIVER_DELETED — §7.1.3 / §4.5 retrofit
+del_count="$(mongo_count_poll driver_events "{ driverId: $D_VAN, action: 'DRIVER_DELETED' }" 10)"
+[ "${del_count:-0}" -ge 1 ] && pass "DELETE emits DRIVER_DELETED (§7.1.3)" \
+                            || fail "DELETE emits DRIVER_DELETED (§7.1.3)"
 
 # ============================================================
 # S2-F12 Driver Performance Dashboard   (§10.2.3)
@@ -331,8 +331,8 @@ fi
 # DASHBOARD_VIEWED must NOT invalidate caches (§4.4.4 "pure observability")
 # We rely on the second call not having flushed the entity-detail cache:
 [ "$(redis_count_keys "driver-service::driver::$D_TOYOTA")" -ge 1 ] \
-  && pass "DASHBOARD_VIEWED does NOT invalidate driver entity cache" \
-  || skip "DASHBOARD_VIEWED does NOT invalidate driver entity cache"
+  && pass "DASHBOARD_VIEWED does NOT invalidate driver entity cache (§4.4.4 obs-only)" \
+  || fail "DASHBOARD_VIEWED does NOT invalidate driver entity cache (§4.4.4 obs-only)"
 
 # ============================================================
 # M1 S2 features (smoke pass — JWT, 2xx, cache key shape)
@@ -393,7 +393,7 @@ if [ -n "$DOC_ID" ]; then
 
   # S2-F8 verify document — emits DOCUMENT_VERIFIED. Per M1 spec the verifier must be
   # an ADMIN user; verifiedBy is the admin's user-id (Long), not a free-form string.
-  ADMIN_TOKEN_S28="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-adminPassword123}" 2>/dev/null || true)"
+  ADMIN_TOKEN_S28="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-admin123}" 2>/dev/null || true)"
   ADMIN_UID_S28="$(jwt_uid "$ADMIN_TOKEN_S28" 2>/dev/null)"
   if [ -n "$ADMIN_UID_S28" ]; then
     http_auth PUT "$BASE/api/drivers/$D_TOYOTA/documents/$DOC_ID/verify" "$ADMIN_TOKEN_S28" \

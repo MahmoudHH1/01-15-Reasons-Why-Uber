@@ -179,16 +179,26 @@ diff=$((after - before))
 # (e) Cached (10 min)
 [ "$(redis_count_keys 'ride-service::S3-F10::*')" -ge 1 ] \
   && pass "S3-F10 caches ride-service::S3-F10::*" \
-  || skip "S3-F10 caches ride-service::S3-F10::*" "feature may be missing per catalog"
+  || fail "S3-F10 caches ride-service::S3-F10::* (§4.4.1, §8.1 dashboards 10m)"
 
 # (f) Distinct path: M1 /api/rides/analytics still works
 http_auth GET "$BASE/api/rides/analytics?startDate=2026-03-01&endDate=2026-03-31" "$TOKEN"
 assert_status_in "M1 /api/rides/analytics still 200 (distinct-path rule)" 200 204
 
 # (g) Coexistence: response shapes differ — M1 has no ridesByStatus map
-m1_has="$(echo "$LAST_BODY" | jq -r '.ridesByStatus // empty')"
-[ -z "$m1_has" ] || [ "$m1_has" = "null" ] && pass "M1 analytics has no ridesByStatus (distinct DTO)" \
-                                           || skip "M1 analytics has no ridesByStatus" "ride service may share DTO"
+# §10.3.1 distinct-DTO note: M1's RideAnalyticsDTO has totalRides /
+# completedRides / cancelledRides / totalRevenue / averageRideFare /
+# completionRate, but NOT ridesByStatus. M2 adds the ridesByStatus map.
+# A shared DTO is a §10.3.1 violation ("M2's new /dashboard endpoint
+# returns the richer RideAnalyticsDashboardDTO with a status breakdown
+# map. Both must coexist — do not overwrite either").
+m1_has="$(echo "$LAST_BODY" | jq -r '.ridesByStatus // "missing"')"
+if [ "$m1_has" = "missing" ] || [ "$m1_has" = "null" ]; then
+  pass "M1 /api/rides/analytics has no ridesByStatus (§10.3.1 distinct-DTO rule)"
+else
+  fail "M1 /api/rides/analytics has no ridesByStatus (§10.3.1 distinct-DTO rule)" \
+       "ride service shares one DTO across both endpoints — should be two distinct DTOs"
+fi
 
 # ============================================================
 # S3-F11 Record User-Driver Riding Pattern   (§10.3.2)
@@ -232,7 +242,7 @@ assert_status 401 "S3-F11 no token → 401"
 # (g) Wildcard cache invalidation: ride-service::S3-F12::* must be empty after this write
 [ "$(redis_count_keys 'ride-service::S3-F12::*')" = "0" ] \
   && pass "S3-F11 wildcard-invalidates ride-service::S3-F12::*" \
-  || skip "S3-F11 wildcard-invalidates ride-service::S3-F12::*" "S3-F12 may not be cached yet"
+  || fail "S3-F11 wildcard-invalidates ride-service::S3-F12::* (§4.4.4 NoSQL-writer)"
 
 # ============================================================
 # S3-F12 Driver Recommendations for User   (§10.3.3)
@@ -312,10 +322,11 @@ EOF
 http_auth GET "$BASE/api/rides/recommendations?userId=$UID_A&limit=5" "$TOKEN_USERA"
 if [ "$LAST_STATUS" = "200" ] && [ -n "$D3$D4$D1$D2" ]; then
   ids="$(echo "$LAST_BODY" | jq -r '.[].driverId' 2>/dev/null)"
-  echo "$ids" | grep -q "^${D3}$" && pass "§10.3.3.a recs include D3" || skip "§10.3.3.a recs include D3" "may need exact graph; D3=$D3 ids=$(echo $ids|tr '\n' ' ')"
-  echo "$ids" | grep -q "^${D4}$" && pass "§10.3.3.a recs include D4" || skip "§10.3.3.a recs include D4"
-  echo "$ids" | grep -qv "^${D1}$" && pass "§10.3.3.a recs exclude D1" || skip "§10.3.3.a recs exclude D1"
-  echo "$ids" | grep -qv "^${D2}$" && pass "§10.3.3.a recs exclude D2" || skip "§10.3.3.a recs exclude D2"
+  echo "$ids" | grep -q "^${D3}$" && pass "§10.3.3.a recs include D3 ($D3)" || fail "§10.3.3.a recs include D3 ($D3)" "ids=$(echo $ids|tr '\n' ' ')"
+  echo "$ids" | grep -q "^${D4}$" && pass "§10.3.3.a recs include D4 ($D4)" || fail "§10.3.3.a recs include D4 ($D4)" "ids=$(echo $ids|tr '\n' ' ')"
+  # exclude assertions: A directly rode with D1 and D2, so they must NOT show up
+  echo "$ids" | grep -q "^${D1}$" && fail "§10.3.3.a recs exclude D1 ($D1)" "D1 leaked into recs" || pass "§10.3.3.a recs exclude D1 (own driver)"
+  echo "$ids" | grep -q "^${D2}$" && fail "§10.3.3.a recs exclude D2 ($D2)" "D2 leaked into recs" || pass "§10.3.3.a recs exclude D2 (own driver)"
 fi
 
 # Default limit = 5
@@ -325,7 +336,7 @@ len="$(echo "$LAST_BODY" | jq -r 'length // 0')"
 [ "${len:-99}" -le 5 ] && pass "S3-F12 default limit ≤ 5" || fail "S3-F12 default limit ≤ 5" "got $len"
 
 # ADMIN bypass — if seeded
-ADMIN_TOKEN="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-adminPassword123}" || true)"
+ADMIN_TOKEN="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-admin123}" || true)"
 if [ -n "$ADMIN_TOKEN" ]; then
   http_auth GET "$BASE/api/rides/recommendations?userId=$UID_T&limit=5" "$ADMIN_TOKEN"
   assert_status 200 "S3-F12 ADMIN bypass"
@@ -336,7 +347,7 @@ fi
 # Cached for 5 min
 [ "$(redis_count_keys 'ride-service::S3-F12::*')" -ge 1 ] \
   && pass "S3-F12 caches ride-service::S3-F12::*" \
-  || skip "S3-F12 caches ride-service::S3-F12::*" "feature may be missing per catalog"
+  || fail "S3-F12 caches ride-service::S3-F12::* (§4.4.1, §8.1 recommendations 5m)"
 
 # ============================================================
 # M1 S3 features

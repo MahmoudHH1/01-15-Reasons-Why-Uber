@@ -156,26 +156,47 @@ All five must return `200`. If any returns `000` ("Empty reply") or
 
 ### 4. Optional ADMIN seed
 
-CC-2 (`PUT /api/users/{id}/role`) requires a seeded ADMIN user. The
-suite tries to log in with `admin@uber.com` / `adminPassword123` by
-default. Override:
+CC-2 (`PUT /api/users/{id}/role`) requires a seeded ADMIN user.
+
+**Good news: nothing to do.** `user-service/src/main/java/com/team01/uber/user/config/DataSeeder.java`
+auto-creates the admin on every boot if it doesn't already exist:
+
+| Field    | Value             |
+|----------|-------------------|
+| email    | `admin@uber.com`  |
+| password | `admin123`        |
+| role     | `ADMIN`           |
+| status   | `ACTIVE`          |
+
+The suite's defaults match these exactly — no env vars needed. Confirm it works:
+
+```bash
+curl -sS -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@uber.com","password":"admin123"}' | jq .token
+```
+
+Should print a JWT, not `null`. If the seeder didn't run (you cleared the
+DB volume mid-run), restart user-service: `docker compose restart user-service`.
+
+**Override only if your seed differs**:
 
 ```bash
 ADMIN_EMAIL=admin@example.com \
-ADMIN_PASSWORD=adminPassword123 \
+ADMIN_PASSWORD=changed-it \
 ./tests/run-all.sh
 ```
 
-Or insert one manually:
+**Or insert one manually** (skip the seeder):
 
 ```sql
 INSERT INTO users (name, email, phone, password, role, status, created_at)
 VALUES (
   'Admin',
   'admin@uber.com',
-  '+10000000000',
-  -- BCrypt of "adminPassword123"
-  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+  '+201000000000',
+  -- BCrypt of "admin123"
+  '$2a$10$qP1Qjh0vLqs8FzGhhsNpKuSnjGxnD2dV7lFdAo1mQ3o4hyT9sZEgC',
   'ADMIN',
   'ACTIVE',
   NOW()
@@ -248,7 +269,7 @@ Full list (with defaults) in `tests/lib/common.sh`:
 | `NEO4J_URL` / `NEO4J_USER` / `NEO4J_PASSWORD` | `bolt://localhost:7687` / `neo4j` / `neo4jpass` | Neo4j (S3-F11 graph) |
 | `CASSANDRA_HOST` / `CASSANDRA_PORT` / `CASSANDRA_KEYSPACE` | `localhost` / `9042` / `uberks` | Cassandra (S4-F12 timeline) |
 | `RUN_ID` | `$(date +%s)$$` | Run-scope salt for unique fixtures (override only if you need a deterministic dataset) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@uber.com` / `adminPassword123` | Seeded admin for CC-2 tests |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@uber.com` / `admin123` | Seeded admin for CC-2 tests (matches `user-service/DataSeeder.java`) |
 
 ---
 

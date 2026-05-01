@@ -94,7 +94,9 @@ done
 # ADMIN_EMAIL / ADMIN_PASSWORD env vars.
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@uber.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-adminPassword123}"
+# Default matches user-service/DataSeeder.java which auto-seeds this admin
+# at startup. Override via env var if your stack uses a different seed.
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 
 ADMIN_TOKEN="$(login_user "$ADMIN_EMAIL" "$ADMIN_PASSWORD" || true)"
 if [ -z "$ADMIN_TOKEN" ]; then

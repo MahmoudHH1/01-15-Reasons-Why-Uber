@@ -171,7 +171,7 @@ assert_status 403 "CC-2 RIDER → 403"
 http PUT "$BASE/api/users/$UID_A/role" -H "Content-Type: application/json" -d '{"role":"ADMIN"}'
 assert_status 401 "CC-2 no token → 401"
 
-ADMIN_TOKEN="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-adminPassword123}" || true)"
+ADMIN_TOKEN="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-admin123}" || true)"
 if [ -n "$ADMIN_TOKEN" ]; then
   # §4.2 step d — seeded ADMIN's token carries role=ADMIN
   ADMIN_ROLE="$(jwt_role "$ADMIN_TOKEN")"
@@ -223,7 +223,7 @@ if [ -n "$NEW_UID" ]; then
   if [ "$(redis_count_keys "user-service::user::$NEW_UID")" -ge 1 ]; then
     pass "CRUD GET-by-ID caches user-service::user::$NEW_UID"
   else
-    skip "CRUD GET-by-ID caches user-service::user::$NEW_UID" "expected by §4.4.2; user-service may not have @Cacheable"
+    fail "CRUD GET-by-ID caches user-service::user::$NEW_UID (§4.4.2 + §8.1 entity detail 15m)"
   fi
 
   # §4.4.2 — list endpoints must not create cache entries.
@@ -247,7 +247,7 @@ EOF
   if [ "$(redis_count_keys "user-service::user::$NEW_UID")" = "0" ]; then
     pass "PUT invalidates user-service::user::$NEW_UID"
   else
-    skip "PUT invalidates user-service::user::$NEW_UID" "service may not have @Cacheable"
+    fail "PUT invalidates user-service::user::$NEW_UID (§4.4.4 + §4.4.6)"
   fi
 
   http_auth DELETE "$BASE/api/users/$NEW_UID" "$TOKEN_A"
@@ -293,7 +293,7 @@ after="$(redis_count_keys "user-service::S1-F3::*")"
 if [ "${after:-0}" -le "${before:-0}" ]; then
   pass "S1-F2 wildcard-invalidates S1-F3::* ($before→$after)"
 else
-  skip "S1-F2 wildcard-invalidates S1-F3::* ($before→$after)" "service may not cache S1-F3"
+  fail "S1-F2 wildcard-invalidates S1-F3::* ($before→$after; §4.4.4 + §4.4.6)"
 fi
 
 # S1-F4 deactivate
