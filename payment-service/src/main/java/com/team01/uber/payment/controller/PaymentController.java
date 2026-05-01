@@ -6,6 +6,7 @@ import com.team01.uber.payment.dto.PaymentMethodDTO;
 import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
@@ -88,6 +89,18 @@ public class PaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/analytics/vehicle-type")
+    public ResponseEntity<List<VehicleTypeRevenueDTO>> getVehicleTypeRevenue(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        LocalDateTime start = parseStartDate(startDate);
+        LocalDateTime end   = parseEndDate(endDate);
+
+        List<VehicleTypeRevenueDTO> result = paymentService.getVehicleTypeRevenue(start, end);
+        paymentService.logAnalyticsViewed(start, end);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/reports/revenue")

@@ -8,6 +8,7 @@ import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
@@ -95,7 +96,12 @@ public class PaymentService {
             totalAmount += amount;
         }
 
-        return new UserPaymentSummaryDTO(userId, totalPayments, totalAmount, methodBreakdown);
+        return UserPaymentSummaryDTO.builder()
+                .userId(userId)
+                .totalPayments(totalPayments)
+                .totalAmount(totalAmount)
+                .methodBreakdown(methodBreakdown)
+                .build();
     }
 
     public Payment createPayment(Payment payment) {
@@ -350,18 +356,18 @@ public class PaymentService {
                 .mapToDouble(AppliedCouponDTO::getDiscountApplied)
                 .sum();
 
-        return new PaymentDetailsDTO(
-                payment.getId(),
-                payment.getRideId(),
-                payment.getUserId(),
-                payment.getAmount(),
-                payment.getMethod(),
-                payment.getStatus(),
-                payment.getTransactionDetails(),
-                appliedCoupons,
-                totalDiscount,
-                payment.getAmount() - totalDiscount
-        );
+        return PaymentDetailsDTO.builder()
+                .paymentId(payment.getId())
+                .rideId(payment.getRideId())
+                .userId(payment.getUserId())
+                .originalAmount(payment.getAmount())
+                .method(payment.getMethod())
+                .status(payment.getStatus())
+                .transactionDetails(payment.getTransactionDetails())
+                .appliedCoupons(appliedCoupons)
+                .totalDiscount(totalDiscount)
+                .finalAmount(payment.getAmount() - totalDiscount)
+                .build();
     }
 
     @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
@@ -387,13 +393,45 @@ public class PaymentService {
         double refundedAmount = ((Number) refundedRow[0]).doubleValue();
         long refundCount = ((Number) refundedRow[1]).longValue();
 
-        RevenueReportDTO dto = new RevenueReportDTO();
-        dto.setTotalRevenue(totalRevenue);
-        dto.setTotalTransactions(totalTransactions);
-        dto.setAveragePayment(averagePayment);
-        dto.setRefundedAmount(refundedAmount);
-        dto.setRefundCount(refundCount);
-        return dto;
+        return RevenueReportDTO.builder()
+                .totalRevenue(totalRevenue)
+                .totalTransactions(totalTransactions)
+                .averagePayment(averagePayment)
+                .refundedAmount(refundedAmount)
+                .refundCount(refundCount)
+                .build();
+    }
+
+    @Cacheable(value = "payment-service::S5-F10", key = "#startDate + ':' + #endDate")
+    public List<VehicleTypeRevenueDTO> getVehicleTypeRevenue(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "startDate must be before endDate");
+        }
+
+        List<Object[]> rows = paymentRepository.findRevenueByVehicleType(startDate, endDate);
+
+        return rows.stream().map(row -> {
+            String vehicleType    = (String) row[0];
+            double totalRevenue   = ((Number) row[1]).doubleValue();
+            double surgeFeeRevenue = ((Number) row[2]).doubleValue();
+            double baseFareRevenue = totalRevenue - surgeFeeRevenue;
+            long rideCount        = ((Number) row[3]).longValue();
+
+            return VehicleTypeRevenueDTO.builder()
+                    .vehicleType(vehicleType)
+                    .baseFareRevenue(baseFareRevenue)
+                    .surgeFeeRevenue(surgeFeeRevenue)
+                    .totalRevenue(totalRevenue)
+                    .rideCount(rideCount)
+                    .build();
+        }).toList();
+    }
+
+    public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
+        notifyObservers("ANALYTICS_VIEWED", Map.of(
+                "details", Map.of("startDate", startDate.toString(), "endDate", endDate.toString())
+        ));
     }
 
     @Cacheable(value = "payment-service::S5-F11", key = "#start.toString() + '-' + #end.toString()")
