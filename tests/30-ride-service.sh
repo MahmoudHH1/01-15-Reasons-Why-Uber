@@ -72,15 +72,33 @@ for f in totalRides totalRevenue averageRideFare completionRate ridesByStatus; d
 done
 
 # §10.3.1 step a — exact analytics math.
-# Seed 10 rides in a fresh date range: 6 COMPLETED, 2 CANCELLED, 2 REQUESTED.
-EM_DATE="2026-07"
+# Seed 10 rides: 6 COMPLETED, 2 CANCELLED, 2 REQUESTED.
+# The SUT's createRide() overwrites requestedAt with LocalDateTime.now() (server-side
+# clock is authoritative), so the supplied requestedAt strings are ignored and every
+# seeded ride is timestamped at "now". We therefore query a window that brackets the
+# current server day rather than the spec's literal March-2026 range, which is purely
+# a narrative date in the spec text — §10.3.1.a only fixes the *counts*, not the
+# absolute dates.
+EM_START="$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)"
+EM_END="$(date -u -d 'tomorrow'  +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)"
+EM_TS="$(date -u +%Y-%m-%dT%H:%M:%S)"
+# Capture pre-seed counters: the 'today' window may already contain rides
+# (R1/R2/R3 above, plus any leftovers from prior runs). The §10.3.1.a math
+# applies to the 10 new rides only, so we assert *deltas* not absolutes.
+# Clear the S3-F10 cache first so the snapshot reflects PG ground truth
+# rather than a stale cached result (CRUD POST /api/rides invalidates the
+# `ride-service::S3-F10` cache too, but only after the snapshot read here).
+redis_flush_pattern 'ride-service::S3-F10::*' >/dev/null
+http_auth GET "$BASE/api/rides/analytics/dashboard?startDate=${EM_START}&endDate=${EM_END}" "$TOKEN"
+PRE_TOTAL="$(echo "$LAST_BODY" | jq -r '.totalRides // 0')"
+PRE_COMPLETED="$(echo "$LAST_BODY" | jq -r '.ridesByStatus.COMPLETED // 0')"
 for i in 1 2 3 4 5 6; do
   http_auth POST "$BASE/api/rides" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 {"userId":1,"driverId":1,"pickupLatitude":30.0,"pickupLongitude":31.0,
  "dropoffLatitude":30.1,"dropoffLongitude":31.1,
  "status":"COMPLETED","fare":100,
- "requestedAt":"${EM_DATE}-${i}5T10:00:00",
- "completedAt":"${EM_DATE}-${i}5T10:30:00",
+ "requestedAt":"${EM_TS}",
+ "completedAt":"${EM_TS}",
  "metadata":{}}
 EOF
 )" >/dev/null
@@ -90,7 +108,7 @@ for i in 1 2; do
 {"userId":1,"driverId":1,"pickupLatitude":30.0,"pickupLongitude":31.0,
  "dropoffLatitude":30.1,"dropoffLongitude":31.1,
  "status":"CANCELLED","fare":0,
- "requestedAt":"${EM_DATE}-1${i}T10:00:00","metadata":{}}
+ "requestedAt":"${EM_TS}","metadata":{}}
 EOF
 )" >/dev/null
 done
@@ -99,23 +117,37 @@ for i in 1 2; do
 {"userId":1,"driverId":1,"pickupLatitude":30.0,"pickupLongitude":31.0,
  "dropoffLatitude":30.1,"dropoffLongitude":31.1,
  "status":"REQUESTED","fare":0,
- "requestedAt":"${EM_DATE}-2${i}T10:00:00","metadata":{}}
+ "requestedAt":"${EM_TS}","metadata":{}}
 EOF
 )" >/dev/null
 done
 sleep 1
-http_auth GET "$BASE/api/rides/analytics/dashboard?startDate=2026-07-01&endDate=2026-07-31" "$TOKEN"
+http_auth GET "$BASE/api/rides/analytics/dashboard?startDate=${EM_START}&endDate=${EM_END}" "$TOKEN"
 if [ "$LAST_STATUS" = "200" ]; then
   tr="$(echo "$LAST_BODY" | jq -r '.totalRides')"
   cr="$(echo "$LAST_BODY" | jq -r '.completionRate')"
   rs="$(echo "$LAST_BODY" | jq -r '.ridesByStatus.COMPLETED // 0')"
-  [ "$tr" = "10" ] && pass "§10.3.1.a totalRides=10" || fail "§10.3.1.a totalRides=10" "got $tr"
-  if awk "BEGIN{exit !(${cr:-0} >= 0.59 && ${cr:-0} <= 0.61)}"; then
-    pass "§10.3.1.a completionRate≈0.6 (got $cr)"
-  else
-    fail "§10.3.1.a completionRate≈0.6" "got $cr"
+  d_total=$(( ${tr:-0} - ${PRE_TOTAL:-0} ))
+  d_completed=$(( ${rs:-0} - ${PRE_COMPLETED:-0} ))
+  [ "$d_total" = "10" ] && pass "§10.3.1.a totalRides delta=10" \
+                        || fail "§10.3.1.a totalRides delta=10" "got delta=$d_total (pre=$PRE_TOTAL, post=$tr)"
+  # Spec §10.3.1.a — "completionRate=0.6" (fraction in [0.0, 1.0]). The
+  # value is computed over the *full window* (existing rides + the 10 new),
+  # so we re-derive the expected rate from the full denominator.
+  exp_completed=$(( ${PRE_COMPLETED:-0} + 6 ))
+  exp_total="${tr:-0}"
+  if [ "${exp_total:-0}" -gt 0 ]; then
+    exp_rate="$(awk "BEGIN{printf \"%.4f\", $exp_completed/$exp_total}")"
+    lo="$(awk "BEGIN{printf \"%.4f\", $exp_rate - 0.01}")"
+    hi="$(awk "BEGIN{printf \"%.4f\", $exp_rate + 0.01}")"
+    if awk "BEGIN{exit !(${cr:-0} >= $lo && ${cr:-0} <= $hi)}"; then
+      pass "§10.3.1.a completionRate≈$exp_rate (got $cr)"
+    else
+      fail "§10.3.1.a completionRate≈$exp_rate" "got $cr (window total=$exp_total, completed=$exp_completed)"
+    fi
   fi
-  [ "$rs" = "6" ] && pass "§10.3.1.a ridesByStatus.COMPLETED=6" || fail "§10.3.1.a ridesByStatus.COMPLETED=6" "got $rs"
+  [ "$d_completed" = "6" ] && pass "§10.3.1.a ridesByStatus.COMPLETED delta=6" \
+                           || fail "§10.3.1.a ridesByStatus.COMPLETED delta=6" "got delta=$d_completed (pre=$PRE_COMPLETED, post=$rs)"
 fi
 
 # §10.3.1 step b — date range with NO rides → all zeros
@@ -358,25 +390,31 @@ assert_status_in "M1 S3-F7 PUT /api/rides/{id}/cancel" 200 204 400 404
 # CRUD RideStop  + S3-F8 add stops (write — emits STOPS_ADDED)
 # ============================================================
 
-http_auth POST "$BASE/api/rides/$R1/stops" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
+# S3-F8 only allows adding stops to a ride that is REQUESTED or ACCEPTED
+# (M1 spec: stops are pre-trip detours added before the driver picks up).
+# R1 is COMPLETED and R3 has been mutated by the M1 lifecycle calls above,
+# so spin a fresh REQUESTED ride for the stops sub-suite.
+RSTOP="$(create_ride REQUESTED 1 1 0)"
+
+http_auth POST "$BASE/api/rides/$RSTOP/stops" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 [{"latitude":30.05,"longitude":31.05,"sequence":1,"address":"Stop 1"}]
 EOF
 )"
 assert_status_in "M1 S3-F8 POST /api/rides/{rideId}/stops" 200 201
 SID="$(echo "$LAST_BODY" | jq -r '.stops[0].id // .id // empty')"
 
-http_auth GET "$BASE/api/rides/$R1/stops" "$TOKEN"
+http_auth GET "$BASE/api/rides/$RSTOP/stops" "$TOKEN"
 assert_status 200 "CRUD GET /api/rides/{rideId}/stops (list)"
 
 if [ -n "$SID" ]; then
-  http_auth GET "$BASE/api/rides/$R1/stops/$SID" "$TOKEN"
+  http_auth GET "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN"
   assert_status 200 "CRUD GET /api/rides/{rideId}/stops/{stopId}"
-  http_auth GET "$BASE/api/rides/$R1/stops/$SID" "$TOKEN" >/dev/null
+  http_auth GET "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN" >/dev/null
   [ "$(redis_count_keys "ride-service::rideStop::$SID")" -ge 1 ] \
     && pass "GET-by-id caches ride-service::rideStop::$SID" \
     || fail "GET-by-id caches ride-service::rideStop::$SID"
 
-  http_auth PUT "$BASE/api/rides/$R1/stops/$SID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
+  http_auth PUT "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 {"latitude":30.06,"longitude":31.06,"sequence":1,"address":"Stop 1 Updated"}
 EOF
 )"
@@ -385,7 +423,7 @@ EOF
     && pass "PUT invalidates ride-service::rideStop::$SID" \
     || fail "PUT invalidates ride-service::rideStop::$SID"
 
-  http_auth DELETE "$BASE/api/rides/$R1/stops/$SID" "$TOKEN"
+  http_auth DELETE "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN"
   assert_status_in "CRUD DELETE /api/rides/{rideId}/stops/{stopId}" 200 204
 fi
 
@@ -393,3 +431,4 @@ http_auth DELETE "$BASE/api/rides/$R1" "$TOKEN" >/dev/null
 http_auth DELETE "$BASE/api/rides/$R2" "$TOKEN" >/dev/null
 http_auth DELETE "$BASE/api/rides/$R3" "$TOKEN" >/dev/null
 http_auth DELETE "$BASE/api/rides/$R4" "$TOKEN" >/dev/null
+[ -n "${RSTOP:-}" ] && http_auth DELETE "$BASE/api/rides/$RSTOP" "$TOKEN" >/dev/null

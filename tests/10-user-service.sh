@@ -78,8 +78,9 @@ assert_status 200 "S1-F11 login OK"
 TOKEN_A="$(echo "$LAST_BODY" | jq -r '.token // empty')"
 
 # §10.1.2 step c — login emits LOGGED_IN to auth_events
-sleep 1
-li_count="$(mongo_count auth_events "{ userId: $UID_A, action: 'LOGGED_IN' }")"
+# Use mongo_count_poll: the Mongo write is async (Observer chain swallows
+# errors and is not in the PG transaction), a fixed 1s sleep is flaky.
+li_count="$(mongo_count_poll auth_events "{ userId: $UID_A, action: 'LOGGED_IN' }" 10)"
 [ "${li_count:-0}" -ge 1 ] && pass "S1-F11 emits LOGGED_IN to auth_events (§10.1.2.c)" \
                            || fail "S1-F11 emits LOGGED_IN to auth_events" "got $li_count"
 
@@ -225,12 +226,16 @@ if [ -n "$NEW_UID" ]; then
     skip "CRUD GET-by-ID caches user-service::user::$NEW_UID" "expected by §4.4.2; user-service may not have @Cacheable"
   fi
 
+  # §4.4.2 — list endpoints must not create cache entries.
+  before="$(redis_count_keys 'user-service::user::*')"
   http_auth GET "$BASE/api/users" "$TOKEN_A"
   assert_status 200 "CRUD GET /api/users (list)"
-  if [ "$(redis_keys 'user-service::user::list*' | wc -l)" = "0" ]; then
-    pass "CRUD GET /api/users (list) NOT cached"
+  after="$(redis_count_keys 'user-service::user::*')"
+  if [ "${after:-0}" -le "${before:-0}" ]; then
+    pass "CRUD GET /api/users (list) NOT cached (§4.4.2; $before → $after)"
   else
-    fail "CRUD GET /api/users (list) NOT cached"
+    fail "CRUD GET /api/users (list) NOT cached (§4.4.2)" \
+         "key count grew $before → $after"
   fi
 
   http_auth PUT "$BASE/api/users/$NEW_UID" "$TOKEN_A" -H "Content-Type: application/json" -d "$(cat <<EOF

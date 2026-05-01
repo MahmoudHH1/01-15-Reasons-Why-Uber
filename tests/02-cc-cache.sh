@@ -112,11 +112,14 @@ EOF
 TID="$(echo "$LAST_BODY" | jq -r '.id // empty')"
 if [ -n "$TID" ]; then
   http_auth GET "$DRIVER_URL/api/drivers/$TID" "$TOKEN" >/dev/null
-  ttl="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --no-auth-warning TTL "driver-service::driver::$TID" 2>/dev/null | tr -d '\r')"
-  if [ "$ttl" -gt 0 ] 2>/dev/null && [ "$ttl" -le 960 ]; then
+  # §8.1 — entity detail views must be cached for 15 minutes (900s).
+  # Allow 16 min (960s) upper bound for clock slack; require ttl > 0
+  # (i.e. an actual TTL was set, not -1=persist or -2=no-key).
+  ttl="$(redis_run TTL "driver-service::driver::$TID" 2>/dev/null | tr -d '\r' | tr -d ' ' | tail -1)"
+  if [ "${ttl:-0}" -gt 0 ] 2>/dev/null && [ "${ttl:-0}" -le 960 ]; then
     pass "TTL on driver-service::driver::$TID is ${ttl}s (≤ 16 min, §8.1 entity detail)"
   else
-    fail "TTL on driver-service::driver::$TID is ${ttl}s (≤ 16 min, §8.1 entity detail)"
+    fail "TTL on driver-service::driver::$TID is ${ttl:-<empty>}s (≤ 16 min, §8.1 entity detail)"
   fi
   http_auth DELETE "$DRIVER_URL/api/drivers/$TID" "$TOKEN" >/dev/null
 fi

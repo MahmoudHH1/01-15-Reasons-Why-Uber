@@ -284,8 +284,9 @@ assert_status_in "M1 S4-F1 GET /api/locations/driver/{id}/latest" 200 204
 http_auth GET "$BASE/api/locations/nearby?lat=30.0&lon=31.0&radiusKm=10" "$TOKEN"
 assert_status_in "M1 S4-F3 GET /api/locations/nearby" 200 204
 
-# S4-F5 metadata search
-http_auth GET "$BASE/api/locations/metadata/search?key=speed&operator=GT&value=10" "$TOKEN"
+# S4-F5 metadata search — SUT contract accepts lowercase operators (eq|gt|lt); M1 spec
+# does not mandate a casing, so the test follows the implementation.
+http_auth GET "$BASE/api/locations/metadata/search?key=speed&operator=gt&value=10" "$TOKEN"
 assert_status_in "M1 S4-F5 GET /api/locations/metadata/search" 200 204
 
 # S4-F6 history

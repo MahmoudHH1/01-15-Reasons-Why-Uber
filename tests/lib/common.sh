@@ -271,15 +271,36 @@ mongo_eval() {
 
 mongo_count() {
   local collection="$1"
-  local filter="${2:-{}}"
+  local filter="$2"
+  # Bash's ${var:-{}} expansion eats the inner braces (the {} default
+  # collides with parameter-expansion syntax and produces a stray closing
+  # brace appended to $2). Set the default explicitly to dodge that.
+  [ -z "$filter" ] && filter='{}'
   local out
   out="$(mongo_eval "db.${collection}.countDocuments(${filter})" | tr -d '\r' | tail -1)"
   case "$out" in ''|*[!0-9]*) echo 0 ;; *) echo "$out" ;; esac
 }
 
+# Poll mongo_count until the doc exists or timeout elapses. Use this instead
+# of `sleep N + mongo_count` whenever the write is fired by an Observer chain
+# whose timing isn't deterministic. Returns the count (0 if timeout reached).
+mongo_count_poll() {
+  local collection="$1"
+  local filter="$2"
+  local timeout="${3:-10}"
+  local n
+  for ((i=0; i<timeout; i++)); do
+    n="$(mongo_count "$collection" "$filter")"
+    if [ "${n:-0}" -ge 1 ]; then echo "$n"; return; fi
+    sleep 1
+  done
+  echo 0
+}
+
 mongo_find_recent() {
   local collection="$1"
-  local filter="${2:-{}}"
+  local filter="$2"
+  [ -z "$filter" ] && filter='{}'
   mongo_eval "db.${collection}.find(${filter}).sort({timestamp:-1}).limit(5).toArray()"
 }
 

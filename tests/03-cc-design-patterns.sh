@@ -18,15 +18,30 @@ source "$(dirname "$0")/lib/common.sh"
 
 section "03 CC-4 — Design pattern runtime hooks"
 
-TOKEN="$(register_user "dp")"
+# register_user produces an email like "<prefix>-<salt>-<RUN_ID>@example.com"
+# (salt is derived inside the helper from $RANDOM), so we cannot reconstruct
+# it after the fact. Inline the registration here so we keep the email for
+# the subsequent login_user call.
+DP_PREFIX="dp"
+DP_REG_SALT="${RANDOM}${RANDOM}"
+DP_EMAIL="${DP_PREFIX}-${DP_REG_SALT}-${RUN_ID}@example.com"
+DP_PHONE="+2${DP_REG_SALT:0:11}"
+DP_REG_BODY="$(curl -sS -X POST "$USER_URL/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Test ${DP_PREFIX}\",\"email\":\"${DP_EMAIL}\",\"password\":\"securePassword123\",\"phone\":\"${DP_PHONE}\"}" 2>/dev/null)"
+TOKEN="$(echo "$DP_REG_BODY" | jq -r '.token // empty')"
 [ -z "$TOKEN" ] && { fail "register seed user" "no token"; exit 1; }
 UID_TOKEN="$(jwt_uid "$TOKEN")"
 
 # --- DP-2 Observer + DP-6 Factory — auth_events ---------------------------
 # Spec: §3.3 "S1 register/login/role-change → observers log AuthEvent to auth_events"
+# Wait briefly so the async REGISTERED write from the inline register above
+# is visible before we snapshot auth_before.
+sleep 1
 auth_before="$(mongo_count auth_events "{ userId: $UID_TOKEN }")"
-# Re-login to add LOGGED_IN
-TOKEN2="$(login_user "dp-${RUN_ID}@example.com")"
+# Re-login with the exact email we just registered to add LOGGED_IN.
+TOKEN2="$(login_user "$DP_EMAIL")"
+sleep 1
 auth_after="$(mongo_count auth_events "{ userId: $UID_TOKEN }")"
 if [ "$auth_after" -gt "$auth_before" ]; then
   pass "Login emits auth_events document (Observer→Factory)"
@@ -54,7 +69,8 @@ EOF
 )"
 DDID="$(echo "$LAST_BODY" | jq -r '.id // empty')"
 if [ -n "$DDID" ]; then
-  drv_count="$(mongo_count driver_events "{ driverId: $DDID }")"
+  # Observer write is async — poll for up to 10s rather than reading once.
+  drv_count="$(mongo_count_poll driver_events "{ driverId: $DDID }" 10)"
   if [ "${drv_count:-0}" -ge 1 ]; then
     pass "POST /api/drivers writes driver_events doc"
   else
@@ -88,8 +104,13 @@ pref_before="$(mongo_count auth_events "{ userId: $UID_TOKEN }")"
 http_auth PUT "$USER_URL/api/users/$UID_TOKEN/preferences" "$TOKEN" \
   -H "Content-Type: application/json" -d '{"language":"ar","notifications":false}'
 assert_status_in "§3.3.f PUT /api/users/{id}/preferences" 200 204
-sleep 1
-pref_after="$(mongo_count auth_events "{ userId: $UID_TOKEN }")"
+# Poll for the new auth_events doc (Observer write is async).
+pref_after="${pref_before:-0}"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  pref_after="$(mongo_count auth_events "{ userId: $UID_TOKEN }")"
+  [ "${pref_after:-0}" -gt "${pref_before:-0}" ] && break
+  sleep 1
+done
 if [ "${pref_after:-0}" -gt "${pref_before:-0}" ]; then
   pass "§3.3.f S1-F2 retrofit emits auth_events ($pref_before → $pref_after)"
 else

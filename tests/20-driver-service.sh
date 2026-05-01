@@ -47,10 +47,9 @@ D_SUV="$(create_driver "BMW Beast" "premium bmw x5" SUV BUSY 4.9)"
 [ -n "$D_SUV" ]    && pass "CRUD POST /api/drivers (SUV)"    || fail "CRUD POST /api/drivers (SUV)"
 
 # (§4.5 step g) CRUD POST emits driver_events
-sleep 1
-de_count="$(mongo_count driver_events "{ driverId: $D_TOYOTA }")"
-[ "${de_count:-0}" -ge 1 ] && pass "CRUD POST emits driver_events for $D_TOYOTA" \
-                           || fail "CRUD POST emits driver_events for $D_TOYOTA"
+de_count="$(mongo_count_poll driver_events "{ driverId: $D_TOYOTA }" 10)"
+[ "${de_count:-0}" -ge 1 ] && pass "CRUD POST emits driver_events for $D_TOYOTA (§4.5.g)" \
+                           || fail "CRUD POST emits driver_events for $D_TOYOTA (§4.5.g)"
 
 # CRUD GET-by-id (cached, §4.4.2)
 http_auth GET "$BASE/api/drivers/$D_TOYOTA" "$TOKEN"
@@ -60,11 +59,17 @@ http_auth GET "$BASE/api/drivers/$D_TOYOTA" "$TOKEN" >/dev/null
   && pass "GET-by-id caches driver-service::driver::$D_TOYOTA" \
   || fail "GET-by-id caches driver-service::driver::$D_TOYOTA"
 
-# CRUD list NOT cached
+# §4.4.2 — list endpoints must not create cache entries. Snapshot before
+# and after; count must not grow.
+before="$(redis_count_keys 'driver-service::driver::*')"
 http_auth GET "$BASE/api/drivers" "$TOKEN" >/dev/null
-[ "$(redis_keys 'driver-service::driver::list*' | wc -l)" = "0" ] \
-  && pass "GET /api/drivers (list) NOT cached" \
-  || fail "GET /api/drivers (list) NOT cached"
+after="$(redis_count_keys 'driver-service::driver::*')"
+if [ "${after:-0}" -le "${before:-0}" ]; then
+  pass "GET /api/drivers (list) NOT cached (§4.4.2; $before → $after)"
+else
+  fail "GET /api/drivers (list) NOT cached (§4.4.2)" \
+       "key count grew $before → $after — list call created a cache entry"
+fi
 
 # CRUD PUT — invalidates entity detail
 http_auth PUT "$BASE/api/drivers/$D_TOYOTA" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
@@ -111,8 +116,10 @@ else
 fi
 
 # Verify INDEXED event in driver_events with source ∈ {explicit, auto_crud_create, auto_crud_update}
-ix_count="$(mongo_count driver_events "{ driverId: $D_TOYOTA, action: 'INDEXED' }")"
-[ "${ix_count:-0}" -ge 1 ] && pass "S2-F11 INDEXED event emitted" || fail "S2-F11 INDEXED event emitted"
+# (§10.2.2 step e — INDEXED event written to driver_events via Observer chain)
+ix_count="$(mongo_count_poll driver_events "{ driverId: $D_TOYOTA, action: 'INDEXED' }" 10)"
+[ "${ix_count:-0}" -ge 1 ] && pass "S2-F11 INDEXED event emitted (§10.2.2.e)" \
+                           || fail "S2-F11 INDEXED event emitted (§10.2.2.e)"
 
 # ============================================================
 # S2-F10 Full-Text Driver Search   (§10.2.1)
@@ -241,11 +248,13 @@ EOF
     af="$(echo "$LAST_BODY"  | jq -r '.averageRideFare')"
     ar="$(echo "$LAST_BODY"  | jq -r '.averageRating')"
     tt="$(echo "$LAST_BODY"  | jq -r '.totalRatings')"
-    [ "$tr" = "5" ]    && pass "§10.2.3.a totalRides=5"      || fail "§10.2.3.a totalRides=5" "got $tr"
-    [ "$te" = "1000" ] && pass "§10.2.3.a totalEarnings=1000"|| fail "§10.2.3.a totalEarnings=1000" "got $te"
-    [ "$af" = "200" ]  && pass "§10.2.3.a averageRideFare=200" || fail "§10.2.3.a averageRideFare=200" "got $af"
-    [ "$ar" = "4.5" ]  && pass "§10.2.3.a averageRating=4.5" || fail "§10.2.3.a averageRating=4.5" "got $ar"
-    [ "$tt" = "100" ]  && pass "§10.2.3.a totalRatings=100"  || fail "§10.2.3.a totalRatings=100" "got $tt"
+    # JSON numbers may come back as 1000 or 1000.0 — compare numerically (float-safe)
+    num_eq() { awk -v a="$1" -v b="$2" 'BEGIN{exit !(a+0==b+0)}'; }
+    num_eq "$tr" 5    && pass "§10.2.3.a totalRides=5"        || fail "§10.2.3.a totalRides=5" "got $tr"
+    num_eq "$te" 1000 && pass "§10.2.3.a totalEarnings=1000"  || fail "§10.2.3.a totalEarnings=1000" "got $te"
+    num_eq "$af" 200  && pass "§10.2.3.a averageRideFare=200" || fail "§10.2.3.a averageRideFare=200" "got $af"
+    num_eq "$ar" 4.5  && pass "§10.2.3.a averageRating=4.5"   || fail "§10.2.3.a averageRating=4.5" "got $ar"
+    num_eq "$tt" 100  && pass "§10.2.3.a totalRatings=100"    || fail "§10.2.3.a totalRatings=100" "got $tt"
   fi
 
   # §10.2.3 step c — driver with no rides → totalRides=0, totalEarnings=0
@@ -260,12 +269,14 @@ EOF
   D_ZERO="$(echo "$LAST_BODY" | jq -r '.id // empty')"
   if [ -n "$D_ZERO" ]; then
     http_auth GET "$BASE/api/drivers/$D_ZERO/dashboard" "$TOKEN"
-    [ "$(echo "$LAST_BODY" | jq -r '.totalRides')" = "0" ] \
+    z_tr="$(echo "$LAST_BODY" | jq -r '.totalRides')"
+    z_te="$(echo "$LAST_BODY" | jq -r '.totalEarnings')"
+    awk -v a="$z_tr" 'BEGIN{exit !(a+0==0)}' \
       && pass "§10.2.3.c zero-state totalRides=0" \
-      || fail "§10.2.3.c zero-state totalRides=0"
-    [ "$(echo "$LAST_BODY" | jq -r '.totalEarnings')" = "0" ] \
+      || fail "§10.2.3.c zero-state totalRides=0" "got $z_tr"
+    awk -v a="$z_te" 'BEGIN{exit !(a+0==0)}' \
       && pass "§10.2.3.c zero-state totalEarnings=0" \
-      || fail "§10.2.3.c zero-state totalEarnings=0"
+      || fail "§10.2.3.c zero-state totalEarnings=0" "got $z_te"
     http_auth DELETE "$BASE/api/drivers/$D_ZERO" "$TOKEN" >/dev/null
   fi
 
@@ -297,17 +308,24 @@ http GET "$BASE/api/drivers/$D_TOYOTA/dashboard"
 assert_status 401 "S2-F12 no token → 401"
 
 # Cached for 10 min — and DASHBOARD_VIEWED logged on EVERY invocation (cache hit too)
-sleep 1
+# §10.2.3.e — "log must be written on every invocation, independently of whether the
+# response was served from cache". Take a fresh count, fire 2 calls (1st miss, 2nd hit),
+# then poll until the count grows by ≥2 (Observer write-through can lag a beat).
 before="$(mongo_count driver_events "{ driverId: $D_TOYOTA, action: 'DASHBOARD_VIEWED' }")"
 http_auth GET "$BASE/api/drivers/$D_TOYOTA/dashboard" "$TOKEN" >/dev/null
 http_auth GET "$BASE/api/drivers/$D_TOYOTA/dashboard" "$TOKEN" >/dev/null
-sleep 1
-after="$(mongo_count driver_events "{ driverId: $D_TOYOTA, action: 'DASHBOARD_VIEWED' }")"
+target=$((before + 2))
+after="$before"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  after="$(mongo_count driver_events "{ driverId: $D_TOYOTA, action: 'DASHBOARD_VIEWED' }")"
+  [ "${after:-0}" -ge "$target" ] && break
+  sleep 1
+done
 diff=$((after - before))
 if [ "$diff" -ge 2 ]; then
-  pass "S2-F12 logs DASHBOARD_VIEWED on every call (incl. cache hit) — +$diff events"
+  pass "S2-F12 logs DASHBOARD_VIEWED on every call (incl. cache hit) (§10.2.3.e) — +$diff events"
 else
-  fail "S2-F12 logs DASHBOARD_VIEWED on every call (incl. cache hit)" "+$diff events (expected ≥2)"
+  fail "S2-F12 logs DASHBOARD_VIEWED on every call (incl. cache hit) (§10.2.3.e)" "+$diff events (expected ≥2)"
 fi
 
 # DASHBOARD_VIEWED must NOT invalidate caches (§4.4.4 "pure observability")
@@ -373,9 +391,17 @@ if [ -n "$DOC_ID" ]; then
     && pass "GET-by-id caches driver-service::driver-document::$DOC_ID" \
     || fail "GET-by-id caches driver-service::driver-document::$DOC_ID"
 
-  # S2-F8 verify document — emits DOCUMENT_VERIFIED
-  http_auth PUT "$BASE/api/drivers/$D_TOYOTA/documents/$DOC_ID/verify" "$TOKEN" -H "Content-Type: application/json" -d '{"verifiedBy":"admin"}'
-  assert_status_in "M1 S2-F8 PUT verify document" 200 204
+  # S2-F8 verify document — emits DOCUMENT_VERIFIED. Per M1 spec the verifier must be
+  # an ADMIN user; verifiedBy is the admin's user-id (Long), not a free-form string.
+  ADMIN_TOKEN_S28="$(login_user "${ADMIN_EMAIL:-admin@uber.com}" "${ADMIN_PASSWORD:-adminPassword123}" 2>/dev/null || true)"
+  ADMIN_UID_S28="$(jwt_uid "$ADMIN_TOKEN_S28" 2>/dev/null)"
+  if [ -n "$ADMIN_UID_S28" ]; then
+    http_auth PUT "$BASE/api/drivers/$D_TOYOTA/documents/$DOC_ID/verify" "$ADMIN_TOKEN_S28" \
+      -H "Content-Type: application/json" -d "{\"verifiedBy\":$ADMIN_UID_S28}"
+    assert_status_in "M1 S2-F8 PUT verify document" 200 204
+  else
+    skip "M1 S2-F8 PUT verify document" "no seeded ADMIN reachable; set ADMIN_EMAIL/ADMIN_PASSWORD"
+  fi
 
   http_auth PUT "$BASE/api/drivers/$D_TOYOTA/documents/$DOC_ID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 {"type":"LICENSE","documentUrl":"https://example.com/dl-$RUN_ID-renewed.pdf","expiryDate":"2031-01-01","verified":true,"uploadedAt":"2026-04-01T00:00:00"}
