@@ -1,10 +1,13 @@
 package com.team01.uber.ride.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.team01.uber.ride.enums.RideStatus;
 
 import java.util.List;
 import java.util.Map;
 
+@JsonDeserialize(builder = RideDetailsDTO.Builder.class)
 public class RideDetailsDTO {
     private final Long rideId;
     private final Long userId;
@@ -42,6 +45,7 @@ public class RideDetailsDTO {
         return new Builder();
     }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long rideId;
         private Long userId;

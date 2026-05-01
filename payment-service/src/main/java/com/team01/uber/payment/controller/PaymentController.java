@@ -2,8 +2,10 @@ package com.team01.uber.payment.controller;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
@@ -56,6 +58,12 @@ public class PaymentController {
         return paymentService.processRefund(id, request.getReason());
     }
 
+    @PostMapping("/{id}/refund-surge-adjusted")
+    public ResponseEntity<Payment> refundSurgeAdjusted(@PathVariable Long id,
+                                                        @Valid @RequestBody RefundSurgeRequest request) {
+        return ResponseEntity.ok(paymentService.processRefundSurgeAdjusted(id, request));
+    }
+
     @PostMapping
     public ResponseEntity<Payment> createPayment(@RequestBody Payment payment) {
         return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
@@ -80,6 +88,18 @@ public class PaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/analytics/vehicle-type")
+    public ResponseEntity<List<VehicleTypeRevenueDTO>> getVehicleTypeRevenue(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        LocalDateTime start = parseStartDate(startDate);
+        LocalDateTime end   = parseEndDate(endDate);
+
+        List<VehicleTypeRevenueDTO> result = paymentService.getVehicleTypeRevenue(start, end);
+        paymentService.logAnalyticsViewed(start, end);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/reports/revenue")
@@ -132,7 +152,9 @@ public class PaymentController {
     @PostMapping("/ride/{rideId}")
     public ResponseEntity<Payment> processPaymentForRide(
             @PathVariable Long rideId,
-            @Valid @RequestBody ProcessPaymentRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.processPaymentForRide(rideId, request));
+            @Valid @RequestBody ProcessPaymentRequest request,
+            @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
     }
 }

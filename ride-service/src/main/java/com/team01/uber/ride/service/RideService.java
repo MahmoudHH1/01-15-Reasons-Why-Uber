@@ -13,9 +13,12 @@ import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -43,6 +46,12 @@ public class RideService {
         this.rideEventPublisher = rideEventPublisher;
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public Ride createRide(Ride ride) {
         ride.setRequestedAt(LocalDateTime.now());
         if (ride.getStatus() == null) {
@@ -53,6 +62,7 @@ public class RideService {
         return savedRide;
     }
 
+    @Cacheable(value="ride-service::ride", key="#id")
     public Ride getRideById(Long id) {
         return rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
@@ -62,6 +72,15 @@ public class RideService {
         return rideRepository.findAll();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F5", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public Ride updateRide(Long id, Ride updated) {
         Ride existing = getRideById(id);
 
@@ -83,6 +102,8 @@ public class RideService {
         return savedRide;
     }
 
+    // S3-F9
+    @Cacheable(value = "ride-service::S3-F9", key="#rideId")
     public RideDetailsDTO getRideDetails(Long rideId) {
         Ride ride = getRideById(rideId);
 
@@ -108,6 +129,16 @@ public class RideService {
                 .build();
     }
 
+    // S3-F7
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#result.driverId", condition = "#result != null && #result.driverId != null")
+    })
     @Transactional
     public Ride cancelRide(Long id) {
         Ride ride = getRideById(id);
@@ -133,6 +164,8 @@ public class RideService {
         return savedRide;
     }
 
+    // S3-F1
+    @Cacheable(value = "ride-service::S3-F1", key="#status + '-' + #startDate.toString() + '-' + #endDate.toString()")
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
@@ -142,12 +175,30 @@ public class RideService {
         return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F5", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public void deleteRide(Long id) {
         Ride ride = getRideById(id);
         rideRepository.deleteById(id);
         rideEventPublisher.notifyObservers("RIDE_DELETED", buildRidePayload(ride));
     }
 
+    // S3-F2
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#driverId")
+    })
     @Transactional
     public Ride assignDriver(Long rideId, Long driverId) {
         Ride ride = getRideById(rideId);
@@ -176,6 +227,8 @@ public class RideService {
         return savedRide;
     }
 
+    // S3-F3
+    @Cacheable(value = "ride-service::S3-F3", key="#request.pickupLatitude + '-' + #request.pickupLongitude + '-' + #request.dropoffLatitude + '-' + #request.dropoffLongitude")
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
         if (request.pickupLatitude() == null || request.pickupLongitude() == null ||
             request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
@@ -210,6 +263,8 @@ public class RideService {
                 .build();
     }
 
+    //S3-F6
+    @Cacheable(value= "ride-service::S3-F6", key="#startDateStr + '-' + #endDateStr")
     public RideAnalyticsDTO getRideAnalytics(String startDateStr, String endDateStr) {
 
         // Parse the strings using our helper methods below
@@ -270,7 +325,9 @@ public class RideService {
             return LocalDate.parse(dateStr).atTime(LocalTime.MAX);
         }
     }
-  
+
+    // S3-F5
+    @Cacheable(value = "ride-service::S3-F5", key="#key + '-' + #value")
     public List<Ride> findByMetadata(String key, String value) {
 
         // Validate key and value entered
@@ -284,6 +341,16 @@ public class RideService {
         return rideRepository.findByMetadataField(key, value);
     }
 
+    // S3-F4
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#result.driverId", condition = "#result != null && #result.driverId != null")
+    })
     @Transactional
     public Ride completeRide(Long id) {
         Ride ride = getRideById(id);
