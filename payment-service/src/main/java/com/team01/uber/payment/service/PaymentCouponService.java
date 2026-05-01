@@ -7,6 +7,7 @@ import com.team01.uber.payment.model.DiscountType;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentCoupon;
 import com.team01.uber.payment.model.PaymentStatus;
+import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.CouponRepository;
 import com.team01.uber.payment.repository.PaymentCouponRepository;
 import com.team01.uber.payment.repository.PaymentRepository;
@@ -18,7 +19,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PaymentCouponService {
@@ -28,6 +31,8 @@ public class PaymentCouponService {
     private final CouponRepository couponRepository;
     private final CacheInvalidationService cacheInvalidationService;
 
+    private final List<EntityObserver> observers = new ArrayList<>();
+
     public PaymentCouponService(PaymentCouponRepository paymentCouponRepository,
                                 PaymentRepository paymentRepository,
                                 CouponRepository couponRepository,
@@ -36,6 +41,20 @@ public class PaymentCouponService {
         this.paymentRepository = paymentRepository;
         this.couponRepository = couponRepository;
         this.cacheInvalidationService = cacheInvalidationService;
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    private void notifyObservers(String eventType, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(eventType, payload);
+        }
     }
 
     public PaymentCoupon createPaymentCoupon(Long paymentId, Long couponId, PaymentCoupon paymentCoupon) {
@@ -129,6 +148,10 @@ public class PaymentCouponService {
 
         coupon.setCurrentUses(currentUses + 1);
         couponRepository.save(coupon);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("paymentId", paymentId);
+        notifyObservers("COUPON_APPLIED", payload);
 
         cacheInvalidationService.invalidateCouponCaches(couponId);
         cacheInvalidationService.invalidatePattern("payment-service::S5-F8::" + paymentId);
