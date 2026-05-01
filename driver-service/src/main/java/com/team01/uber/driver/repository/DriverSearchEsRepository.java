@@ -3,6 +3,7 @@ package com.team01.uber.driver.repository;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.json.JsonData;
+import com.team01.uber.driver.model.DriverSearchDocument;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
@@ -10,7 +11,6 @@ import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Map;
 
 @Repository
 public class DriverSearchEsRepository {
@@ -23,12 +23,11 @@ public class DriverSearchEsRepository {
         this.operations = operations;
     }
 
-    @SuppressWarnings("rawtypes")
-    public SearchHits<Map> searchFullText(String query,
-                                          String vehicleType,
-                                          String status,
-                                          Double minRating,
-                                          Double maxRating) {
+    public SearchHits<DriverSearchDocument> searchFullText(String query,
+                                                           String vehicleType,
+                                                           String status,
+                                                           Double minRating,
+                                                           Double maxRating) {
         String safeQuery = query == null ? "" : query;
 
         Query mustQuery = Query.of(q -> q.multiMatch(m -> m
@@ -59,6 +58,6 @@ public class DriverSearchEsRepository {
                 .withQuery(Query.of(q -> q.bool(boolBuilder.build())))
                 .build();
 
-        return operations.search(nq, Map.class, IndexCoordinates.of(INDEX));
+        return operations.search(nq, DriverSearchDocument.class, IndexCoordinates.of(INDEX));
     }
 }
