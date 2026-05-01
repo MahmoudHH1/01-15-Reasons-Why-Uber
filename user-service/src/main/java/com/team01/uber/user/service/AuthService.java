@@ -97,8 +97,7 @@ public class AuthService implements Observable {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
 
-        // TODO: Log LOGGED_IN event to MongoDB via Observer chain (Branch 2)
-        // For now, just generate token and return
+        notifyObservers(AuthEvent.ACTION_LOGGED_IN, Map.of("userId", user.getId(), "email", user.getEmail()));
 
         String token = jwtService.generateToken(user);
         return new AuthResponse(token, jwtService.getExpirationMs());
