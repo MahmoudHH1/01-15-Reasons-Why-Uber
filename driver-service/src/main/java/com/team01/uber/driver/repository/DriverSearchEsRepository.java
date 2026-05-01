@@ -12,14 +12,11 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Repository;
-
 import java.util.List;
 
 @Repository
 public class DriverSearchEsRepository {
-
     private static final Logger log = LoggerFactory.getLogger(DriverSearchEsRepository.class);
-
     private final ElasticsearchOperations operations;
 
     public DriverSearchEsRepository(ElasticsearchOperations operations) {
@@ -48,7 +45,6 @@ public class DriverSearchEsRepository {
                                                            Double minRating,
                                                            Double maxRating) {
         String safeQuery = query == null ? "" : query;
-
         Query mustQuery = Query.of(q -> q.multiMatch(m -> m
                 .query(safeQuery)
                 .fields(List.of("name", "description"))

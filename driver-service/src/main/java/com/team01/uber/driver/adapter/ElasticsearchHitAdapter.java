@@ -7,10 +7,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ElasticsearchHitAdapter {
-
     public DriverSearchResultDTO adapt(SearchHit<DriverSearchDocument> hit) {
         DriverSearchDocument source = hit.getContent();
-
         return DriverSearchResultDTO.builder()
                 .id(source.getId())
                 .name(source.getName())

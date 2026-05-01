@@ -15,23 +15,17 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 @AllArgsConstructor
 @Document(indexName = "drivers")
 public class DriverSearchDocument {
-
     @Id
     @Field(type = FieldType.Keyword)
     private Long id;
-
     @Field(type = FieldType.Text)
     private String name;
-
     @Field(type = FieldType.Keyword)
     private String vehicleType;
-
     @Field(type = FieldType.Text)
     private String description;
-
     @Field(type = FieldType.Double)
     private Double rating;
-
     @Field(type = FieldType.Keyword)
     private String status;
 }
