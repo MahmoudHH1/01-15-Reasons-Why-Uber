@@ -2,9 +2,11 @@ package com.team01.uber.payment.controller;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.PaymentMethodDTO;
 import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
@@ -89,6 +91,18 @@ public class PaymentController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/analytics/vehicle-type")
+    public ResponseEntity<List<VehicleTypeRevenueDTO>> getVehicleTypeRevenue(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        LocalDateTime start = parseStartDate(startDate);
+        LocalDateTime end   = parseEndDate(endDate);
+
+        List<VehicleTypeRevenueDTO> result = paymentService.getVehicleTypeRevenue(start, end);
+        paymentService.logAnalyticsViewed(start, end);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/reports/revenue")
     public RevenueReportDTO getRevenueReport(
             @RequestParam String startDate,
@@ -117,7 +131,7 @@ public class PaymentController {
         try {
             return LocalDateTime.parse(dateStr);
         } catch (java.time.format.DateTimeParseException e) {
-            return LocalDate.parse(dateStr).atTime(23, 59, 59);
+            return LocalDate.parse(dateStr).atTime(23, 59, 59, 999_000_000);
         }
     }
     @PutMapping("/{id}/retry")
@@ -143,5 +157,13 @@ public class PaymentController {
             @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
+    }
+
+    @GetMapping("/analytics/methods")
+    public ResponseEntity<List<PaymentMethodDTO>> getPaymentMethodBreakdown(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        return ResponseEntity.ok(paymentService.getPaymentMethodBreakdown(
+                parseStartDate(startDate), parseEndDate(endDate)));
     }
 }

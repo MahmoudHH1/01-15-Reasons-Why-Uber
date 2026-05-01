@@ -109,6 +109,12 @@ public class DriverController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/index")
+    public ResponseEntity<Void> indexDriver(@PathVariable Long id) {
+        driverService.indexDriver(id);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/documents/expired")
     public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
         return driverDocumentService.getDriversWithExpiredDocuments();

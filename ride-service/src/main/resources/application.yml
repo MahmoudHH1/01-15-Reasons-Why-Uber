@@ -1,11 +1,10 @@
 spring:
   application:
-    name: user-service
+    name: ride-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/uberdb
+    url: jdbc:postgresql://postgres:5432/uberdb
     username: postgres
     password: postgres
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -13,24 +12,24 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
-      separator: "^^"
-
+      separator: ^^
+  mongodb:
+    uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
   data:
-    mongodb:
-      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
-      host: localhost
+      host: redis
       port: 6379
       password: redispass
-
+    neo4j:
+      uri: bolt://neo4j:7687
+      username: neo4j
+      password: neo4jpass
 server:
   port: 8080
-
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000

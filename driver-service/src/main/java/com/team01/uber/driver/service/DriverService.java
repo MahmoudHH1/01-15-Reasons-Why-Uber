@@ -46,6 +46,7 @@ public class DriverService {
     private final CacheInvalidator cacheInvalidator;
     private final DriverSearchEsRepository searchEsRepository;
     private final ElasticsearchHitAdapter searchHitAdapter;
+    private final DriverIndexerService driverIndexerService;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverService(DriverRepository driverRepository,
@@ -54,12 +55,14 @@ public class DriverService {
                          CacheInvalidator cacheInvalidator,
                          DriverSearchEsRepository searchEsRepository,
                          ElasticsearchHitAdapter searchHitAdapter) {
+                         DriverIndexerService driverIndexerService) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
         this.redisTemplate = redisTemplate;
         this.cacheInvalidator = cacheInvalidator;
         this.searchEsRepository = searchEsRepository;
         this.searchHitAdapter = searchHitAdapter;
+        this.driverIndexerService = driverIndexerService;
     }
 
     @PostConstruct
@@ -112,6 +115,7 @@ public class DriverService {
         Driver saved = driverRepository.save(driver);
         notifyObservers("DRIVER_CREATED", Map.of("driverId", saved.getId()));
         cacheInvalidator.deleteByPattern("driver-service::S2-F10::*");
+        driverIndexerService.index(saved, "auto_crud_create");
         return saved;
     }
 
@@ -201,6 +205,7 @@ public class DriverService {
         cacheInvalidator.deleteEntity("driver", id);
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
+        driverIndexerService.index(saved, "auto_crud_update");
 
         return saved;
     }
@@ -216,11 +221,12 @@ public class DriverService {
             }
         }
         driver.setStatus(status);
-        driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
         notifyObservers("AVAILABILITY_UPDATED", Map.of("driverId", id));
         cacheInvalidator.deleteEntity("driver", id);
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
+        driverIndexerService.index(saved, "auto_crud_update");
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -239,6 +245,7 @@ public class DriverService {
         cacheInvalidator.deleteEntity("driver", id);
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
+        driverIndexerService.index(saved, "auto_crud_update");
         return saved;
     }
 
@@ -251,6 +258,12 @@ public class DriverService {
         cacheInvalidator.deleteEntity("driver", id);
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
+        driverIndexerService.removeFromIndex(id);
+    }
+
+    public void indexDriver(Long id) {
+        Driver driver = getDriverById(id);
+        driverIndexerService.index(driver, "explicit");
     }
 
     @Transactional
@@ -278,6 +291,7 @@ public class DriverService {
         cacheInvalidator.deleteEntity("driver", driverId);
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(driverId);
+        driverIndexerService.index(saved, "auto_crud_update");
         return saved;
     }
 
