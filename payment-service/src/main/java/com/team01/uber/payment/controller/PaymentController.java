@@ -2,6 +2,7 @@ package com.team01.uber.payment.controller;
 
 import com.team01.uber.payment.dto.CouponUsageDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.PaymentMethodDTO;
 import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
@@ -143,5 +144,13 @@ public class PaymentController {
             @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
+    }
+
+    @GetMapping("/analytics/methods")
+    public ResponseEntity<List<PaymentMethodDTO>> getPaymentMethodBreakdown(
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        return ResponseEntity.ok(paymentService.getPaymentMethodBreakdown(
+                parseStartDate(startDate), parseEndDate(endDate)));
     }
 }
