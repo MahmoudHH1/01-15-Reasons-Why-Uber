@@ -54,7 +54,7 @@ public class DriverService {
                          RedisTemplate<String, String> redisTemplate,
                          CacheInvalidator cacheInvalidator,
                          DriverSearchEsRepository searchEsRepository,
-                         ElasticsearchHitAdapter searchHitAdapter) {
+                         ElasticsearchHitAdapter searchHitAdapter, 
                          DriverIndexerService driverIndexerService) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
