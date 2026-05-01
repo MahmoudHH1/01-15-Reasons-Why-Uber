@@ -9,6 +9,7 @@ import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
+import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import jakarta.transaction.Transactional;
@@ -25,7 +26,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 
@@ -34,10 +37,13 @@ public class RideService {
 
     private final RideRepository rideRepository;
     private final RideStopRepository rideStopRepository;
+    private final RideEventPublisher rideEventPublisher;
 
-    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository) {
+    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository,
+                       RideEventPublisher rideEventPublisher) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
+        this.rideEventPublisher = rideEventPublisher;
     }
 
     @Caching(evict = {
@@ -51,7 +57,9 @@ public class RideService {
         if (ride.getStatus() == null) {
             ride.setStatus(RideStatus.REQUESTED);
         }
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_CREATED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
     @Cacheable(value="ride-service::ride", key="#id")
@@ -89,7 +97,9 @@ public class RideService {
         existing.setMetadata(updated.getMetadata());
         existing.setCompletedAt(updated.getCompletedAt());
 
-        return rideRepository.save(existing);
+        Ride savedRide = rideRepository.save(existing);
+        rideEventPublisher.notifyObservers("RIDE_UPDATED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
     // S3-F9
@@ -149,7 +159,9 @@ public class RideService {
         }
 
         ride.setStatus(RideStatus.CANCELLED);
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_CANCELLED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
     // S3-F1
@@ -173,10 +185,9 @@ public class RideService {
             @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
     })
     public void deleteRide(Long id) {
-        if (!rideRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        }
+        Ride ride = getRideById(id);
         rideRepository.deleteById(id);
+        rideEventPublisher.notifyObservers("RIDE_DELETED", buildRidePayload(ride));
     }
 
     // S3-F2
@@ -206,13 +217,14 @@ public class RideService {
 
         ride.setDriverId(driverId);
         ride.setStatus(RideStatus.ACCEPTED);
-        rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
 
         if(rideRepository.setDriverBusy(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to BUSY. Driver may have become unavailable.");
         }
 
-        return ride;
+        rideEventPublisher.notifyObservers("RIDE_DRIVER_ASSIGNED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
     // S3-F3
@@ -395,7 +407,9 @@ public class RideService {
         } catch (Exception ignored) {}
 
         // Save ride and return the updated entity
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
+        return savedRide;
 
     }
 
@@ -408,5 +422,18 @@ public class RideService {
         if (updated.getStatus() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride status cannot be null");
         }
+    }
+
+    private Map<String, Object> buildRidePayload(Ride ride) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", ride.getId());
+        payload.put("userId", ride.getUserId());
+        payload.put("driverId", ride.getDriverId());
+        payload.put("status", ride.getStatus() == null ? null : ride.getStatus().name());
+        payload.put("fare", ride.getFare());
+        payload.put("metadata", ride.getMetadata());
+        payload.put("requestedAt", ride.getRequestedAt());
+        payload.put("completedAt", ride.getCompletedAt());
+        return payload;
     }
 }

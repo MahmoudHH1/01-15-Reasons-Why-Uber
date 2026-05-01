@@ -1,5 +1,9 @@
 package com.team01.uber.ride.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+@JsonDeserialize(builder = FareEstimateDTO.Builder.class)
 public class FareEstimateDTO {
     private final double estimatedDistance;
     private final double estimatedDuration;
@@ -22,6 +26,7 @@ public class FareEstimateDTO {
         return new Builder();
     }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private double estimatedDistance;
         private double estimatedDuration;

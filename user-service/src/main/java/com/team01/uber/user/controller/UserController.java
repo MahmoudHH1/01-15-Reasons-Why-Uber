@@ -32,7 +32,16 @@ public class UserController {
     public ResponseEntity<User> createUser(@RequestBody User user) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(user));
     }
-
+    @PutMapping("/{id}/role")
+    public ResponseEntity<User> updateUserRole(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+        String newRole = request.get("role");
+        if (newRole == null || newRole.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.updateUserRole(id, newRole));
+    }
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
         return userService.getUserById(id);

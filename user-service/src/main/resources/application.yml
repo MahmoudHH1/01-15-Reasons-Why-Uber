@@ -22,14 +22,14 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
       host: localhost
       port: 6379
       password: redispass
 
 server:
-  port: 8081
+  port: 8080
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"

@@ -8,18 +8,26 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class ApprovedRefundStrategy implements RefundStrategy {
+public class ApprovedRefundResult extends RefundResult {
+
+    private final boolean surgeIncluded;
+
+    public ApprovedRefundResult(double amount, String reasonCode, boolean surgeIncluded) {
+        super(amount, reasonCode);
+        this.surgeIncluded = surgeIncluded;
+    }
+
+    public boolean isSurgeIncluded() {
+        return surgeIncluded;
+    }
 
     @Override
-    public Payment execute(Payment payment, RefundSurgeRequest request, RefundContext ctx) {
-        double refundAmount = computeRefundAmount(payment);
-        boolean surgeIncluded = isSurgeIncluded();
-
+    public Payment apply(Payment payment, RefundSurgeRequest request, RefundContext ctx, String strategyName) {
         payment.setStatus(PaymentStatus.REFUNDED);
         if (payment.getTransactionDetails() == null) {
             payment.setTransactionDetails(new HashMap<>());
         }
-        payment.getTransactionDetails().put("refundAmount", refundAmount);
+        payment.getTransactionDetails().put("refundAmount", getAmount());
         payment.getTransactionDetails().put("refundSurgeIncluded", surgeIncluded);
         payment.getTransactionDetails().put("refundReason", request.getReason());
         payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
@@ -31,18 +39,14 @@ public abstract class ApprovedRefundStrategy implements RefundStrategy {
                 "method", saved.getMethod().name(),
                 "amount", saved.getAmount(),
                 "details", Map.of(
-                        "strategyName", getClass().getSimpleName(),
+                        "strategyName", strategyName,
                         "reason", request.getReason() == null ? "" : request.getReason(),
-                        "refundAmount", refundAmount,
+                        "refundAmount", getAmount(),
                         "refundSurgeIncluded", surgeIncluded
                 )
         ));
-        ctx.cache.invalidatePaymentCaches(saved.getId());
+        ctx.cache.invalidateAllPaymentFeatureCaches(saved.getId());
 
         return saved;
     }
-
-    protected abstract double computeRefundAmount(Payment payment);
-
-    protected abstract boolean isSurgeIncluded();
 }
