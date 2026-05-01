@@ -134,33 +134,34 @@ public class PaymentCouponService {
         cacheInvalidationService.invalidateCouponCaches(couponId);
         cacheInvalidationService.invalidatePattern("payment-service::S5-F8::" + paymentId);
 
-        return buildPaymentWithCouponsDTO(payment);
+        Payment freshPayment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        return buildPaymentWithCouponsDTO(freshPayment);
     }
 
     private PaymentWithCouponsDTO buildPaymentWithCouponsDTO(Payment payment) {
-        PaymentWithCouponsDTO dto = new PaymentWithCouponsDTO();
-        dto.setId(payment.getId());
-        dto.setRideId(payment.getRideId());
-        dto.setUserId(payment.getUserId());
-        dto.setAmount(payment.getAmount());
-        dto.setMethod(payment.getMethod());
-        dto.setStatus(payment.getStatus());
-        dto.setTransactionDetails(payment.getTransactionDetails());
-        dto.setCreatedAt(payment.getCreatedAt());
-
         List<AppliedCouponDTO> appliedCoupons = new ArrayList<>();
         if (payment.getPaymentCoupons() != null) {
             for (PaymentCoupon pc : payment.getPaymentCoupons()) {
-                AppliedCouponDTO couponDTO = new AppliedCouponDTO(
+                appliedCoupons.add(new AppliedCouponDTO(
                     pc.getCoupon().getCode(),
                     pc.getCoupon().getDiscountType(),
                     pc.getDiscountApplied(),
                     pc.getAppliedAt()
-                );
-                appliedCoupons.add(couponDTO);
+                ));
             }
         }
-        dto.setAppliedCoupons(appliedCoupons);
-        return dto;
+
+        return PaymentWithCouponsDTO.builder()
+                .id(payment.getId())
+                .rideId(payment.getRideId())
+                .userId(payment.getUserId())
+                .amount(payment.getAmount())
+                .method(payment.getMethod())
+                .status(payment.getStatus())
+                .transactionDetails(payment.getTransactionDetails())
+                .createdAt(payment.getCreatedAt())
+                .appliedCoupons(appliedCoupons)
+                .build();
     }
 }
