@@ -52,8 +52,6 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     public RedisSerializer<Object> redisJsonSerializer() {
-        // ObjectMapper kept local — NOT a @Bean — so Spring Boot's JacksonAutoConfiguration
-        // still creates its own clean ObjectMapper for HTTP responses (no @class pollution)
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
