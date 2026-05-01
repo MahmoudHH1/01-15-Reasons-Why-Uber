@@ -1,8 +1,12 @@
 package com.team01.uber.user.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
 import java.util.List;
 import java.util.Map;
 
+@JsonDeserialize(builder = UserProfileDTO.Builder.class)
 public class UserProfileDTO {
 
     private final Long userId;
@@ -31,10 +35,9 @@ public class UserProfileDTO {
     public List<AddressDTO> getSavedAddresses() { return savedAddresses; }
     public int getTotalAddresses() { return totalAddresses; }
 
-    public static Builder builder() {
-        return new Builder();
-    }
+    public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long userId;
         private String name;
@@ -52,8 +55,6 @@ public class UserProfileDTO {
         public Builder savedAddresses(List<AddressDTO> savedAddresses) { this.savedAddresses = savedAddresses; return this; }
         public Builder totalAddresses(int totalAddresses) { this.totalAddresses = totalAddresses; return this; }
 
-        public UserProfileDTO build() {
-            return new UserProfileDTO(this);
-        }
+        public UserProfileDTO build() { return new UserProfileDTO(this); }
     }
 }
