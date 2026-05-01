@@ -6,6 +6,7 @@ import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
@@ -14,6 +15,7 @@ import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundResult;
 import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,7 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
+
     }
 
     public void register(EntityObserver observer) {
@@ -56,6 +59,7 @@ public class PaymentService {
         }
     }
 
+    @Cacheable(value = "payment-service::S5-F9", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
         if (paymentRepository.countUsersById(userId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -77,7 +81,12 @@ public class PaymentService {
             totalAmount += amount;
         }
 
-        return new UserPaymentSummaryDTO(userId, totalPayments, totalAmount, methodBreakdown);
+        return UserPaymentSummaryDTO.builder()
+                .userId(userId)
+                .totalPayments(totalPayments)
+                .totalAmount(totalAmount)
+                .methodBreakdown(methodBreakdown)
+                .build();
     }
 
     public Payment createPayment(Payment payment) {
@@ -85,7 +94,9 @@ public class PaymentService {
         if (payment.getStatus() == null) {
             payment.setStatus(PaymentStatus.PENDING);
         }
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
+        return saved;
     }
 
     @Transactional
@@ -115,6 +126,7 @@ public class PaymentService {
                 "details", Map.of("reason", reason)
         ));
 
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
         return saved;
     }
 
@@ -134,6 +146,7 @@ public class PaymentService {
         return result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
     }
 
+    @Cacheable(value = "payment-service::payment", key = "#id")
     public Payment getPaymentById(Long id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
@@ -151,7 +164,9 @@ public class PaymentService {
         existing.setMethod(payment.getMethod());
         existing.setStatus(payment.getStatus());
         existing.setTransactionDetails(payment.getTransactionDetails());
-        return paymentRepository.save(existing);
+        Payment saved = paymentRepository.save(existing);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        return saved;
     }
 
     public void deletePayment(Long id) {
@@ -159,6 +174,7 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");
         }
         paymentRepository.deleteById(id);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
     }
 
     @Transactional
@@ -224,6 +240,7 @@ public class PaymentService {
         payment.setTransactionDetails(details);
 
         Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
 
         notifyObservers("CREATED", Map.of(
                 "paymentId", saved.getId(),
@@ -281,9 +298,12 @@ public class PaymentService {
         details.put("retryAttempt", currentRetry + 1);
         details.put("gatewayResponse", "approved");
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        return saved;
     }
 
+    @Cacheable(value = "payment-service::S5-F8", key = "#paymentId")
     @Transactional(readOnly = true)
     public PaymentDetailsDTO getPaymentDetails(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
@@ -302,25 +322,27 @@ public class PaymentService {
                 .mapToDouble(AppliedCouponDTO::getDiscountApplied)
                 .sum();
 
-        return new PaymentDetailsDTO(
-                payment.getId(),
-                payment.getRideId(),
-                payment.getUserId(),
-                payment.getAmount(),
-                payment.getMethod(),
-                payment.getStatus(),
-                payment.getTransactionDetails(),
-                appliedCoupons,
-                totalDiscount,
-                payment.getAmount() - totalDiscount
-        );
+        return PaymentDetailsDTO.builder()
+                .paymentId(payment.getId())
+                .rideId(payment.getRideId())
+                .userId(payment.getUserId())
+                .originalAmount(payment.getAmount())
+                .method(payment.getMethod())
+                .status(payment.getStatus())
+                .transactionDetails(payment.getTransactionDetails())
+                .appliedCoupons(appliedCoupons)
+                .totalDiscount(totalDiscount)
+                .finalAmount(payment.getAmount() - totalDiscount)
+                .build();
     }
 
+    @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
     }
 
+    @Cacheable(value = "payment-service::S5-F6", key = "#startDate + ':' + #endDate")
     public RevenueReportDTO getRevenueReport(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate.isAfter(endDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -337,12 +359,44 @@ public class PaymentService {
         double refundedAmount = ((Number) refundedRow[0]).doubleValue();
         long refundCount = ((Number) refundedRow[1]).longValue();
 
-        RevenueReportDTO dto = new RevenueReportDTO();
-        dto.setTotalRevenue(totalRevenue);
-        dto.setTotalTransactions(totalTransactions);
-        dto.setAveragePayment(averagePayment);
-        dto.setRefundedAmount(refundedAmount);
-        dto.setRefundCount(refundCount);
-        return dto;
+        return RevenueReportDTO.builder()
+                .totalRevenue(totalRevenue)
+                .totalTransactions(totalTransactions)
+                .averagePayment(averagePayment)
+                .refundedAmount(refundedAmount)
+                .refundCount(refundCount)
+                .build();
+    }
+
+    @Cacheable(value = "payment-service::S5-F10", key = "#startDate + ':' + #endDate")
+    public List<VehicleTypeRevenueDTO> getVehicleTypeRevenue(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "startDate must be before endDate");
+        }
+
+        List<Object[]> rows = paymentRepository.findRevenueByVehicleType(startDate, endDate);
+
+        return rows.stream().map(row -> {
+            String vehicleType    = (String) row[0];
+            double totalRevenue   = ((Number) row[1]).doubleValue();
+            double surgeFeeRevenue = ((Number) row[2]).doubleValue();
+            double baseFareRevenue = totalRevenue - surgeFeeRevenue;
+            long rideCount        = ((Number) row[3]).longValue();
+
+            return VehicleTypeRevenueDTO.builder()
+                    .vehicleType(vehicleType)
+                    .baseFareRevenue(baseFareRevenue)
+                    .surgeFeeRevenue(surgeFeeRevenue)
+                    .totalRevenue(totalRevenue)
+                    .rideCount(rideCount)
+                    .build();
+        }).toList();
+    }
+
+    public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
+        notifyObservers("ANALYTICS_VIEWED", Map.of(
+                "details", Map.of("startDate", startDate.toString(), "endDate", endDate.toString())
+        ));
     }
 }

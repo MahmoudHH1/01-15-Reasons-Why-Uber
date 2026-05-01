@@ -211,6 +211,34 @@ public class UserService implements Observable{
         notifyObservers(AuthEvent.ACTION_DEFAULT_ADDRESS_SET, Map.of("userId", userId, "addressId", addressId));
         return userRepository.findById(userId).get();
     }
+
+    public User updateUserRole(Long id, String newRole) {
+        User user = getUserById(id);
+        
+        // Validate role is ADMIN or RIDER
+        try {
+            com.team01.uber.user.model.UserRole role = 
+                com.team01.uber.user.model.UserRole.valueOf(newRole.toUpperCase());
+            
+            String oldRole = user.getRole().name();
+            user.setRole(role);
+            User saved = userRepository.save(user);
+            
+            // Notify observers: role changed
+            notifyObservers(
+                AuthEvent.ACTION_ROLE_CHANGED,
+                Map.of(
+                    "userId", saved.getId(),
+                    "oldRole", oldRole,
+                    "newRole", role.name()
+                )
+            );
+            
+            return saved;
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role value");
+        }
+    }
     public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
         if (lang == null || lang.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
