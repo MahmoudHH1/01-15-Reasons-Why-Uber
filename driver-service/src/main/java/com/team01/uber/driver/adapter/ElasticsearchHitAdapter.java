@@ -7,16 +7,15 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ElasticsearchHitAdapter {
-
     public DriverSearchResultDTO adapt(SearchHit<DriverSearchDocument> hit) {
-        DriverSearchDocument src = hit.getContent();
+        DriverSearchDocument source = hit.getContent();
         return DriverSearchResultDTO.builder()
-                .id(src.getId())
-                .name(src.getName())
-                .vehicleType(src.getVehicleType())
-                .description(src.getDescription())
-                .rating(src.getRating())
-                .status(src.getStatus())
+                .id(source.getId())
+                .name(source.getName())
+                .vehicleType(source.getVehicleType())
+                .description(source.getDescription())
+                .rating(source.getRating())
+                .status(source.getStatus())
                 .build();
     }
 }
