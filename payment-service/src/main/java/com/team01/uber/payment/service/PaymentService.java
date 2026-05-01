@@ -11,6 +11,8 @@ import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
 import com.team01.uber.payment.strategy.RefundContext;
+import com.team01.uber.payment.strategy.RefundResult;
+import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
@@ -132,7 +134,9 @@ public class PaymentService {
         }
 
         RefundContext ctx = new RefundContext(paymentRepository, this::notifyObservers, cacheInvalidationService);
-        return strategySelector.select(payment, request).execute(payment, request, ctx);
+        RefundStrategy strategy = strategySelector.select(payment, request);
+        RefundResult result = strategy.calculateRefund(payment, request);
+        return result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
     }
 
     @Cacheable(value = "payment-service::payment", key = "#id")
@@ -167,7 +171,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request) {
+    public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
         String rideStatus = paymentRepository.findRideStatusById(rideId);
         if (rideStatus == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
@@ -181,6 +185,7 @@ public class PaymentService {
         }
 
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .or(() -> paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.FAILED))
                 .orElseGet(() -> {
                     Payment newPayment = new Payment();
                     newPayment.setRideId(rideId);
@@ -192,20 +197,76 @@ public class PaymentService {
                 });
 
         payment.setMethod(request.getMethod());
-        payment.setStatus(PaymentStatus.COMPLETED);
 
         Map<String, Object> details = payment.getTransactionDetails() != null
                 ? payment.getTransactionDetails()
                 : new HashMap<>();
+
+        if (simulateFailure) {
+            payment.setStatus(PaymentStatus.FAILED);
+            details.put("gatewayResponse", "declined");
+            details.put("failureReason", "simulated gateway failure");
+            payment.setTransactionDetails(details);
+
+            Payment saved = paymentRepository.save(payment);
+            notifyObservers("FAILED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of(
+                            "failureReason", "simulated gateway failure",
+                            "rideId", rideId
+                    )
+            ));
+            return saved;
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
         details.put("gatewayResponse", "approved");
         if (request.getCardLastFour() != null) {
             details.put("cardLastFour", request.getCardLastFour());
         }
+
+        double surgeFee = computeSurgeFee(rideId, payment.getAmount());
+        details.put("surgeFee", surgeFee);
+
         payment.setTransactionDetails(details);
 
         Payment saved = paymentRepository.save(payment);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+        notifyObservers("CREATED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of("rideId", rideId)
+        ));
+
+        notifyObservers("COMPLETED", Map.of(
+                "paymentId", saved.getId(),
+                "method", saved.getMethod().name(),
+                "amount", saved.getAmount(),
+                "details", Map.of(
+                        "gatewayResponse", "approved",
+                        "rideId", rideId,
+                        "surgeFee", surgeFee
+                )
+        ));
+
         return saved;
+    }
+
+    private double computeSurgeFee(Long rideId, double amount) {
+        try {
+            Double surgeMultiplier = paymentRepository.findRideSurgeMultiplierById(rideId);
+            if (surgeMultiplier != null && surgeMultiplier > 1.0) {
+                Double fare = paymentRepository.findRideFareById(rideId);
+                double baseFare = fare != null ? fare : amount;
+                return baseFare * (surgeMultiplier - 1.0);
+            }
+        } catch (Exception ignored) {
+        }
+        return amount * 0.15;
     }
 
     @Transactional
