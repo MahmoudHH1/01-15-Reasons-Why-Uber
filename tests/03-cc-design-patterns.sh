@@ -82,6 +82,7 @@ fi
 # Spec §3.5: "Call S2-F12 → verify response is correctly populated."
 if [ -n "$DDID" ]; then
   http_auth GET "$DRIVER_URL/api/drivers/$DDID/dashboard" "$TOKEN"
+  assert_status 200 "S2-F12 dashboard call returns 200 (§10.2.3)"
   if [ "$LAST_STATUS" = "200" ]; then
     for f in driverId name totalRides totalEarnings averageRideFare averageRating totalRatings; do
       v="$(echo "$LAST_BODY" | jq -r ".${f}")"
@@ -91,8 +92,6 @@ if [ -n "$DDID" ]; then
         fail "S2-F12 DriverDashboardDTO has field $f" "field missing or null"
       fi
     done
-  else
-    skip "S2-F12 dashboard call" "status=$LAST_STATUS"
   fi
 fi
 

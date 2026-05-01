@@ -79,11 +79,13 @@ EOF
 EOF
 )"
   s2f1_after="$(redis_count_keys 'driver-service::S2-F1::*')"
-  if [ "$s2f1_after" -le "$s2f1_before" ] && [ "${s2f1_after:-0}" -lt "${s2f1_before:-99}" ]; then
-    pass "Driver write wildcard-invalidates S2-F1::* (count: $s2f1_before → $s2f1_after)"
+  # The pre-warming GET above guarantees ≥1 S2-F1 key exists; the PUT must
+  # wildcard-clear them per §4.4.4 + §4.4.6.
+  if [ "${s2f1_before:-0}" -ge 1 ] && [ "${s2f1_after:-0}" = "0" ]; then
+    pass "Driver write wildcard-invalidates S2-F1::* (§4.4.4 + §4.4.6; $s2f1_before → $s2f1_after)"
   else
-    skip "Driver write wildcard-invalidates S2-F1::* (count: $s2f1_before → $s2f1_after)" \
-         "may pass if no S2-F1 caches exist yet"
+    fail "Driver write wildcard-invalidates S2-F1::* (§4.4.4 + §4.4.6)" \
+         "expected before≥1 and after=0, got before=$s2f1_before after=$s2f1_after"
   fi
 
   http_auth DELETE "$DRIVER_URL/api/drivers/$DID" "$TOKEN" >/dev/null

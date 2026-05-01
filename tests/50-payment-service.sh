@@ -176,8 +176,7 @@ if [ -n "$RIDE2" ]; then
     if [ "$(redis_count_keys "payment-service::payment::$PID2")" -ge 1 ]; then
       pass "post-refund GET re-caches payment-service::payment::$PID2"
     else
-      skip "post-refund GET re-caches payment-service::payment::$PID2" \
-           "payment-service may not have @Cacheable on get-by-id yet"
+      fail "post-refund GET re-caches payment-service::payment::$PID2 (§4.4.2 entity-detail cache + §8.1)"
     fi
   fi
 fi
@@ -233,10 +232,13 @@ if [ -n "$OLD_PID" ]; then
   rd="$(mongo_count_poll payment_audit_trail "{ paymentId: $OLD_PID, action: 'REFUND_DENIED' }" 10)"
   [ "${rd:-0}" -ge 1 ] && pass "S5-F12 REFUND_DENIED audit on NoRefundStrategy (§10.5.3.e.i)" \
                        || fail "S5-F12 REFUND_DENIED audit on NoRefundStrategy (§10.5.3.e.i)"
-  # §10.5.3 step e (ii): caches must be invalidated even on the denial path
+  # §10.5.3 step e (ii): caches must be invalidated even on the denial path.
+  # We pre-warmed S5-F10::* by hitting the analytics endpoint in §10.5.1.a;
+  # after the denial, the wildcard delete must have cleared them.
   [ "$(redis_count_keys 'payment-service::S5-F10::*')" = "0" ] \
     && pass "S5-F12 NoRefund path invalidates payment-service::S5-F10::* (§10.5.3.e.ii)" \
-    || skip "S5-F12 NoRefund path invalidates payment-service::S5-F10::* (§10.5.3.e.ii)"
+    || fail "S5-F12 NoRefund path invalidates payment-service::S5-F10::* (§10.5.3.e.ii)" \
+            "S5-F10 keys still present after REFUND_DENIED"
 fi
 
 # (h) Distinct-path coexistence with M1 PUT /api/payments/{id}/refund.
@@ -271,20 +273,14 @@ fi
 # S5-F10 Fare Revenue by Vehicle Type   (§10.5.1)
 # ============================================================
 
+# Endpoint reachability check on an arbitrary range (likely empty pre-seed).
+# DTO field-shape validation is covered after §10.5.1.a below — once the
+# seeded October data guarantees the array is non-empty.
 http_auth GET "$BASE/api/payments/analytics/vehicle-type?startDate=2026-04-01&endDate=2026-04-30" "$TOKEN"
 assert_status 200 "S5-F10 valid range → 200"
-
-if echo "$LAST_BODY" | jq -e 'type == "array"' >/dev/null 2>&1; then
-  pass "S5-F10 returns an array"
-  # Validate DTO shape (vehicleType, baseFareRevenue, surgeFeeRevenue, totalRevenue, rideCount)
-  for f in vehicleType baseFareRevenue surgeFeeRevenue totalRevenue rideCount; do
-    if echo "$LAST_BODY" | jq -e ".[0].${f}? // empty" >/dev/null 2>&1; then
-      pass "S5-F10 DTO has $f"
-    else
-      skip "S5-F10 DTO has $f" "array may be empty for this date range"
-    fi
-  done
-fi
+echo "$LAST_BODY" | jq -e 'type == "array"' >/dev/null 2>&1 \
+  && pass "S5-F10 returns an array (§10.5.1)" \
+  || fail "S5-F10 returns an array (§10.5.1)" "body type is not array"
 
 # §10.5.1 step a — exact vehicle-type breakdown.
 # Seed 3 SEDAN drivers with rides totaling 600 (90 surge), 2 SUV drivers
@@ -335,6 +331,22 @@ TODAY_START_VT="$(date -u -d '30 days ago' +%Y-%m-%d 2>/dev/null || date -u -v-3
 TODAY_END_VT="$(date -u -d '1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)"
 http_auth GET "$BASE/api/payments/analytics/vehicle-type?startDate=$TODAY_START_VT&endDate=$TODAY_END_VT" "$TOKEN"
 if [ "$LAST_STATUS" = "200" ]; then
+  # DTO field-shape validation against a non-empty array (the seeded data
+  # above guarantees ≥1 row). Spec §10.5.1 lists exactly these fields:
+  # vehicleType, baseFareRevenue, surgeFeeRevenue, totalRevenue, rideCount.
+  rows="$(echo "$LAST_BODY" | jq -r 'length // 0')"
+  if [ "${rows:-0}" -ge 1 ]; then
+    for f in vehicleType baseFareRevenue surgeFeeRevenue totalRevenue rideCount; do
+      if echo "$LAST_BODY" | jq -e ".[0] | has(\"$f\")" >/dev/null 2>&1; then
+        pass "S5-F10 DTO has $f (§10.5.1)"
+      else
+        fail "S5-F10 DTO has $f (§10.5.1)" "field missing on first row"
+      fi
+    done
+  else
+    skip "S5-F10 DTO field-shape" "seeded query returned empty array (rows=$rows) — likely SUT date-window mismatch"
+  fi
+
   sedan_count="$(echo "$LAST_BODY" | jq -r '.[] | select(.vehicleType=="SEDAN") | .rideCount // 0' | head -1)"
   suv_count="$(echo "$LAST_BODY"   | jq -r '.[] | select(.vehicleType=="SUV")   | .rideCount // 0' | head -1)"
   sedan_total="$(echo "$LAST_BODY" | jq -r '.[] | select(.vehicleType=="SEDAN") | .totalRevenue // 0' | head -1)"
@@ -378,24 +390,19 @@ diff=$((after - before))
 # Cache 10 min
 [ "$(redis_count_keys 'payment-service::S5-F10::*')" -ge 1 ] \
   && pass "S5-F10 caches payment-service::S5-F10::*" \
-  || skip "S5-F10 caches payment-service::S5-F10::*" "feature may be missing per catalog"
+  || fail "S5-F10 caches payment-service::S5-F10::* (§4.4.1, §8.1 dashboards 10m)"
 
 # ============================================================
 # S5-F11 Payment Method Breakdown   (§10.5.2)
 # ============================================================
 
+# Endpoint reachability — DTO field-shape validation moved below to run
+# against the seeded today-window where the array is guaranteed non-empty.
 http_auth GET "$BASE/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30" "$TOKEN"
 assert_status 200 "S5-F11 valid range → 200"
-if echo "$LAST_BODY" | jq -e 'type == "array"' >/dev/null 2>&1; then
-  pass "S5-F11 returns an array"
-  for f in method successCount failureCount successRate totalAmount; do
-    if echo "$LAST_BODY" | jq -e ".[0].${f}? // empty" >/dev/null 2>&1; then
-      pass "S5-F11 DTO has $f"
-    else
-      skip "S5-F11 DTO has $f" "may be empty for this range"
-    fi
-  done
-fi
+echo "$LAST_BODY" | jq -e 'type == "array"' >/dev/null 2>&1 \
+  && pass "S5-F11 returns an array (§10.5.2)" \
+  || fail "S5-F11 returns an array (§10.5.2)" "body type is not array"
 
 # §10.5.2 step a — exact methods breakdown.
 # Seed 5 successful CREDIT_CARD totaling 500 + 2 failed CC + 3 successful CASH totaling 300.
@@ -434,6 +441,22 @@ TODAY_START_PM="$(date -u -d '30 days ago' +%Y-%m-%d 2>/dev/null || date -u -v-3
 TODAY_END_PM="$(date -u -d '1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)"
 http_auth GET "$BASE/api/payments/analytics/methods?startDate=$TODAY_START_PM&endDate=$TODAY_END_PM" "$TOKEN"
 if [ "$LAST_STATUS" = "200" ]; then
+  # DTO field-shape validation against a non-empty array (we just seeded ≥10
+  # payments). Spec §10.5.2 lists exactly: method, successCount, failureCount,
+  # successRate, totalAmount.
+  rows="$(echo "$LAST_BODY" | jq -r 'length // 0')"
+  if [ "${rows:-0}" -ge 1 ]; then
+    for f in method successCount failureCount successRate totalAmount; do
+      if echo "$LAST_BODY" | jq -e ".[0] | has(\"$f\")" >/dev/null 2>&1; then
+        pass "S5-F11 DTO has $f (§10.5.2)"
+      else
+        fail "S5-F11 DTO has $f (§10.5.2)" "field missing on first row"
+      fi
+    done
+  else
+    skip "S5-F11 DTO field-shape" "seeded query returned empty array (rows=$rows)"
+  fi
+
   cc_succ="$(echo "$LAST_BODY"  | jq -r '.[] | select(.method=="CREDIT_CARD") | .successCount // 0' | head -1)"
   cc_fail="$(echo "$LAST_BODY"  | jq -r '.[] | select(.method=="CREDIT_CARD") | .failureCount // 0' | head -1)"
   cc_tot="$(echo "$LAST_BODY"   | jq -r '.[] | select(.method=="CREDIT_CARD") | .totalAmount // 0'  | head -1)"
@@ -466,7 +489,7 @@ assert_status 401 "S5-F11 no token → 401"
 http_auth GET "$BASE/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30" "$TOKEN" >/dev/null
 [ "$(redis_count_keys 'payment-service::S5-F11::*')" -ge 1 ] \
   && pass "S5-F11 caches payment-service::S5-F11::*" \
-  || skip "S5-F11 caches payment-service::S5-F11::*" "feature may be missing per catalog"
+  || fail "S5-F11 caches payment-service::S5-F11::* (§4.4.1, §8.1 dashboards 10m)"
 
 # ============================================================
 # M1 S5 features
@@ -521,8 +544,7 @@ if [ -n "$COUP_ID" ]; then
   if [ "$(redis_count_keys "payment-service::coupon::$COUP_ID")" -ge 1 ]; then
     pass "GET-by-id caches payment-service::coupon::$COUP_ID (§4.4.2)"
   else
-    skip "GET-by-id caches payment-service::coupon::$COUP_ID" \
-         "payment-service may not have @Cacheable yet"
+    fail "GET-by-id caches payment-service::coupon::$COUP_ID (§4.4.2 + §8.1)"
   fi
   http_auth PUT "$BASE/api/coupons/$COUP_ID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 {"code":"SUMMER-$RUN_ID","discountType":"PERCENTAGE","discountValue":25,"maxUses":100,"expiryDate":"2030-12-31T23:59:59"}
@@ -536,7 +558,8 @@ EOF
     assert_status_in "M1 S5-F5 POST /api/payments/{paymentId}/coupons/{couponId}" 200 201 400 404
     sleep 1
     ca="$(mongo_count payment_audit_trail "{ paymentId: $PID2, action: 'COUPON_APPLIED' }")"
-    [ "${ca:-0}" -ge 1 ] && pass "S5-F5 emits COUPON_APPLIED" || skip "S5-F5 emits COUPON_APPLIED" "may need re-run order"
+    ca="$(mongo_count_poll payment_audit_trail "{ paymentId: $PID2, action: 'COUPON_APPLIED' }" 10)"
+    [ "${ca:-0}" -ge 1 ] && pass "S5-F5 emits COUPON_APPLIED (§4.5)" || fail "S5-F5 emits COUPON_APPLIED (§4.5)" "got $ca"
   fi
 
   http_auth DELETE "$BASE/api/coupons/$COUP_ID" "$TOKEN"

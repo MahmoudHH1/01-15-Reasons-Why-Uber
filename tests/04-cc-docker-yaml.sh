@@ -93,14 +93,25 @@ for svc in user-service driver-service ride-service location-service payment-ser
   fi
 done
 
-# (b) datasource.url points to postgres:5432
+# (b) datasource.url must point at postgres:5432 — either directly in the
+# service's application.yml, OR via SPRING_DATASOURCE_URL set in
+# docker-compose.yaml. Either is spec-compliant; we accept both.
 for svc in user-service driver-service ride-service location-service payment-service; do
   yml="$ROOT/$svc/src/main/resources/application.yml"
   [ -f "$yml" ] || continue
-  if grep -qE 'jdbc:postgresql://postgres:5432' "$yml"; then
-    pass "$svc datasource → postgres:5432"
+  in_yml=0; in_compose=0
+  grep -qE 'jdbc:postgresql://postgres:5432' "$yml" && in_yml=1
+  awk -v s="$svc:" '
+    BEGIN{found=0}
+    $0 ~ "^  "s"$" {found=1; next}
+    found && /^  [a-z]/ && $0 !~ "^  "s"$" {found=0}
+    found && /SPRING_DATASOURCE_URL: jdbc:postgresql:\/\/postgres:5432/ {print "ok"; exit}
+  ' "$COMPOSE" | grep -q ok && in_compose=1
+  if [ "$in_yml" = "1" ] || [ "$in_compose" = "1" ]; then
+    src="yml"; [ "$in_compose" = "1" ] && src="compose-env"
+    pass "$svc datasource → postgres:5432 (via $src)"
   else
-    skip "$svc datasource → postgres:5432" "may be overridden by env in compose"
+    fail "$svc datasource → postgres:5432" "neither yml nor compose env points to postgres:5432"
   fi
 done
 
@@ -127,23 +138,8 @@ grep -qE 'cassandra:' "$ROOT/location-service/src/main/resources/application.yml
   && pass "location-service has spring.cassandra" \
   || fail "location-service has spring.cassandra"
 
-# --- §9.5 step f / §9.6 step g — soft-dep boot test (manual) -------------
-# Bringing a service up in isolation with NoSQL stores down requires
-# stopping containers, which is destructive to the rest of the suite.
-# This script DOCUMENTS the manual procedure rather than performing it:
-#
-#   docker compose stop mongo redis elasticsearch neo4j cassandra
-#   docker compose restart user-service driver-service ride-service \
-#                          location-service payment-service
-#   for p in 8081 8082 8083 8084 8085; do
-#     curl -sS -o /dev/null -w "$p:%{http_code}\n" \
-#       "http://localhost:$p/api/$(case $p in
-#          8081) echo users;; 8082) echo drivers;; 8083) echo rides;;
-#          8084) echo locations;; 8085) echo payments;; esac)/health"
-#   done
-#   # Every service must answer 200 — only PostgreSQL is a hard dependency.
-#
-# Run that recipe manually, then `docker compose start mongo redis ...`
-# before re-running the rest of this suite.
-skip "§9.5.f / §9.6.g soft-dep boot (manual procedure)" \
-     "see comments in 04-cc-docker-yaml.sh — destructive to live stack"
+# §9.5.f / §9.6.g soft-dep boot test (destructive — runs in a separate
+# script `99-manual-soft-dep.sh`, NOT part of run-all.sh because it stops
+# Mongo/Redis/ES/Neo4j/Cassandra and would break every other test if
+# interleaved). Trigger explicitly:
+#   ./tests/99-manual-soft-dep.sh
