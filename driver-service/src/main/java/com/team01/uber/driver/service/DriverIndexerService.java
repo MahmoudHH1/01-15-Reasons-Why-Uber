@@ -5,6 +5,7 @@ import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
+import com.team01.uber.driver.repository.DriverSearchEsRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,7 @@ public class DriverIndexerService {
 
     private final CacheInvalidator cacheInvalidator;
     private final MongoEventLogger mongoEventLogger;
+    private final DriverSearchEsRepository searchEsRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
@@ -46,9 +48,11 @@ public class DriverIndexerService {
 
     public DriverIndexerService(CacheInvalidator cacheInvalidator,
                                 MongoEventLogger mongoEventLogger,
+                                DriverSearchEsRepository searchEsRepository,
                                 @Value("${spring.elasticsearch.uris:http://elasticsearch:9200}") String esBaseUri) {
         this.cacheInvalidator = cacheInvalidator;
         this.mongoEventLogger = mongoEventLogger;
+        this.searchEsRepository = searchEsRepository;
         this.esBaseUri = esBaseUri;
     }
 
@@ -75,6 +79,8 @@ public class DriverIndexerService {
         if (driver == null || driver.getId() == null) {
             return;
         }
+
+        searchEsRepository.ensureIndexExists();
 
         Map<String, Object> doc = toEsDocument(driver);
 
