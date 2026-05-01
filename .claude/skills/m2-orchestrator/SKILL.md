@@ -34,15 +34,17 @@ This skill orchestrates other skills/agents that already reference the M2 docs. 
 ## Pipeline Overview
 
 ```
-Stage 0 — Identity + scope                    → AskUserQuestion checkpoint
-Stage 1 — Read spec verbatim                  → AskUserQuestion checkpoint
-Stage 2 — Prerequisite verification           → STOP if anything missing
-Stage 3 — Plan implementation                 → AskUserQuestion checkpoint
-Stage 4 — Implementation (per-commit)         → checkpoint per commit
-Stage 5a — Test case design                   → AskUserQuestion checkpoint
-Stage 5b — Test execution (feature-tester)    → fail → return to Stage 4
-Stage 5c — Cache audit                        → fail → return to Stage 4
-Stage 6 — pr-check + PR description           → READY → user pushes
+Stage 0 — Identity + scope                              → AskUserQuestion checkpoint
+Stage 1 — Read spec verbatim                            → AskUserQuestion checkpoint
+Stage 2 — Prerequisite verification                     → STOP if anything missing
+Stage 3 — Plan implementation                           → AskUserQuestion checkpoint
+Stage 4 — Implementation (per-commit)                   → checkpoint per commit
+Stage 5a — Author test script on disk                   → AskUserQuestion checkpoint
+Stage 5b — Spec-compliance audit of every assertion     → AskUserQuestion checkpoint
+Stage 5c — Run script (Bash) + iterate until 0 FAIL     → fail → return to Stage 4
+Stage 5d — Cache audit                                  → fail → return to Stage 4
+Stage 5e — Commit test script as test(<service>): ...   → no separate checkpoint
+Stage 6 — pr-check + PR description                     → READY → user pushes
 ```
 
 Each stage produces a result the user reviews before the next stage runs.
@@ -153,45 +155,94 @@ After all commits land:
 - Run `mvn clean package -DskipTests` to confirm the build is clean.
 - If the build fails, return to whichever commit introduced the break.
 
-## Stage 5a — Test Case Design (Human-in-the-Loop)
+## Stage 5a — Author the Test Script on Disk (Human-in-the-Loop)
 
-Draft a test plan with cases organized into these categories:
+**Hard rule: tests are persisted as a runnable script before they're executed.** Inline curl chains in chat are not acceptable — the artifact must survive the conversation so the user (and the grader, and future teammates) can re-run the same scenario.
 
-- **Spec cases** — every step from the §10.x "Test scenario" subsection. Always included.
-- **Boundary cases** — empty inputs, max-length strings, off-by-one on date ranges, page=0 vs page=1, boundary timestamps (start `T00:00:00` / end `T23:59:59.999`), pagination caps (size=100 vs size=101).
-- **Auth & ownership cases** — missing token, malformed token, expired token, wrong role, ownership violation (S1-F12 / S3-F12), ADMIN bypass.
-- **Cross-DB consistency cases** — for any feature that writes to >1 store: trigger the write, verify all stores reflect it; soft-dep cases (NoSQL down → graceful degradation if applicable).
-- **Cache cases** — first call (miss), second call (hit, faster), TTL expiry simulation, write-then-read invalidation check, observer-driven invalidation match.
-- **Idempotency cases** — for S3-F11: same rideId twice should not double-increment.
-- **Error path cases** — every error code listed in the spec (400 invalid input, 404 not found, 401 unauthorized, 403 forbidden, 409 conflict where applicable).
+1. **Draft the test plan** with cases organized into these categories:
+   - **Spec cases** — every step from the §10.x "Test scenario" subsection. Always included.
+   - **Boundary cases** — empty inputs, max-length strings, off-by-one on date ranges, page=0 vs page=1, boundary timestamps (start `T00:00:00` / end `T23:59:59.999`), pagination caps (size=100 vs size=101), Unicode / special-char payloads.
+   - **Auth & ownership cases** — missing token, malformed token (wrong scheme, empty bearer), garbage token, tampered signature, expired token, wrong role, ownership violation (S1-F12 / S3-F12), ADMIN bypass, `/health` stays public.
+   - **Cross-DB consistency cases** — for any feature that writes to >1 store: trigger the write, verify all stores reflect it; soft-dep cases (NoSQL down → graceful degradation if applicable); event vocabulary subset check; `details.<spec-mandated-keys>` shape check.
+   - **Cache cases** — first call (miss), second call (hit, faster), TTL expiry simulation, write-then-read invalidation check, observer-driven invalidation match, list-endpoint-not-cached check.
+   - **Idempotency cases** — repeat-call-data-stable + per-spec event-emission count (some endpoints fire on every call, some suppress; see §10.x).
+   - **Error path cases** — every error code listed in the spec (400 invalid input, 404 not found, 401 unauthorized, 403 forbidden, 409 conflict where applicable).
 
-Display the proposed cases as a checklist, grouped by category, with each case stating: input, expected status code, expected post-conditions (DB rows / cache keys / events to verify).
+2. **Verify each drafted case against the spec before committing pen to paper** — a case that asserts implementation defaults beyond what the §10.x clause / cache-matrix / event-actions doc actually mandates is a future-test-debt and over-constrains other feature work. If unsure, dispatch `pdf-clause-finder`. Drop any case that can't be tied to a spec clause.
 
-**Checkpoint:** AskUserQuestion — "any cases to add or remove before we run them?" The user can add domain-specific edge cases the orchestrator missed.
+3. **Write the script** at `<service>/scripts/test-<feature-id>.sh` (e.g., `driver-service/scripts/test-S2-F11.sh`). Conventions:
+   - `#!/usr/bin/env bash` shebang; `chmod +x` after writing.
+   - One assertion per case; each assertion calls a `report "(<id>) <description>" 0|1 "<failure detail>"` helper.
+   - Exit code = number of FAIL assertions (so `./script && echo green` works in CI).
+   - Final line: `TOTALS: <PASS> PASS / <FAIL> FAIL`.
+   - Idempotent fixtures: derive unique emails / phones / license numbers from `RUN_ID="$(date +%s)$$"` so re-runs don't hit unique-constraint conflicts.
+   - Stack-config overrides via env vars (`USER_SVC`, `DRIVER_SVC`, `ES`, `MONGO_USER`, `REDIS_PASS`, …) with defaults that match `docker-compose.yaml`.
+   - Cleanup state at top (drop ES index, clear `<service>_events` Mongo collection) — don't pollute future runs.
 
-## Stage 5b — Test Execution (Delegated to feature-tester Agent)
+4. Display the path of the script you just wrote. Display the case checklist (grouped by category) with each case mapped to a spec citation: input, expected status code, expected post-conditions (DB rows / cache keys / events to verify), spec § / cache-matrix row.
 
-1. Dispatch the `feature-tester` sub-agent (Agent tool with `subagent_type: "feature-tester"`) passing:
-   - The resolved feature spec (Stage 1 table).
-   - The approved test plan (Stage 5a).
-   - A note that the agent should generate its own JWT token via login if needed.
+5. **Checkpoint:** AskUserQuestion — "any cases to add or remove before we run them?" The user can add domain-specific edge cases the orchestrator missed.
 
-2. The agent runs each case end-to-end against the live local stack: HTTP via `curl`, DB inspections via `redis-cli` / `mongosh` / `cqlsh` / `cypher-shell` / `psql`, and assertions per the test plan.
+## Stage 5b — Spec-Compliance Audit of Every Assertion
 
-3. The agent returns a structured pass/fail report. Display it.
+**Hard rule: every assertion must trace to a spec clause before the script is allowed to run.** Tests that enforce implementation defaults beyond the spec become future-test-debt and over-constrain other features (e.g., a S2-F11 test that asserts `driver::{id}` invalidation on `/index` blocks anyone trying to keep the entity-detail cache fresh during indexing-only operations). Catch this in a focused audit pass, not when rerunning failures.
 
-4. **Checkpoint:**
-   - If any case FAIL → return to Stage 4 to fix. Surface the agent's "fix hint" alongside the failing case.
-   - If user flags a PASS as suspicious → re-dispatch with extra coverage on that case.
-   - If all PASS → proceed to 5c.
+This stage is a **separate review of the script you just wrote**. It is read-only — no execution yet — so there is no flakiness or stack dependency to muddy the signal.
 
-## Stage 5c — Cache Audit (Skill Dispatch)
+1. **Build an audit table** with one row per assertion. Columns:
+   - **Case ID** (e.g., `(a3)`, `(c2)`, `(au4)`).
+   - **What it asserts** — one-line summary of the input + expected.
+   - **Spec citation** — the §10.x clause, `docs/m2/cache-matrix.md` row, `docs/m2/event-actions.md` row, `docs/m2/design-patterns.md` rule, JWT-contract clause from CLAUDE.md, or M1-CRUD baseline.
+   - **Verdict** — one of: `KEEP` (clean citation), `WEAKEN` (spec is silent — convert to non-blocking smoke check, or drop), `CONTRADICTS` (assertion enforces something the spec rules out — must fix or drop), `MOVE` (citation belongs in a different test category — re-label).
+
+2. **Use `pdf-clause-finder` whenever in doubt.** If you cannot recall a verbatim clause that backs an assertion, dispatch the agent for a §10.x lookup. Do not guess. The cost of a one-off agent call is trivial vs. the cost of an over-constraining test landing in the PR.
+
+3. **Cross-check against the M2 invariant docs:**
+   - **Status codes** — every error case in the script must match a spec error code (S2-F11 has 401 / 404; no 400, no 403, no 409). If the script asserts a code the spec doesn't mention → `CONTRADICTS`.
+   - **Cache keys + TTLs + invalidation patterns** — every Redis assertion must match a row in `docs/m2/cache-matrix.md`. Asserting `<service>::<entity>::{id}` invalidation on a non-PG-mutating endpoint is `WEAKEN`. Asserting a TTL the matrix doesn't list is `CONTRADICTS`.
+   - **Action vocabulary** — every Mongo `action` value must be in `docs/m2/event-actions.md` (UPPER_SNAKE_CASE). Lowercase actions, kebab-case, or made-up actions → `CONTRADICTS`.
+   - **Design pattern hard rules** — assertions about `RefundStrategy` outside payment-service, Spring stereotypes on `JwtConfigurationManager`, `new <Event>(...)` outside `EventFactory`, etc. — must reflect the actual spec rules. Asserting a pattern in a service the spec doesn't mention → `CONTRADICTS`.
+   - **Endpoint coexistence** — for distinct-path features (S2-F10 vs M1 `/search`, S3-F10 vs M1 `/analytics`, S5-F12 vs M1 `/refund`): the script must not assert the M1 endpoint is gone.
+
+4. **Watch for "implementation detail" assertions** — these are the most common over-constraints:
+   - The spec mandates X happens; your code also (defensively) does Y; your test asserts Y. Drop or downgrade to `WEAKEN`.
+   - Example from S2-F11 audit: `(c3) /index invalidates driver::{id}` — cache-matrix only mandates `S2-F10::*`. The implementation does invalidate `driver::{id}` defensively, but spec doesn't require it. **Verdict was `WEAKEN` → dropped.**
+
+5. **Display the audit table** to the user. For every `WEAKEN` / `CONTRADICTS` / `MOVE` row, propose the concrete edit (line numbers in the script, the diff). Apply edits via `Edit` once the user confirms.
+
+6. **Checkpoint:** AskUserQuestion — "audit complete: <N> KEEP / <M> WEAKENED-or-DROPPED / <K> FIXED. Run the script?" The user can call out anything that looks wrong before execution wastes time on over-constrained tests.
+
+## Stage 5c — Run the Script via Bash, Iterate Until 0 FAIL
+
+1. Run the script directly via the `Bash` tool: `./<service>/scripts/test-<feature-id>.sh`. **Do NOT delegate to the `feature-tester` agent for orchestrator runs** — that agent is `Read-only on the codebase` (no `Write` tool), so it cannot author or amend the script when iteration is required. Save `feature-tester` for *retro-coverage* (an already-merged feature, no script exists yet, no fix loop needed).
+
+2. The script's stdout becomes the test report — surface the `TOTALS:` line and any `FAIL` rows verbatim to the user.
+
+3. **Checkpoint:**
+   - If any case FAIL → diagnose. If the cause is a code bug → return to Stage 4. If the cause is a flaky assertion or a wrong expected value (re-check spec) → return to Stage 5b for a re-audit of the affected assertion, *not* a quiet edit-and-rerun. The audit is the single place where spec compliance lives.
+   - If all PASS → proceed to 5d.
+
+4. Repeat until exit code 0 / `0 FAIL`.
+
+## Stage 5d — Cache Audit (Skill Dispatch)
 
 Once functional tests pass, dispatch the `cache-audit` skill scoped to the affected endpoints. This catches caching-specific issues (TTL drift, missing invalidation paths, key-format violations) that case-by-case tests don't always surface.
 
 Display PASS/FAIL per check.
 
 **Checkpoint:** if anything fails → return to Stage 4.
+
+## Stage 5e — Commit the Test Script
+
+The script lands on the same feature branch as a single commit. This guarantees the PR ships a re-runnable artifact.
+
+1. Surface the staging command to the user:
+   ```
+   git add <service>/scripts/test-<feature-id>.sh
+   git commit -m "test(<service>): add <feature-id> end-to-end runner script (<studentID>)"
+   ```
+2. Note for the user: `test` is in the M2-allowed `<type>` set (per CLAUDE.md §"Branch & commit conventions") so the commit subject is grader-compliant.
+3. Wait for the user to commit (or run on explicit "go ahead and commit"). Do NOT skip this stage even if the user is in a hurry — the script being out-of-tree is a workflow regression.
 
 ## Stage 6 — PR Readiness
 

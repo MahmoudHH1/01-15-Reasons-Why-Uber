@@ -1,5 +1,4 @@
-package com.team01.uber.payment.config;
-
+package com.team01.uber.ride.config;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -7,8 +6,7 @@ import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.interceptor.CacheErrorHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.cache.interceptor.SimpleCacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -26,28 +24,9 @@ import java.util.Map;
 @Configuration
 public class RedisConfig implements CachingConfigurer {
 
-    private static final Logger log = LoggerFactory.getLogger(RedisConfig.class);
-
     @Override
     public CacheErrorHandler errorHandler() {
-        return new CacheErrorHandler() {
-            @Override
-            public void handleCacheGetError(RuntimeException e, org.springframework.cache.Cache cache, Object key) {
-                log.warn("Cache get failed for key {}: {}", key, e.getMessage());
-            }
-            @Override
-            public void handleCachePutError(RuntimeException e, org.springframework.cache.Cache cache, Object key, Object value) {
-                log.warn("Cache put failed for key {}: {}", key, e.getMessage());
-            }
-            @Override
-            public void handleCacheEvictError(RuntimeException e, org.springframework.cache.Cache cache, Object key) {
-                log.warn("Cache evict failed for key {}: {}", key, e.getMessage());
-            }
-            @Override
-            public void handleCacheClearError(RuntimeException e, org.springframework.cache.Cache cache) {
-                log.warn("Cache clear failed: {}", e.getMessage());
-            }
-        };
+        return new SimpleCacheErrorHandler();
     }
 
     @Bean
@@ -90,7 +69,7 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory,
-                                                        RedisSerializer<Object> redisJsonSerializer) {
+                                                       RedisSerializer<Object> redisJsonSerializer) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
@@ -100,7 +79,7 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory,
-                                           RedisSerializer<Object> redisJsonSerializer) {
+                                          RedisSerializer<Object> redisJsonSerializer) {
         RedisSerializationContext.SerializationPair<Object> jsonPair =
                 RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer);
 
@@ -110,17 +89,17 @@ public class RedisConfig implements CachingConfigurer {
                 .serializeValuesWith(jsonPair)
                 .disableCachingNullValues();
 
-        Map<String, RedisCacheConfiguration> cacheConfigs = new java.util.HashMap<>();
-        cacheConfigs.put("payment-service::S5-F1",          base.entryTtl(Duration.ofMinutes(5)));
-        cacheConfigs.put("payment-service::S5-F3",          base.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("payment-service::S5-F6",          base.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("payment-service::S5-F8",          base.entryTtl(Duration.ofMinutes(15)));
-        cacheConfigs.put("payment-service::S5-F9",          base.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("payment-service::S5-F10",         base.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("payment-service::S5-F11",         base.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("payment-service::payment",         base.entryTtl(Duration.ofMinutes(15)));
-        cacheConfigs.put("payment-service::coupon",          base.entryTtl(Duration.ofMinutes(15)));
-        cacheConfigs.put("payment-service::payment-coupon",  base.entryTtl(Duration.ofMinutes(15)));
+        Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
+                "ride-service::S3-F1",         base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::S3-F3",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F5",         base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::S3-F6",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F9",         base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F10",        base.entryTtl(Duration.ofMinutes(10)),
+                "ride-service::S3-F12",        base.entryTtl(Duration.ofMinutes(5)),
+                "ride-service::ride",         base.entryTtl(Duration.ofMinutes(15)),
+                "ride-service::rideStop",        base.entryTtl(Duration.ofMinutes(15))
+        );
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(Duration.ofMinutes(15)))
