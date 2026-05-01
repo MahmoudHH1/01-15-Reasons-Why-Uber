@@ -110,18 +110,17 @@ public class RedisConfig implements CachingConfigurer {
                 .serializeValuesWith(jsonPair)
                 .disableCachingNullValues();
 
-        Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
-                "payment-service::S5-F1",         base.entryTtl(Duration.ofMinutes(5)),
-                "payment-service::S5-F3",         base.entryTtl(Duration.ofMinutes(10)),
-                "payment-service::S5-F6",         base.entryTtl(Duration.ofMinutes(10)),
-                "payment-service::S5-F8",         base.entryTtl(Duration.ofMinutes(15)),
-                "payment-service::S5-F9",         base.entryTtl(Duration.ofMinutes(10)),
-                "payment-service::S5-F10",         base.entryTtl(Duration.ofMinutes(10)),
-                "payment-service::payment",        base.entryTtl(Duration.ofMinutes(15)),
-                "payment-service::coupon",         base.entryTtl(Duration.ofMinutes(15)),
-
-                "payment-service::payment-coupon", base.entryTtl(Duration.ofMinutes(15))
-        );
+        Map<String, RedisCacheConfiguration> cacheConfigs = new java.util.HashMap<>();
+        cacheConfigs.put("payment-service::S5-F1",          base.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigs.put("payment-service::S5-F3",          base.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("payment-service::S5-F6",          base.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("payment-service::S5-F8",          base.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigs.put("payment-service::S5-F9",          base.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("payment-service::S5-F10",         base.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("payment-service::S5-F11",         base.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("payment-service::payment",         base.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigs.put("payment-service::coupon",          base.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigs.put("payment-service::payment-coupon",  base.entryTtl(Duration.ofMinutes(15)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(Duration.ofMinutes(15)))

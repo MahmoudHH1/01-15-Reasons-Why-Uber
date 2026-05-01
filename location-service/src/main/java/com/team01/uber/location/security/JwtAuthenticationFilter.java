@@ -43,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         AuthHandler head = new TokenExtractionHandler();
         head.setNext(new SignatureValidationHandler(jwtService))
             .setNext(new UserLoaderHandler(jdbcTemplate))
-            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN"))); // Accepts RIDER or ADMIN for M2 defaults
+            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
         try {
             if (head.handle(ctx)) {

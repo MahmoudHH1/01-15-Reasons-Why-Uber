@@ -33,7 +33,6 @@ public class RedisConfig {
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeValuesWith(jsonPair);
 
-        // Per §8.1: search/activity-feed = 5 min, dashboards/analytics = 10 min, entity-detail = 15 min
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
 
         // M1 feature caches (S4: F1, F3, F5, F6, F8, F9)
@@ -69,12 +68,9 @@ public class RedisConfig {
 
     @Bean
     public RedisSerializer<Object> redisJsonSerializer() {
-        // ObjectMapper kept local — NOT a @Bean — so Spring Boot's JacksonAutoConfiguration
-        // still creates its own clean ObjectMapper for HTTP responses (no @class pollution).
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        // @class type info required so Redis can deserialize back to the correct Java type
         mapper.activateDefaultTyping(
             BasicPolymorphicTypeValidator.builder()
                 .allowIfBaseType(Object.class)
