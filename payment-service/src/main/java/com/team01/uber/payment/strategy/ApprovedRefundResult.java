@@ -45,7 +45,7 @@ public class ApprovedRefundResult extends RefundResult {
                         "refundSurgeIncluded", surgeIncluded
                 )
         ));
-        ctx.cache.invalidatePaymentCaches(saved.getId());
+        ctx.cache.invalidateAllPaymentFeatureCaches(saved.getId());
 
         return saved;
     }

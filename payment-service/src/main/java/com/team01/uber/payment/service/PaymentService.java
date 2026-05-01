@@ -14,6 +14,7 @@ import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundResult;
 import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +57,7 @@ public class PaymentService {
         }
     }
 
+    @Cacheable(value = "payment-service::S5-F9", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
         if (paymentRepository.countUsersById(userId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
@@ -85,7 +87,9 @@ public class PaymentService {
         if (payment.getStatus() == null) {
             payment.setStatus(PaymentStatus.PENDING);
         }
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
+        return saved;
     }
 
     @Transactional
@@ -115,6 +119,7 @@ public class PaymentService {
                 "details", Map.of("reason", reason)
         ));
 
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
         return saved;
     }
 
@@ -134,6 +139,7 @@ public class PaymentService {
         return result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
     }
 
+    @Cacheable(value = "payment-service::payment", key = "#id")
     public Payment getPaymentById(Long id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
@@ -151,7 +157,9 @@ public class PaymentService {
         existing.setMethod(payment.getMethod());
         existing.setStatus(payment.getStatus());
         existing.setTransactionDetails(payment.getTransactionDetails());
-        return paymentRepository.save(existing);
+        Payment saved = paymentRepository.save(existing);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        return saved;
     }
 
     public void deletePayment(Long id) {
@@ -159,6 +167,7 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");
         }
         paymentRepository.deleteById(id);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
     }
 
     @Transactional
@@ -224,6 +233,7 @@ public class PaymentService {
         payment.setTransactionDetails(details);
 
         Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
 
         notifyObservers("CREATED", Map.of(
                 "paymentId", saved.getId(),
@@ -281,9 +291,12 @@ public class PaymentService {
         details.put("retryAttempt", currentRetry + 1);
         details.put("gatewayResponse", "approved");
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        return saved;
     }
 
+    @Cacheable(value = "payment-service::S5-F8", key = "#paymentId")
     @Transactional(readOnly = true)
     public PaymentDetailsDTO getPaymentDetails(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
@@ -316,11 +329,13 @@ public class PaymentService {
         );
     }
 
+    @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
     public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
         String statusStr = status != null ? status.name() : null;
         return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
     }
 
+    @Cacheable(value = "payment-service::S5-F6", key = "#startDate + ':' + #endDate")
     public RevenueReportDTO getRevenueReport(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate.isAfter(endDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
