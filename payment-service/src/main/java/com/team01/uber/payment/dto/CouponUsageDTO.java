@@ -1,11 +1,14 @@
 package com.team01.uber.payment.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.team01.uber.payment.model.DiscountType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
+@JsonDeserialize(builder = CouponUsageDTO.Builder.class)
 public class CouponUsageDTO {
     private Long couponId;
     private String code;
@@ -18,6 +21,7 @@ public class CouponUsageDTO {
 
     public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long couponId;
         private String code;

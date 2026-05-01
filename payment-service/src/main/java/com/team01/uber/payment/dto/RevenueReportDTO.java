@@ -1,10 +1,14 @@
 package com.team01.uber.payment.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 
 @Getter
-@Setter
+@AllArgsConstructor
+
+@JsonDeserialize(builder = RevenueReportDTO.Builder.class)
 public class RevenueReportDTO {
 
     private Double totalRevenue;
@@ -15,6 +19,7 @@ public class RevenueReportDTO {
 
     public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Double totalRevenue;
         private Long totalTransactions;
@@ -29,14 +34,7 @@ public class RevenueReportDTO {
         public Builder refundCount(Long refundCount)             { this.refundCount = refundCount; return this; }
 
         public RevenueReportDTO build() {
-            // uses no-args constructor + setters — preserves Jackson deserialisability from Redis
-            RevenueReportDTO dto = new RevenueReportDTO();
-            dto.setTotalRevenue(totalRevenue);
-            dto.setTotalTransactions(totalTransactions);
-            dto.setAveragePayment(averagePayment);
-            dto.setRefundedAmount(refundedAmount);
-            dto.setRefundCount(refundCount);
-            return dto;
+            return new RevenueReportDTO(totalRevenue, totalTransactions, averagePayment, refundedAmount, refundCount);
         }
     }
 }

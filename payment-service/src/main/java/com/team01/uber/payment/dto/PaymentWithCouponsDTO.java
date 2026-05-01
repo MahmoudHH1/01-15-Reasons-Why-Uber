@@ -1,16 +1,19 @@
 package com.team01.uber.payment.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.team01.uber.payment.model.PaymentMethod;
 import com.team01.uber.payment.model.PaymentStatus;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Getter
-@Setter
+@AllArgsConstructor
+@JsonDeserialize(builder = PaymentWithCouponsDTO.Builder.class)
 public class PaymentWithCouponsDTO {
 
     private Long id;
@@ -25,6 +28,7 @@ public class PaymentWithCouponsDTO {
 
     public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long id;
         private Long rideId;
@@ -47,18 +51,8 @@ public class PaymentWithCouponsDTO {
         public Builder appliedCoupons(List<AppliedCouponDTO> appliedCoupons)      { this.appliedCoupons = appliedCoupons; return this; }
 
         public PaymentWithCouponsDTO build() {
-            // uses no-args constructor + setters — preserves Jackson deserialisability from Redis
-            PaymentWithCouponsDTO dto = new PaymentWithCouponsDTO();
-            dto.setId(id);
-            dto.setRideId(rideId);
-            dto.setUserId(userId);
-            dto.setAmount(amount);
-            dto.setMethod(method);
-            dto.setStatus(status);
-            dto.setTransactionDetails(transactionDetails);
-            dto.setCreatedAt(createdAt);
-            dto.setAppliedCoupons(appliedCoupons);
-            return dto;
+            return new PaymentWithCouponsDTO(id, rideId, userId, amount, method, status,
+                    transactionDetails, createdAt, appliedCoupons);
         }
     }
 }
