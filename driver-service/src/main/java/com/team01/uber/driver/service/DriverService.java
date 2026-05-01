@@ -8,6 +8,7 @@ import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
@@ -17,7 +18,6 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -169,16 +169,10 @@ public class DriverService {
                                                              String status,
                                                              Double minRating,
                                                              Double maxRating) {
-        @SuppressWarnings("rawtypes")
-        SearchHits<Map> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
+        SearchHits<DriverSearchDocument> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
         return hits.getSearchHits().stream()
-                .map(this::adaptHit)
+                .map(searchHitAdapter::adapt)
                 .toList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private DriverSearchResultDTO adaptHit(SearchHit<?> hit) {
-        return searchHitAdapter.adapt((SearchHit<Map<String, Object>>) hit);
     }
 
     public Driver updateDriver(Long id, Driver updated) {
