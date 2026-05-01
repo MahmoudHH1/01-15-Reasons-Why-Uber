@@ -1,7 +1,9 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.payment.adapter.MongoDocumentAdapter;
 import com.team01.uber.payment.dto.AppliedCouponDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
+import com.team01.uber.payment.dto.PaymentMethodDTO;
 import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.dto.RevenueReportDTO;
 import com.team01.uber.payment.dto.ProcessPaymentRequest;
@@ -15,7 +17,15 @@ import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundResult;
 import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import org.bson.Document;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.ConditionalOperators;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,16 +43,21 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final RefundStrategySelector strategySelector;
     private final CacheInvalidationService cacheInvalidationService;
+    private final MongoTemplate mongoTemplate;
+    private final MongoDocumentAdapter mongoDocumentAdapter;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public PaymentService(PaymentRepository paymentRepository,
                           RefundStrategySelector strategySelector,
-                          CacheInvalidationService cacheInvalidationService) {
+                          CacheInvalidationService cacheInvalidationService,
+                          MongoTemplate mongoTemplate,
+                          MongoDocumentAdapter mongoDocumentAdapter) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
-
+        this.mongoTemplate = mongoTemplate;
+        this.mongoDocumentAdapter = mongoDocumentAdapter;
     }
 
     public void register(EntityObserver observer) {
@@ -96,6 +111,11 @@ public class PaymentService {
         }
         Payment saved = paymentRepository.save(payment);
         cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) payload.put("method", saved.getMethod().name());
+        payload.put("amount", saved.getAmount());
+        notifyObservers("PAYMENT_CREATED", payload);
         return saved;
     }
 
@@ -166,6 +186,11 @@ public class PaymentService {
         existing.setTransactionDetails(payment.getTransactionDetails());
         Payment saved = paymentRepository.save(existing);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
+        updatePayload.put("amount", saved.getAmount());
+        notifyObservers("PAYMENT_UPDATED", updatePayload);
         return saved;
     }
 
@@ -175,6 +200,9 @@ public class PaymentService {
         }
         paymentRepository.deleteById(id);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+        Map<String, Object> deletePayload = new HashMap<>();
+        deletePayload.put("paymentId", id);
+        notifyObservers("PAYMENT_DELETED", deletePayload);
     }
 
     @Transactional
@@ -300,6 +328,12 @@ public class PaymentService {
 
         Payment saved = paymentRepository.save(payment);
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+        Map<String, Object> retryPayload = new HashMap<>();
+        retryPayload.put("paymentId", saved.getId());
+        if (saved.getMethod() != null) retryPayload.put("method", saved.getMethod().name());
+        retryPayload.put("amount", saved.getAmount());
+        retryPayload.put("retryAttempt", currentRetry + 1);
+        notifyObservers("RETRY_ATTEMPTED", retryPayload);
         return saved;
     }
 
@@ -398,5 +432,34 @@ public class PaymentService {
         notifyObservers("ANALYTICS_VIEWED", Map.of(
                 "details", Map.of("startDate", startDate.toString(), "endDate", endDate.toString())
         ));
+    }
+
+    @Cacheable(value = "payment-service::S5-F11", key = "#start.toString() + '-' + #end.toString()")
+    public List<PaymentMethodDTO> getPaymentMethodBreakdown(LocalDateTime start, LocalDateTime end) {
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be before endDate");
+        }
+
+        MatchOperation match = Aggregation.match(
+                Criteria.where("timestamp").gte(start).lte(end)
+                        .and("action").in("COMPLETED", "FAILED")
+        );
+
+        GroupOperation group = Aggregation.group("method")
+                .sum(ConditionalOperators.when(Criteria.where("action").is("COMPLETED")).then(1).otherwise(0))
+                .as("successCount")
+                .sum(ConditionalOperators.when(Criteria.where("action").is("FAILED")).then(1).otherwise(0))
+                .as("failureCount")
+                .sum(ConditionalOperators.when(Criteria.where("action").is("COMPLETED"))
+                        .thenValueOf("amount").otherwise(0))
+                .as("totalAmount");
+
+        Aggregation aggregation = Aggregation.newAggregation(match, group);
+        AggregationResults<Document> results = mongoTemplate.aggregate(
+                aggregation, "payment_audit_trail", Document.class);
+
+        return results.getMappedResults().stream()
+                .map(mongoDocumentAdapter::adapt)
+                .toList();
     }
 }
