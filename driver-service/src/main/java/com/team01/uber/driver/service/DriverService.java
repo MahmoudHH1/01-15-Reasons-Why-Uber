@@ -8,6 +8,7 @@ import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
@@ -17,7 +18,6 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -132,12 +132,12 @@ public class DriverService {
     @Cacheable(value = "driver-service::S2-F6", key = "#limit")
     public List<TopDriverDTO> getTopRatedDrivers(int limit) {
         return driverRepository.findTopRatedDrivers(limit).stream()
-                .map(row -> new TopDriverDTO(
-                        ((Number) row[0]).longValue(),
-                        (String) row[1],
-                        ((Number) row[2]).doubleValue(),
-                        ((Number) row[3]).longValue()
-                ))
+                .map(row -> TopDriverDTO.builder()
+                        .driverId(((Number) row[0]).longValue())
+                        .name((String) row[1])
+                        .rating(((Number) row[2]).doubleValue())
+                        .totalRides(((Number) row[3]).longValue())
+                        .build())
                 .toList();
     }
     @Cacheable(value = "driver-service::S2-F5", key = "#type + ':' + (#status == null ? 'ANY' : #status.name())")
@@ -169,16 +169,10 @@ public class DriverService {
                                                              String status,
                                                              Double minRating,
                                                              Double maxRating) {
-        @SuppressWarnings("rawtypes")
-        SearchHits<Map> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
+        SearchHits<DriverSearchDocument> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
         return hits.getSearchHits().stream()
-                .map(this::adaptHit)
+                .map(searchHitAdapter::adapt)
                 .toList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private DriverSearchResultDTO adaptHit(SearchHit<?> hit) {
-        return searchHitAdapter.adapt((SearchHit<Map<String, Object>>) hit);
     }
 
     public Driver updateDriver(Long id, Driver updated) {
@@ -305,7 +299,13 @@ public class DriverService {
         Long totalRides = ((Number) row[0]).longValue();
         Double totalEarnings = ((Number) row[1]).doubleValue();
         Double averageFare = ((Number) row[2]).doubleValue();
-        return new DriverEarningsDTO(driver.getId(), driver.getName(), totalRides, totalEarnings, averageFare);
+        return DriverEarningsDTO.builder()
+                .driverId(driver.getId())
+                .name(driver.getName())
+                .totalRides(totalRides)
+                .totalEarnings(totalEarnings)
+                .averageFare(averageFare)
+                .build();
     }
 
     public DriverDashboardDTO getDriverDashboard(Long id) {
