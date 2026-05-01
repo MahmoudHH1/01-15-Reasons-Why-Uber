@@ -8,6 +8,7 @@ import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
 import com.team01.uber.driver.model.Driver;
+import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
@@ -169,16 +170,10 @@ public class DriverService {
                                                              String status,
                                                              Double minRating,
                                                              Double maxRating) {
-        @SuppressWarnings("rawtypes")
-        SearchHits<Map> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
+        SearchHits<DriverSearchDocument> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
         return hits.getSearchHits().stream()
-                .map(this::adaptHit)
+                .map(searchHitAdapter::adapt)
                 .toList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private DriverSearchResultDTO adaptHit(SearchHit<?> hit) {
-        return searchHitAdapter.adapt((SearchHit<Map<String, Object>>) hit);
     }
 
     public Driver updateDriver(Long id, Driver updated) {
