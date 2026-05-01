@@ -29,7 +29,7 @@ spring:
       password: redispass
 
 server:
-  port: 8081
+  port: 8080
 
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
