@@ -170,11 +170,16 @@ public class DriverDocumentService {
                 .collect(Collectors.groupingBy(DriverDocument::getDriver));
 
         return byDriver.entrySet().stream()
-                .map(e -> new DriverDocumentAlertDTO(
-                        e.getKey().getId(),
-                        e.getKey().getName(),
-                        e.getKey().getStatus(),
-                        e.getValue()))
+                .map(e -> {
+                    List<DriverDocument> docs = e.getValue();
+                    return DriverDocumentAlertDTO.builder()
+                            .driverId(e.getKey().getId())
+                            .driverName(e.getKey().getName())
+                            .driverStatus(e.getKey().getStatus())
+                            .expiredDocuments(docs)
+                            .expiredCount(docs.size())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 }
