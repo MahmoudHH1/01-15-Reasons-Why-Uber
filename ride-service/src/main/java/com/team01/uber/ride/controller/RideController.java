@@ -3,7 +3,10 @@ package com.team01.uber.ride.controller;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
+import com.team01.uber.ride.security.AuthContext;
+import com.team01.uber.ride.service.RecommendationService;
 import com.team01.uber.ride.service.RideService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +20,11 @@ import java.util.List;
 public class RideController {
 
     private final RideService rideService;
+    private final RecommendationService recommendationService;
 
-    public RideController(RideService rideService) {
+    public RideController(RideService rideService, RecommendationService recommendationService) {
         this.rideService = rideService;
+        this.recommendationService = recommendationService;
     }
 
     @GetMapping("/health")
@@ -109,5 +114,16 @@ public class RideController {
         RideAnalyticsDashboardDTO dashboard = rideService.getRideAnalyticsDashboard(startDate, endDate);
         rideService.logDashboardViewed(startDate, endDate);
         return ResponseEntity.ok(dashboard);
+    }
+
+    @GetMapping("/recommendations")
+    public ResponseEntity<List<DriverRecommendationDTO>> getRecommendations(
+            @RequestParam Long userId,
+            @RequestParam(required = false) Integer limit,
+            HttpServletRequest request) {
+        AuthContext ctx = (AuthContext) request.getAttribute("authContext");
+        List<DriverRecommendationDTO> recommendations = recommendationService.getRecommendations(
+                userId, ctx.getUserId(), ctx.getRole(), limit);
+        return ResponseEntity.ok(recommendations);
     }
 }
