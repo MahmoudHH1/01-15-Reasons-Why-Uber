@@ -35,3 +35,23 @@ This single root cause produces failures #3 / #4 / #5 / #6 / #7 in the test repo
 **Expected per spec:** The entity-detail key must be `<service>::<entity>::<id>` — driver-document's `<id>` is the document's own primary key, not a composite.
 
 **Likely location:** `driver-service/src/main/java/com/team01/uber/driver/service/DriverDocumentService.java:86` — change the `@Cacheable` `key` SpEL from `"#driverId + ':' + #docId"` to `"#docId"`. The matching `cacheInvalidator.deleteKey(...)` calls at lines 100, 111, 155 must also drop the `<driverId>:` prefix.
+
+## §4.4.4 — DASHBOARD_VIEWED action wrongly triggers wildcard cache invalidation
+**Test:** `tests/20-driver-service.sh:336-338` — `fail "DASHBOARD_VIEWED does NOT invalidate driver entity cache (§4.4.4 obs-only)"`
+**Spec quote:**
+> §4.4.4 — "**Pure observability actions do NOT invalidate caches** — specifically ANALYTICS_VIEWED and DASHBOARD_VIEWED. These actions are written by the four dashboard endpoints (S2-F12, S3-F10, S4-F10, S5-F10) on every invocation (including cache hits; see §10) **purely for audit-trail / usage-telemetry purposes**. They do not change what the analytics queries return. Triggering wildcard invalidation on them would create a self-defeating cycle: every cached dashboard call would log an observability event, which would wildcard-invalidate its own key, guaranteeing that the next call is always a miss and the cache never serves a hit. **Exclude both ANALYTICS_VIEWED and DASHBOARD_VIEWED from the invalidation trigger in the Observer (match on the action field before invalidating).**"
+> (Uber_descriptionM2.pdf §4.4.4, p. 18)
+
+**Observed:** After two consecutive `GET /api/drivers/{id}/dashboard` calls (which each emit DASHBOARD_VIEWED to driver_events), the entity-detail cache key `driver-service::driver::{id}` (populated earlier by the test) is gone. The Observer/`CacheInvalidationService` is invalidating on every event regardless of action — including the pure-observability actions the spec explicitly excludes.
+
+**Expected per spec:** DASHBOARD_VIEWED (and ANALYTICS_VIEWED) writes to MongoDB must NOT trigger any Redis wildcard delete. Only data-mutating actions (DRIVER_CREATED / UPDATED / DELETED, INDEXED, AVAILABILITY_UPDATED, RATING_RECORDED, DOCUMENT_VERIFIED, etc.) should invalidate the corresponding `driver-service::driver::{id}` key.
+
+**Likely location:** `driver-service/src/main/java/com/team01/uber/driver/observer/MongoEventLogger.java` (or wherever the cache-invalidation hook is wired into the Observer chain). Add an early-return:
+```java
+if (action.equals("DASHBOARD_VIEWED") || action.equals("ANALYTICS_VIEWED")) {
+    // Pure-observability action — write the audit doc but DO NOT invalidate caches (§4.4.4)
+    repository.save(event);
+    return;
+}
+```
+or equivalently match on the action string before reaching `cacheInvalidator.invalidate(...)`. Without this gate, S2-F12 cannot serve a single cache hit — every dashboard call wipes its own cache.

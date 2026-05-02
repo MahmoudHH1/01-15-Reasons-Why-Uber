@@ -10,11 +10,13 @@
 **Likely location:** `location-service/src/main/java/com/team01/uber/location/security/JwtAuthenticationFilter.java` lines 48-64 (the `try { head.handle(ctx) … } catch (Exception e) { 500 + "Authentication processing error" }` block).
 
 ### Cascading failures from the same root cause
-The following four assertions in `tests/40-location-service.sh` also fail with HTTP 500 / `Authentication processing error` because the request never reaches the service layer:
+The following six assertions in `tests/40-location-service.sh` also fail with HTTP 500 / `Authentication processing error` because the request never reaches the service layer:
 
 - Line 86 — `S4-F11 emits TRACKING_RECORDED` (Mongo audit never written because the POST was 500'd).
 - Line 105 — `S4-F11 partial body (no heading/accuracy/rideId) → 201`.
 - Line 138 — `S4-F12 with time range` (assert 200/204 — got 500).
+- Line 156 — `§10.4.3.b narrow filter precondition (≥1 seeded event)` — was previously a SKIP; converted to a strict FAIL because the timeline is empty (the seeding POSTs were 500'd by the auth filter, so there's nothing to filter).
+- Line 173 — `S4-F12 sorts newest-first (§10.4.3.c)` — was previously a SKIP; same root cause (no seeded events → no two timestamps to compare).
 - Line 259 — `S4-F10 ANALYTICS_VIEWED on every call (+$diff)` — `last status=500` on the GETs at lines 254-255 means the dashboard handler never ran and the Observer never logged ANALYTICS_VIEWED.
 
-All four resolve once the underlying auth filter is fixed; they are not separate bugs.
+All six resolve once the underlying auth filter is fixed; they are not separate bugs.

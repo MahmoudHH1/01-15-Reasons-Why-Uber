@@ -85,3 +85,18 @@ The four sibling services (`user-service`, `driver-service`, `location-service`,
 5. 5-minute Redis cache under `ride-service::S3-F12::*`.
 
 **Likely location:** `ride-service/src/main/java/com/team01/uber/ride/controller/RideController.java` (add `@GetMapping("/recommendations")` with `@RequestParam Long userId, @RequestParam(defaultValue = "5") int limit`), a new `RecommendationService`, and a Neo4j repository method (`@Query("MATCH ...")`) using the existing `RodeWithRelationship` edge. No `feat/ride/S3-F12/...` branch exists yet on the remote.
+
+---
+
+## §4.4.2 — `GET /api/rides/{rideId}/stops/{stopId}` not cached
+**Test:** `tests/30-ride-service.sh:438-442` — `fail "GET-by-id caches ride-service::rideStop::$SID"`
+**Spec quote:**
+> §4.4.2 CRUD Baseline Endpoints That Must Be Cached — "Uber entities (10): user, saved-address, driver, driver-document, ride, **ride-stop**, location, payment, coupon, payment-coupon. **10 GET-by-ID endpoints must be cached.**"
+> (Uber_descriptionM2.pdf §4.4.2, p. 16)
+> §8.1 — Entity detail views: 15 minutes.
+
+**Observed:** After `POST /api/rides/{rideId}/stops` followed by `GET /api/rides/{rideId}/stops/{stopId}`, the Redis key `ride-service::rideStop::{stopId}` does not exist. The list and CRUD GET endpoints respond with 200 (so the route works), but `@Cacheable` is missing on the `getRideStopById` service method. The companion entity-detail key for `ride-service::ride::{rideId}` IS populated correctly — only ride-stop is missing.
+
+**Expected per spec:** `GET /api/rides/{rideId}/stops/{stopId}` must populate `ride-service::rideStop::{stopId}` with TTL 15 min. PUT/DELETE on the same `{stopId}` must clear it (the test confirms PUT-invalidation works once the cache is populated, so the wildcard delete plumbing is already wired — only the `@Cacheable` write side is missing).
+
+**Likely location:** `ride-service/src/main/java/com/team01/uber/ride/service/RideStopService.java` — annotate the `getRideStopById(Long rideId, Long stopId)` method with `@Cacheable(value = "ride-service::rideStop", key = "#stopId")` (note: key on `stopId` only, not the composite `rideId:stopId` — see the matching driver-document fix above for the same shape rule). After this single annotation, the existing wildcard-invalidation in `RideStopService` updateRideStop / deleteRideStop will work end-to-end.

@@ -408,7 +408,7 @@ assert_status_in "M1 S3-F7 PUT /api/rides/{id}/cancel" 200 204 400 404
 RSTOP="$(create_ride REQUESTED 1 1 0)"
 
 http_auth POST "$BASE/api/rides/$RSTOP/stops" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
-[{"latitude":30.05,"longitude":31.05,"sequence":1,"address":"Stop 1"}]
+[{"latitude":30.05,"longitude":31.05,"stopOrder":1,"address":"Stop 1","status":"PENDING"}]
 EOF
 )"
 assert_status_in "M1 S3-F8 POST /api/rides/{rideId}/stops" 200 201
@@ -426,7 +426,7 @@ if [ -n "$SID" ]; then
     || fail "GET-by-id caches ride-service::rideStop::$SID"
 
   http_auth PUT "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
-{"latitude":30.06,"longitude":31.06,"sequence":1,"address":"Stop 1 Updated"}
+{"latitude":30.06,"longitude":31.06,"stopOrder":1,"address":"Stop 1 Updated","status":"PENDING"}
 EOF
 )"
   assert_status_in "CRUD PUT /api/rides/{rideId}/stops/{stopId}" 200 204
