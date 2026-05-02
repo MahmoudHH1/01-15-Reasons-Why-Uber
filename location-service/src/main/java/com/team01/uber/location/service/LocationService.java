@@ -372,6 +372,19 @@ public class LocationService {
         }
     }
 
+    public void logAnalyticsViewed(String startDate, String endDate) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", 0L); // Global analytics
+            payload.put("startDate", startDate);
+            payload.put("endDate", endDate);
+            notifyObservers("ANALYTICS_VIEWED", payload);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(LocationService.class)
+                    .warn("Soft-dependency: Failed to emit ANALYTICS_VIEWED: {}", e.getMessage());
+        }
+    }
+
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
     public LocationAnalyticsDTO getAnalytics(String startDate, String endDate) {
         LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
