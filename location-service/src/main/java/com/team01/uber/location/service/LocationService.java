@@ -35,6 +35,7 @@ import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationRepository;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 
 @Service
@@ -44,15 +45,27 @@ public class LocationService {
     private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate redisTemplate;
     private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
+    private final List<EntityObserver> initialObservers;
     private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
                            LocationTrackingEventRepository trackingRepository,
-                           RedisTemplate redisTemplate) {
+                           RedisTemplate redisTemplate,
+                           List<EntityObserver> observers) {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
+        this.initialObservers = observers;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (initialObservers != null) {
+            for (EntityObserver observer : initialObservers) {
+                register(observer);
+            }
+        }
     }
 
     public void register(EntityObserver observer) {
@@ -440,6 +453,12 @@ public class LocationService {
         payload.put("driverId", driverId);
         payload.put("latitude", request.getLatitude());
         payload.put("longitude", request.getLongitude());
+        payload.put("speed", request.getSpeed());
+        payload.put("heading", request.getHeading());
+        payload.put("accuracy", request.getAccuracy());
+        payload.put("rideId", request.getRideId());
+        payload.put("notes", request.getNotes());
+        payload.put("timestamp", now);
         notifyObservers("TRACKING_RECORDED", payload);
 
         return locationAdapter.adaptToLocationTrackingDTO(event);
