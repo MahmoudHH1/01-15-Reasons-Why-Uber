@@ -116,7 +116,7 @@ public class RideStopService {
         return rideStopRepository.findByRideId(rideId);
     }
 
-    @Cacheable(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId")
+    @Cacheable(value = "ride-service::ride-stop", key = "#stopId")
     public RideStop getStopById(Long rideId, Long stopId) {
         return rideStopRepository.findByIdAndRideId(stopId, rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride stop not found"));
@@ -124,7 +124,7 @@ public class RideStopService {
 
     @Caching(evict = {
             @CacheEvict(value = "ride-service::ride", key = "#rideId"),
-            @CacheEvict(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId"),
+            @CacheEvict(value = "ride-service::ride-stop", key = "#stopId"),
             @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
             @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
     })
@@ -149,7 +149,7 @@ public class RideStopService {
 
     @Caching(evict = {
             @CacheEvict(value = "ride-service::ride", key = "#rideId"),
-            @CacheEvict(value = "ride-service::rideStop", key = "#rideId + '-' + #stopId"),
+            @CacheEvict(value = "ride-service::ride-stop", key = "#stopId"),
             @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
             @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
     })

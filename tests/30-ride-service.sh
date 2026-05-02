@@ -421,18 +421,18 @@ if [ -n "$SID" ]; then
   http_auth GET "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN"
   assert_status 200 "CRUD GET /api/rides/{rideId}/stops/{stopId}"
   http_auth GET "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN" >/dev/null
-  [ "$(redis_count_keys "ride-service::rideStop::$SID")" -ge 1 ] \
-    && pass "GET-by-id caches ride-service::rideStop::$SID" \
-    || fail "GET-by-id caches ride-service::rideStop::$SID"
+  [ "$(redis_count_keys "ride-service::ride-stop::$SID")" -ge 1 ] \
+    && pass "GET-by-id caches ride-service::ride-stop::$SID" \
+    || fail "GET-by-id caches ride-service::ride-stop::$SID"
 
   http_auth PUT "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN" -H "Content-Type: application/json" -d "$(cat <<EOF
 {"latitude":30.06,"longitude":31.06,"stopOrder":1,"address":"Stop 1 Updated","status":"PENDING"}
 EOF
 )"
   assert_status_in "CRUD PUT /api/rides/{rideId}/stops/{stopId}" 200 204
-  [ "$(redis_count_keys "ride-service::rideStop::$SID")" = "0" ] \
-    && pass "PUT invalidates ride-service::rideStop::$SID" \
-    || fail "PUT invalidates ride-service::rideStop::$SID"
+  [ "$(redis_count_keys "ride-service::ride-stop::$SID")" = "0" ] \
+    && pass "PUT invalidates ride-service::ride-stop::$SID" \
+    || fail "PUT invalidates ride-service::ride-stop::$SID"
 
   http_auth DELETE "$BASE/api/rides/$RSTOP/stops/$SID" "$TOKEN"
   assert_status_in "CRUD DELETE /api/rides/{rideId}/stops/{stopId}" 200 204
