@@ -337,9 +337,13 @@ public class LocationService {
 
         List<LocationTrackingEvent> events;
         if (startTime != null && endTime != null) {
-            Instant start = Instant.parse(startTime);
-            Instant end = Instant.parse(endTime);
-            events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+            try {
+                Instant start = parseToInstant(startTime, true);
+                Instant end = parseToInstant(endTime, false);
+                events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format: " + e.getMessage());
+            }
         } else {
             events = trackingRepository.findByDriverId(driverId);
         }
@@ -347,6 +351,22 @@ public class LocationService {
         return events.stream()
                 .map(locationAdapter::adaptToLocationTrackingDTO)
                 .toList();
+    }
+
+    private Instant parseToInstant(String dateStr, boolean startOfDay) {
+        try {
+            if (dateStr.contains("T")) {
+                if (dateStr.endsWith("Z")) {
+                    return Instant.parse(dateStr);
+                }
+                return LocalDateTime.parse(dateStr).toInstant(java.time.ZoneOffset.UTC);
+            }
+            LocalDate date = LocalDate.parse(dateStr);
+            LocalDateTime dateTime = startOfDay ? date.atStartOfDay() : date.atTime(LocalTime.MAX);
+            return dateTime.toInstant(java.time.ZoneOffset.UTC);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Unsupported date format: " + dateStr);
+        }
     }
 
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
