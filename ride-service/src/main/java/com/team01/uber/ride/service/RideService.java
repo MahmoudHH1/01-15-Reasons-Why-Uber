@@ -3,11 +3,16 @@ package com.team01.uber.ride.service;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
+import com.team01.uber.ride.model.DriverNode;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
+import com.team01.uber.ride.model.RodeWithRelationship;
+import com.team01.uber.ride.model.UserNode;
 import com.team01.uber.ride.observer.RideEventPublisher;
+import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
+import com.team01.uber.ride.repository.UserNodeRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
@@ -20,11 +25,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,12 +41,19 @@ public class RideService {
 
     private final RideRepository rideRepository;
     private final RideStopRepository rideStopRepository;
+    private final UserNodeRepository userNodeRepository;
+    private final DriverNodeRepository driverNodeRepository;
     private final RideEventPublisher rideEventPublisher;
 
-    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository,
+    public RideService(RideRepository rideRepository,
+                       RideStopRepository rideStopRepository,
+                       UserNodeRepository userNodeRepository,
+                       DriverNodeRepository driverNodeRepository,
                        RideEventPublisher rideEventPublisher) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
+        this.userNodeRepository = userNodeRepository;
+        this.driverNodeRepository = driverNodeRepository;
         this.rideEventPublisher = rideEventPublisher;
     }
 
@@ -228,7 +242,7 @@ public class RideService {
     @Cacheable(value = "ride-service::S3-F3", key="#request.pickupLatitude + '-' + #request.pickupLongitude + '-' + #request.dropoffLatitude + '-' + #request.dropoffLongitude")
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
         if (request.pickupLatitude() == null || request.pickupLongitude() == null ||
-            request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
+                request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All coordinate fields are required");
         }
 
@@ -463,7 +477,7 @@ public class RideService {
 
     private void validateRequiredUpdateKeys(Ride updated) {
         if (updated.getPickupLatitude() == null || updated.getPickupLongitude() == null ||
-            updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
+                updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location fields (pickup and dropoff latitude/longitude) cannot be null");
         }
 
@@ -472,6 +486,97 @@ public class RideService {
         }
     }
 
+    // S3-F11: Record User-Driver Riding Pattern
+    @CacheEvict(value = "ride-service::S3-F12", allEntries = true)
+    public String recordInteraction(Long rideId) {
+        // Find ride in PostgreSQL — 404 if not found
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        // Verify ride is COMPLETED — 400 otherwise
+        if (ride.getStatus() != RideStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only COMPLETED rides can have interactions recorded. Current status: " + ride.getStatus());
+        }
+
+        Long userId = ride.getUserId();
+        Long driverId = ride.getDriverId();
+
+        if (driverId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride has no assigned driver");
+        }
+
+        // Idempotency check: look for this rideId in existing Neo4j RODE_WITH edges
+        Optional<UserNode> userNodeOpt = userNodeRepository.findById(userId);
+        if (userNodeOpt.isPresent()) {
+            List<RodeWithRelationship> rels = userNodeOpt.get().getRodeWithRelationships();
+            if (rels != null) {
+                for (RodeWithRelationship rel : rels) {
+                    if (rel.getDriver() != null
+                            && rel.getDriver().getDriverId().equals(driverId)
+                            && rel.getRecordedRideIds() != null
+                            && rel.getRecordedRideIds().contains(rideId)) {
+                        // Already recorded — idempotent short-circuit, no observer event
+                        return "Interaction already recorded (idempotent)";
+                    }
+                }
+            }
+        }
+
+        // Cross-service SQL lookups for user/driver names (shared PG, no HTTP calls)
+        String userName = rideRepository.findUserNameById(userId);
+        String driverName = rideRepository.findDriverNameById(driverId);
+        String vehicleType = rideRepository.findDriverVehicleTypeById(driverId);
+
+        // Find or create UserNode and DriverNode in Neo4j
+        UserNode userNode = userNodeRepository.findById(userId)
+                .orElse(new UserNode(userId, userName != null ? userName : "Unknown", new ArrayList<>()));
+
+        DriverNode driverNode = driverNodeRepository.findById(driverId)
+                .orElseGet(() -> {
+                    DriverNode dn = new DriverNode(driverId,
+                            driverName != null ? driverName : "Unknown",
+                            vehicleType != null ? vehicleType : "");
+                    return driverNodeRepository.save(dn);
+                });
+
+        // Find or create the RODE_WITH relationship, incrementing rideCount
+        List<RodeWithRelationship> relationships = userNode.getRodeWithRelationships();
+        if (relationships == null) {
+            relationships = new ArrayList<>();
+            userNode.setRodeWithRelationships(relationships);
+        }
+
+        RodeWithRelationship existingRel = relationships.stream()
+                .filter(r -> r.getDriver() != null && r.getDriver().getDriverId().equals(driverId))
+                .findFirst()
+                .orElse(null);
+
+        if (existingRel != null) {
+            existingRel.setRideCount(existingRel.getRideCount() + 1);
+            existingRel.setLastRideDate(LocalDateTime.now());
+            if (existingRel.getRecordedRideIds() == null) {
+                existingRel.setRecordedRideIds(new ArrayList<>());
+            }
+            existingRel.getRecordedRideIds().add(rideId);
+        } else {
+            List<Long> recordedIds = new ArrayList<>();
+            recordedIds.add(rideId);
+            relationships.add(new RodeWithRelationship(null, driverNode, 1, LocalDateTime.now(), recordedIds));
+        }
+
+        userNodeRepository.save(userNode);
+
+        // Log INTERACTION_RECORDED event via Observer (non-idempotent path only)
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", rideId);
+        payload.put("userId", userId);
+        payload.put("driverId", driverId);
+        rideEventPublisher.notifyObservers("INTERACTION_RECORDED", payload);
+
+        return "Interaction recorded successfully";
+    }
+    
     private Map<String, Object> buildRidePayload(Ride ride) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("rideId", ride.getId());

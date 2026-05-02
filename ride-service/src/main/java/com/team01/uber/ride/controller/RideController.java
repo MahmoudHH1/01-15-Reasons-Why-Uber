@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rides")
@@ -102,6 +103,12 @@ public class RideController {
         return rideService.assignDriver(id, driverId);
     }
 
+    @PostMapping("/{rideId}/record-interaction")
+    public ResponseEntity<Map<String, String>> recordInteraction(@PathVariable Long rideId) {
+        String message = rideService.recordInteraction(rideId);
+        return ResponseEntity.ok(Map.of("message", message));
+    }
+  
     @GetMapping("/analytics/dashboard")
     public ResponseEntity<RideAnalyticsDashboardDTO> getAnalyticsDashboard(
             @RequestParam LocalDate startDate,
