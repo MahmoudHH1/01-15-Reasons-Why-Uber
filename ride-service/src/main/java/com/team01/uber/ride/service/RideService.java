@@ -452,7 +452,7 @@ public class RideService {
         double averageRideFare = completedRides > 0 ? totalRevenue / completedRides : 0.0;
 
         double completionRate = totalRides > 0
-                ? ((double) completedRides / totalRides) * 100.0
+                ? ((double) completedRides / totalRides)
                 : 0.0;
 
         Map<RideStatus, Long> ridesByStatus = rides.stream()
