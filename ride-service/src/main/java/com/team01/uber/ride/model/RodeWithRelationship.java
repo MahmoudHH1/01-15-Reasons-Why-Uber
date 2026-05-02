@@ -9,6 +9,8 @@ import org.springframework.data.neo4j.core.schema.RelationshipProperties;
 import org.springframework.data.neo4j.core.schema.TargetNode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @RelationshipProperties
 @Data
@@ -26,4 +28,7 @@ public class RodeWithRelationship {
     private Integer rideCount;
 
     private LocalDateTime lastRideDate;
+
+    // Idempotency: tracks which rideIds have already been recorded for this edge
+    private List<Long> recordedRideIds = new ArrayList<>();
 }

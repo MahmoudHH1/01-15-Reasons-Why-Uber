@@ -77,6 +77,17 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
                        @Param("amount") Double amount,
                        @Param("createdAt") LocalDateTime createdAt);
 
+    // S3-F11: cross-service lookup for user name
+    @Query(value = "SELECT name FROM users WHERE id = :userId", nativeQuery = true)
+    String findUserNameById(@Param("userId") Long userId);
+
+    // S3-F11: cross-service lookup for driver name and vehicleType
+    @Query(value = "SELECT name FROM drivers WHERE id = :driverId", nativeQuery = true)
+    String findDriverNameById(@Param("driverId") Long driverId);
+
+    @Query(value = "SELECT vehicle_details->>'vehicleType' FROM drivers WHERE id = :driverId", nativeQuery = true)
+    String findDriverVehicleTypeById(@Param("driverId") Long driverId);
+  
     @Query(value = "SELECT COALESCE(SUM(p.amount), 0) FROM payments p " +
             "JOIN rides r ON p.ride_id = r.id " +
             "WHERE r.status = 'COMPLETED' AND p.status = 'COMPLETED' " +

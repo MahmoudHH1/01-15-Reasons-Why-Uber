@@ -1,36 +1,21 @@
 package com.team01.uber.driver.adapter;
 
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
+import com.team01.uber.driver.model.DriverSearchDocument;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 @Component
 public class ElasticsearchHitAdapter {
-
-    public DriverSearchResultDTO adapt(SearchHit<Map<String, Object>> hit) {
-        Map<String, Object> source = hit.getContent();
-
+    public DriverSearchResultDTO adapt(SearchHit<DriverSearchDocument> hit) {
+        DriverSearchDocument source = hit.getContent();
         return DriverSearchResultDTO.builder()
-                .id(toLong(source.get("id")))
-                .name((String) source.get("name"))
-                .vehicleType((String) source.get("vehicleType"))
-                .description((String) source.get("description"))
-                .rating(toDouble(source.get("rating")))
-                .status((String) source.get("status"))
+                .id(source.getId())
+                .name(source.getName())
+                .vehicleType(source.getVehicleType())
+                .description(source.getDescription())
+                .rating(source.getRating())
+                .status(source.getStatus())
                 .build();
-    }
-
-    private static Long toLong(Object v) {
-        if (v == null) return null;
-        if (v instanceof Number n) return n.longValue();
-        return Long.parseLong(v.toString());
-    }
-
-    private static Double toDouble(Object v) {
-        if (v == null) return null;
-        if (v instanceof Number n) return n.doubleValue();
-        return Double.parseDouble(v.toString());
     }
 }
