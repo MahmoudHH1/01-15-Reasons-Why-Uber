@@ -31,8 +31,7 @@ public class MongoEventLogger implements EntityObserver {
             MongoEvent event = eventFactory.createEvent(EventType.LOCATION,
                     Map.of("driverId", params.get("driverId"),
                            "action", action,
-                           "latitude", params.getOrDefault("latitude", null),
-                           "longitude", params.getOrDefault("longitude", null)));
+                           "details", params));
 
             if (event instanceof LocationEvent le) {
                 locationEventRepository.save(le);
