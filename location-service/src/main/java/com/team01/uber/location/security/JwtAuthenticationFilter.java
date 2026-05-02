@@ -43,8 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         AuthHandler head = new TokenExtractionHandler();
         head.setNext(new SignatureValidationHandler(jwtService))
             .setNext(new UserLoaderHandler(jdbcTemplate))
-            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN"))); // Accepts RIDER or ADMIN for M2 defaults
+            .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
+        boolean authenticated = false;
         try {
             if (head.handle(ctx)) {
                 var auth = new UsernamePasswordAuthenticationToken(
@@ -54,12 +55,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-
-                filterChain.doFilter(request, response);
+                authenticated = true;
             }
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.getWriter().write("Authentication processing error");
+            return;
+        }
+
+        if (authenticated) {
+            filterChain.doFilter(request, response);
         }
     }
 }

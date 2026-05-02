@@ -1,12 +1,14 @@
 package com.team01.uber.driver.controller;
 
+import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
-import com.team01.uber.driver.model.Driver;
-import com.team01.uber.driver.service.DriverDocumentService;
+import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.RateDriverRequest;
 import com.team01.uber.driver.dto.TopDriverDTO;
-import com.team01.uber.driver.dto.DriverEarningsDTO;
+import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverStatus;
+import com.team01.uber.driver.service.DriverDocumentService;
 import com.team01.uber.driver.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -65,6 +67,16 @@ public class DriverController {
         return driverService.searchDrivers(status, minRating, maxRating);
     }
 
+    @GetMapping("/search/full-text")
+    public List<DriverSearchResultDTO> searchDriversFullText(
+            @RequestParam String query,
+            @RequestParam(required = false) String vehicleType,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Double minRating,
+            @RequestParam(required = false) Double maxRating) {
+        return driverService.searchDriversFullText(query, vehicleType, status, minRating, maxRating);
+    }
+
     @PutMapping("/{id}")
     public Driver updateDriver(@PathVariable Long id, @Valid @RequestBody Driver driver) {
         return driverService.updateDriver(id, driver);
@@ -97,6 +109,12 @@ public class DriverController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/index")
+    public ResponseEntity<Void> indexDriver(@PathVariable Long id) {
+        driverService.indexDriver(id);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/documents/expired")
     public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
         return driverDocumentService.getDriversWithExpiredDocuments();
@@ -112,6 +130,11 @@ public class DriverController {
                                                 @RequestParam LocalDate startDate,
                                                 @RequestParam LocalDate endDate) {
         return driverService.getEarningsSummary(id, startDate, endDate);
+    }
+
+    @GetMapping("/{id}/dashboard")
+    public ResponseEntity<DriverDashboardDTO> getDriverDashboard(@PathVariable Long id) {
+        return ResponseEntity.ok(driverService.getDriverDashboard(id));
     }
 }
 

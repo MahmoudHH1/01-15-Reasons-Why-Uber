@@ -1,5 +1,6 @@
 package com.team01.uber.user.controller;
 
+import com.team01.uber.user.dto.ActivityFeedDTO;
 import com.team01.uber.user.dto.UserRideSummaryDTO;
 import com.team01.uber.user.dto.TopRiderDTO;
 import com.team01.uber.user.dto.UserProfileDTO;
@@ -31,7 +32,16 @@ public class UserController {
     public ResponseEntity<User> createUser(@RequestBody User user) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(user));
     }
-
+    @PutMapping("/{id}/role")
+    public ResponseEntity<User> updateUserRole(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+        String newRole = request.get("role");
+        if (newRole == null || newRole.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.updateUserRole(id, newRole));
+    }
     @GetMapping("/{id}")
     public User getUserById(@PathVariable Long id) {
         return userService.getUserById(id);
@@ -104,5 +114,13 @@ public class UserController {
     @GetMapping("/{id}/profile")
     public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserProfile(id));
+    }
+
+    @GetMapping("/{id}/activity")
+    public ResponseEntity<ActivityFeedDTO> getActivityFeed(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(userService.getActivityFeed(id, page, size));
     }
 }

@@ -1,29 +1,39 @@
 package com.team01.uber.ride.service;
 
-import com.team01.uber.ride.dto.FareEstimateDTO;
-import com.team01.uber.ride.dto.FareEstimateRequestDTO;
-import com.team01.uber.ride.dto.RideAnalyticsDTO;
-import com.team01.uber.ride.dto.RideDetailsDTO;
-import com.team01.uber.ride.dto.StopDetailDTO;
+import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
+import com.team01.uber.ride.model.DriverNode;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
+import com.team01.uber.ride.model.RodeWithRelationship;
+import com.team01.uber.ride.model.UserNode;
+import com.team01.uber.ride.observer.RideEventPublisher;
+import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
+import com.team01.uber.ride.repository.UserNodeRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -31,20 +41,39 @@ public class RideService {
 
     private final RideRepository rideRepository;
     private final RideStopRepository rideStopRepository;
+    private final UserNodeRepository userNodeRepository;
+    private final DriverNodeRepository driverNodeRepository;
+    private final RideEventPublisher rideEventPublisher;
 
-    public RideService(RideRepository rideRepository, RideStopRepository rideStopRepository) {
+    public RideService(RideRepository rideRepository,
+                       RideStopRepository rideStopRepository,
+                       UserNodeRepository userNodeRepository,
+                       DriverNodeRepository driverNodeRepository,
+                       RideEventPublisher rideEventPublisher) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
+        this.userNodeRepository = userNodeRepository;
+        this.driverNodeRepository = driverNodeRepository;
+        this.rideEventPublisher = rideEventPublisher;
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public Ride createRide(Ride ride) {
         ride.setRequestedAt(LocalDateTime.now());
         if (ride.getStatus() == null) {
             ride.setStatus(RideStatus.REQUESTED);
         }
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_CREATED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
+    @Cacheable(value="ride-service::ride", key="#id")
     public Ride getRideById(Long id) {
         return rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
@@ -54,6 +83,15 @@ public class RideService {
         return rideRepository.findAll();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F5", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public Ride updateRide(Long id, Ride updated) {
         Ride existing = getRideById(id);
 
@@ -70,9 +108,13 @@ public class RideService {
         existing.setMetadata(updated.getMetadata());
         existing.setCompletedAt(updated.getCompletedAt());
 
-        return rideRepository.save(existing);
+        Ride savedRide = rideRepository.save(existing);
+        rideEventPublisher.notifyObservers("RIDE_UPDATED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
+    // S3-F9
+    @Cacheable(value = "ride-service::S3-F9", key="#rideId")
     public RideDetailsDTO getRideDetails(Long rideId) {
         Ride ride = getRideById(rideId);
 
@@ -98,6 +140,16 @@ public class RideService {
                 .build();
     }
 
+    // S3-F7
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#result.driverId", condition = "#result != null && #result.driverId != null")
+    })
     @Transactional
     public Ride cancelRide(Long id) {
         Ride ride = getRideById(id);
@@ -118,9 +170,13 @@ public class RideService {
         }
 
         ride.setStatus(RideStatus.CANCELLED);
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_CANCELLED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
+    // S3-F1
+    @Cacheable(value = "ride-service::S3-F1", key="#status + '-' + #startDate.toString() + '-' + #endDate.toString()")
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
@@ -130,13 +186,30 @@ public class RideService {
         return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F5", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
     public void deleteRide(Long id) {
-        if (!rideRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        }
+        Ride ride = getRideById(id);
         rideRepository.deleteById(id);
+        rideEventPublisher.notifyObservers("RIDE_DELETED", buildRidePayload(ride));
     }
 
+    // S3-F2
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#driverId")
+    })
     @Transactional
     public Ride assignDriver(Long rideId, Long driverId) {
         Ride ride = getRideById(rideId);
@@ -155,18 +228,21 @@ public class RideService {
 
         ride.setDriverId(driverId);
         ride.setStatus(RideStatus.ACCEPTED);
-        rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
 
         if(rideRepository.setDriverBusy(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to set driver status to BUSY. Driver may have become unavailable.");
         }
 
-        return ride;
+        rideEventPublisher.notifyObservers("RIDE_DRIVER_ASSIGNED", buildRidePayload(savedRide));
+        return savedRide;
     }
 
+    // S3-F3
+    @Cacheable(value = "ride-service::S3-F3", key="#request.pickupLatitude + '-' + #request.pickupLongitude + '-' + #request.dropoffLatitude + '-' + #request.dropoffLongitude")
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
         if (request.pickupLatitude() == null || request.pickupLongitude() == null ||
-            request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
+                request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All coordinate fields are required");
         }
 
@@ -198,6 +274,8 @@ public class RideService {
                 .build();
     }
 
+    //S3-F6
+    @Cacheable(value= "ride-service::S3-F6", key="#startDateStr + '-' + #endDateStr")
     public RideAnalyticsDTO getRideAnalytics(String startDateStr, String endDateStr) {
 
         // Parse the strings using our helper methods below
@@ -258,7 +336,9 @@ public class RideService {
             return LocalDate.parse(dateStr).atTime(LocalTime.MAX);
         }
     }
-  
+
+    // S3-F5
+    @Cacheable(value = "ride-service::S3-F5", key="#key + '-' + #value")
     public List<Ride> findByMetadata(String key, String value) {
 
         // Validate key and value entered
@@ -272,6 +352,16 @@ public class RideService {
         return rideRepository.findByMetadataField(key, value);
     }
 
+    // S3-F4
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F3", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#id"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true),
+            @CacheEvict(value = "driver-service::S2-F12", key = "#result.driverId", condition = "#result != null && #result.driverId != null")
+    })
     @Transactional
     public Ride completeRide(Long id) {
         Ride ride = getRideById(id);
@@ -328,18 +418,175 @@ public class RideService {
         } catch (Exception ignored) {}
 
         // Save ride and return the updated entity
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+        rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
+        return savedRide;
 
+    }
+
+    // S3-F10
+    @Cacheable(value = "ride-service::S3-F10", key="#startDate.toString() + '-' + #endDate.toString()")
+    public RideAnalyticsDashboardDTO getRideAnalyticsDashboard(LocalDate startDate, LocalDate endDate) {
+
+        if (startDate == null || endDate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date and end date parameters are required");
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date must be on or before end date");
+        }
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        List<Ride> rides = rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
+
+        long totalRides = rides.size();
+
+        double totalRevenue = rideRepository.getTotalRevenueForCompletedRidesFromPayments(start, end);
+
+        long completedRides = rides.stream()
+                .filter(r -> r.getStatus() == RideStatus.COMPLETED)
+                .count();
+
+        double averageRideFare = completedRides > 0 ? totalRevenue / completedRides : 0.0;
+
+        double completionRate = totalRides > 0
+                ? ((double) completedRides / totalRides)
+                : 0.0;
+
+        Map<RideStatus, Long> ridesByStatus = rides.stream()
+                .collect(Collectors.groupingBy(Ride::getStatus, Collectors.counting()));
+
+        return RideAnalyticsDashboardDTO.builder()
+                .totalRides(totalRides)
+                .totalRevenue(totalRevenue)
+                .averageRideFare(averageRideFare)
+                .completionRate(completionRate)
+                .ridesByStatus(ridesByStatus)
+                .build();
+    }
+
+    public void logDashboardViewed(LocalDate startDate, LocalDate endDate) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("startDate", startDate.toString());
+        payload.put("endDate", endDate.toString());
+        payload.put("timestamp", LocalDateTime.now().toString());
+        rideEventPublisher.notifyObservers("ANALYTICS_VIEWED", payload);
     }
 
     private void validateRequiredUpdateKeys(Ride updated) {
         if (updated.getPickupLatitude() == null || updated.getPickupLongitude() == null ||
-            updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
+                updated.getDropoffLatitude() == null || updated.getDropoffLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location fields (pickup and dropoff latitude/longitude) cannot be null");
         }
 
         if (updated.getStatus() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride status cannot be null");
         }
+    }
+
+    // S3-F11: Record User-Driver Riding Pattern
+    @CacheEvict(value = "ride-service::S3-F12", allEntries = true)
+    public String recordInteraction(Long rideId) {
+        // Find ride in PostgreSQL — 404 if not found
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        // Verify ride is COMPLETED — 400 otherwise
+        if (ride.getStatus() != RideStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Only COMPLETED rides can have interactions recorded. Current status: " + ride.getStatus());
+        }
+
+        Long userId = ride.getUserId();
+        Long driverId = ride.getDriverId();
+
+        if (driverId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride has no assigned driver");
+        }
+
+        // Idempotency check: look for this rideId in existing Neo4j RODE_WITH edges
+        Optional<UserNode> userNodeOpt = userNodeRepository.findById(userId);
+        if (userNodeOpt.isPresent()) {
+            List<RodeWithRelationship> rels = userNodeOpt.get().getRodeWithRelationships();
+            if (rels != null) {
+                for (RodeWithRelationship rel : rels) {
+                    if (rel.getDriver() != null
+                            && rel.getDriver().getDriverId().equals(driverId)
+                            && rel.getRecordedRideIds() != null
+                            && rel.getRecordedRideIds().contains(rideId)) {
+                        // Already recorded — idempotent short-circuit, no observer event
+                        return "Interaction already recorded (idempotent)";
+                    }
+                }
+            }
+        }
+
+        // Cross-service SQL lookups for user/driver names (shared PG, no HTTP calls)
+        String userName = rideRepository.findUserNameById(userId);
+        String driverName = rideRepository.findDriverNameById(driverId);
+        String vehicleType = rideRepository.findDriverVehicleTypeById(driverId);
+
+        // Find or create UserNode and DriverNode in Neo4j
+        UserNode userNode = userNodeRepository.findById(userId)
+                .orElse(new UserNode(userId, userName != null ? userName : "Unknown", new ArrayList<>()));
+
+        DriverNode driverNode = driverNodeRepository.findById(driverId)
+                .orElseGet(() -> {
+                    DriverNode dn = new DriverNode(driverId,
+                            driverName != null ? driverName : "Unknown",
+                            vehicleType != null ? vehicleType : "");
+                    return driverNodeRepository.save(dn);
+                });
+
+        // Find or create the RODE_WITH relationship, incrementing rideCount
+        List<RodeWithRelationship> relationships = userNode.getRodeWithRelationships();
+        if (relationships == null) {
+            relationships = new ArrayList<>();
+            userNode.setRodeWithRelationships(relationships);
+        }
+
+        RodeWithRelationship existingRel = relationships.stream()
+                .filter(r -> r.getDriver() != null && r.getDriver().getDriverId().equals(driverId))
+                .findFirst()
+                .orElse(null);
+
+        if (existingRel != null) {
+            existingRel.setRideCount(existingRel.getRideCount() + 1);
+            existingRel.setLastRideDate(LocalDateTime.now());
+            if (existingRel.getRecordedRideIds() == null) {
+                existingRel.setRecordedRideIds(new ArrayList<>());
+            }
+            existingRel.getRecordedRideIds().add(rideId);
+        } else {
+            List<Long> recordedIds = new ArrayList<>();
+            recordedIds.add(rideId);
+            relationships.add(new RodeWithRelationship(null, driverNode, 1, LocalDateTime.now(), recordedIds));
+        }
+
+        userNodeRepository.save(userNode);
+
+        // Log INTERACTION_RECORDED event via Observer (non-idempotent path only)
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", rideId);
+        payload.put("userId", userId);
+        payload.put("driverId", driverId);
+        rideEventPublisher.notifyObservers("INTERACTION_RECORDED", payload);
+
+        return "Interaction recorded successfully";
+    }
+    
+    private Map<String, Object> buildRidePayload(Ride ride) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("rideId", ride.getId());
+        payload.put("userId", ride.getUserId());
+        payload.put("driverId", ride.getDriverId());
+        payload.put("status", ride.getStatus() == null ? null : ride.getStatus().name());
+        payload.put("fare", ride.getFare());
+        payload.put("metadata", ride.getMetadata());
+        payload.put("requestedAt", ride.getRequestedAt());
+        payload.put("completedAt", ride.getCompletedAt());
+        return payload;
     }
 }

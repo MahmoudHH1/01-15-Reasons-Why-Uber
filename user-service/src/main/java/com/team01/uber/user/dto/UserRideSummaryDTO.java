@@ -1,5 +1,9 @@
 package com.team01.uber.user.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+@JsonDeserialize(builder = UserRideSummaryDTO.Builder.class)
 public class UserRideSummaryDTO {
 
     private final Long userId;
@@ -28,10 +32,9 @@ public class UserRideSummaryDTO {
     public Double getTotalSpent() { return totalSpent; }
     public Double getAverageFare() { return averageFare; }
 
-    public static Builder builder() {
-        return new Builder();
-    }
+    public static Builder builder() { return new Builder(); }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
         private Long userId;
         private String name;
@@ -49,8 +52,6 @@ public class UserRideSummaryDTO {
         public Builder totalSpent(Double totalSpent) { this.totalSpent = totalSpent; return this; }
         public Builder averageFare(Double averageFare) { this.averageFare = averageFare; return this; }
 
-        public UserRideSummaryDTO build() {
-            return new UserRideSummaryDTO(this);
-        }
+        public UserRideSummaryDTO build() { return new UserRideSummaryDTO(this); }
     }
 }

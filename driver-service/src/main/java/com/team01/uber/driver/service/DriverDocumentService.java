@@ -1,19 +1,24 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
+import com.team01.uber.driver.observer.EntityObserver;
+import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
 
+import jakarta.annotation.PostConstruct;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +29,41 @@ public class DriverDocumentService {
 
     private final DriverDocumentRepository driverDocumentRepository;
     private final DriverService driverService;
+    private final CacheInvalidator cacheInvalidator;
+    private final MongoEventLogger mongoEventLogger;
+    private final List<EntityObserver> observers = new ArrayList<>();
 
-    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository, DriverService driverService) {
+    public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
+                                 DriverService driverService,
+                                 CacheInvalidator cacheInvalidator,
+                                 MongoEventLogger mongoEventLogger) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
+        this.cacheInvalidator = cacheInvalidator;
+        this.mongoEventLogger = mongoEventLogger;
+    }
+
+    @PostConstruct
+    void init() {
+        register(mongoEventLogger);
+    }
+
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    public void notifyObservers(String eventType, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(eventType, payload);
+        }
+    }
+
+    private void invalidateDocumentFeatureCaches() {
+        cacheInvalidator.deleteByPattern("driver-service::S2-F9::*");
     }
 
     public DriverDocument createDocument(Long driverId, DriverDocument document) {
@@ -36,7 +72,10 @@ public class DriverDocumentService {
         document.setDriver(driver);
         document.setUploadedAt(LocalDateTime.now());
         document.setVerified(false);
-        return driverDocumentRepository.save(document);
+        DriverDocument saved = driverDocumentRepository.save(document);
+        cacheInvalidator.deleteEntity("driver", driverId) ;
+        invalidateDocumentFeatureCaches();
+        return saved;
     }
 
     public List<DriverDocument> getDocumentsByDriverId(Long driverId) {
@@ -44,6 +83,7 @@ public class DriverDocumentService {
         return driverDocumentRepository.findByDriverId(driverId);
     }
 
+    @Cacheable(value = "driver-service::driver-document", key = "#driverId + ':' + #docId")
     public DriverDocument getDocumentById(Long driverId, Long docId) {
         return driverDocumentRepository.findByIdAndDriverId(docId, driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
@@ -56,7 +96,11 @@ public class DriverDocumentService {
         existing.setDocumentUrl(updated.getDocumentUrl());
         existing.setExpiryDate(updated.getExpiryDate());
         existing.setMetadata(updated.getMetadata());
-        return driverDocumentRepository.save(existing);
+        DriverDocument saved = driverDocumentRepository.save(existing);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteEntity("driver", driverId) ;
+        invalidateDocumentFeatureCaches();
+        return saved;
     }
 
     public void deleteDocument(Long driverId, Long docId) {
@@ -64,6 +108,9 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDocumentFeatureCaches();
     }
 
     @Transactional
@@ -97,11 +144,24 @@ public class DriverDocumentService {
 
         driverDocumentRepository.save(document);
 
+        notifyObservers("DOCUMENT_VERIFIED", Map.of(
+                "driverId", driverId,
+                "details", Map.of(
+                        "verifiedBy", verifiedBy,
+                        "documentId", documentId
+                )
+        ));
+
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + documentId);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDocumentFeatureCaches();
+
         // initialize the lazy collection within the transaction before returning
         driver.getDriverDocuments().size();
         return driver;
     }
 
+    @Cacheable(value = "driver-service::S2-F9")
     @Transactional(readOnly = true)
     public List<DriverDocumentAlertDTO> getDriversWithExpiredDocuments() {
         List<DriverDocument> expired = driverDocumentRepository.findByExpiryDateBefore(LocalDate.now());
@@ -110,11 +170,16 @@ public class DriverDocumentService {
                 .collect(Collectors.groupingBy(DriverDocument::getDriver));
 
         return byDriver.entrySet().stream()
-                .map(e -> new DriverDocumentAlertDTO(
-                        e.getKey().getId(),
-                        e.getKey().getName(),
-                        e.getKey().getStatus(),
-                        e.getValue()))
+                .map(e -> {
+                    List<DriverDocument> docs = e.getValue();
+                    return DriverDocumentAlertDTO.builder()
+                            .driverId(e.getKey().getId())
+                            .driverName(e.getKey().getName())
+                            .driverStatus(e.getKey().getStatus())
+                            .expiredDocuments(docs)
+                            .expiredCount(docs.size())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 }

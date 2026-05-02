@@ -5,10 +5,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,8 +28,10 @@ import com.team01.uber.location.dto.LocationTrackingDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.StationaryDriverDTO;
+import com.team01.uber.location.dto.TrackingRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationTrackingEvent;
+import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationRepository;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
 
@@ -35,7 +42,8 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate redisTemplate;
+    private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
     private final LocationAdapter locationAdapter = new LocationAdapter();
 
     @SuppressWarnings("unchecked")
@@ -47,10 +55,34 @@ public class LocationService {
         this.redisTemplate = redisTemplate;
     }
 
+    public void register(EntityObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unregister(EntityObserver observer) {
+        observers.remove(observer);
+    }
+
+    private void notifyObservers(String action, Object payload) {
+        for (EntityObserver observer : observers) {
+            observer.onEvent(action, payload);
+        }
+    }
+
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location create(Location location) {
         return locationRepository.save(location);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location createForDriver(Long driverId, DriverLocationCreateRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
@@ -90,6 +122,16 @@ public class LocationService {
         return locationRepository.findAll();
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", key = "#id"),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public Location update(Long id, Location location) {
         Location existing = getById(id);
         if (location.getDriverId() != null) existing.setDriverId(location.getDriverId());
@@ -100,6 +142,16 @@ public class LocationService {
         return locationRepository.save(existing);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", key = "#id"),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     public void delete(Long id) {
         if (!locationRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Error 404");
@@ -107,6 +159,13 @@ public class LocationService {
         locationRepository.deleteById(id);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#request.driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", key = "#request.driverId", condition = "#request.driverId != null"),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     @Transactional
     public BatchLocationResponse batchUpdate(BatchLocationRequest request) {
         Long driverId = request.getDriverId();
@@ -151,6 +210,16 @@ public class LocationService {
         return new BatchLocationResponse(toSave.size());
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::location", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F1", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F5", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F6", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F8", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F9", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+    })
     @Transactional
     public long purgeOlderThanDays(int olderThanDays) {
         if (olderThanDays < 0) {
@@ -223,33 +292,40 @@ public class LocationService {
         LocalDateTime firstTs = row[3] != null ? (LocalDateTime) row[3] : null;
         LocalDateTime lastTs  = row[4] != null ? (LocalDateTime) row[4] : null;
 
-        return new DriverMovementSummaryDTO(driverId, totalPoints, avgSpeed, maxSpeed, firstTs, lastTs);
+        return DriverMovementSummaryDTO.builder()
+                .driverId(driverId)
+                .totalLocationPoints(totalPoints)
+                .averageSpeed(avgSpeed)
+                .maxSpeed(maxSpeed)
+                .firstTimestamp(firstTs)
+                .lastTimestamp(lastTs)
+                .build();
     }
 
     @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
-        return results.stream().map(row -> new StationaryDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                row[4] != null ? ((Number) row[4]).doubleValue() : null,
-                (LocalDateTime) row[5]
-        )).toList();
+        return results.stream().map(row -> StationaryDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .lastSpeed(row[4] != null ? ((Number) row[4]).doubleValue() : null)
+                .lastUpdated((LocalDateTime) row[5])
+                .build()).toList();
     }
 
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
         List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
-        return results.stream().map(row -> new NearbyDriverDTO(
-                ((Number) row[0]).longValue(),
-                (String) row[1],
-                (Double) row[2],
-                (Double) row[3],
-                (Double) row[4]
-        )).toList();
+        return results.stream().map(row -> NearbyDriverDTO.builder()
+                .driverId(((Number) row[0]).longValue())
+                .driverName((String) row[1])
+                .latitude((Double) row[2])
+                .longitude((Double) row[3])
+                .distanceKm((Double) row[4])
+                .build()).toList();
     }
 
     @Cacheable(value = "location-service::S4-F12",
@@ -261,19 +337,36 @@ public class LocationService {
 
         List<LocationTrackingEvent> events;
         if (startTime != null && endTime != null) {
-            Instant start = Instant.parse(startTime);
-            Instant end = Instant.parse(endTime);
-            events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+            try {
+                Instant start = parseToInstant(startTime, true);
+                Instant end = parseToInstant(endTime, false);
+                events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format: " + e.getMessage());
+            }
         } else {
             events = trackingRepository.findByDriverId(driverId);
         }
 
         return events.stream()
-                .map(e -> new LocationTrackingDTO(
-                        e.getTimestamp(), e.getLatitude(), e.getLongitude(),
-                        e.getSpeed(), e.getHeading(), e.getAccuracy(),
-                        e.getRideId(), e.getNotes()))
+                .map(locationAdapter::adaptToLocationTrackingDTO)
                 .toList();
+    }
+
+    private Instant parseToInstant(String dateStr, boolean startOfDay) {
+        try {
+            if (dateStr.contains("T")) {
+                if (dateStr.endsWith("Z")) {
+                    return Instant.parse(dateStr);
+                }
+                return LocalDateTime.parse(dateStr).toInstant(java.time.ZoneOffset.UTC);
+            }
+            LocalDate date = LocalDate.parse(dateStr);
+            LocalDateTime dateTime = startOfDay ? date.atStartOfDay() : date.atTime(LocalTime.MAX);
+            return dateTime.toInstant(java.time.ZoneOffset.UTC);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Unsupported date format: " + dateStr);
+        }
     }
 
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
@@ -300,4 +393,53 @@ public class LocationService {
 
         return locationAdapter.adaptToLocationAnalytics(statsResults.get(0), hourlyResults);
     }
+
+    @Caching(evict = {
+            @CacheEvict(value = "location-service::S4-F1", key = "#driverId"),
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F10", allEntries = true),
+            @CacheEvict(value = "location-service::S4-F12", allEntries = true)
+    })
+    public LocationTrackingDTO recordGpsEvent(Long driverId, TrackingRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
+        }
+        if (locationRepository.countDriverById(driverId) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+        if (request.getLatitude() == null || request.getLongitude() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
+        }
+        if (request.getLatitude() < -90 || request.getLatitude() > 90) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude must be between -90 and 90");
+        }
+        if (request.getLongitude() < -180 || request.getLongitude() > 180) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Longitude must be between -180 and 180");
+        }
+
+        Instant now = Instant.now();
+
+        LocationTrackingEvent event = new LocationTrackingEvent();
+        event.setDriverId(driverId);
+        event.setTimestamp(now);
+        event.setLatitude(request.getLatitude());
+        event.setLongitude(request.getLongitude());
+        event.setSpeed(request.getSpeed());
+        event.setHeading(request.getHeading());
+        event.setAccuracy(request.getAccuracy());
+        event.setRideId(request.getRideId());
+        event.setNotes(request.getNotes());
+
+        trackingRepository.save(event);
+
+        // Notify observers (MongoDB event logging)
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("driverId", driverId);
+        payload.put("latitude", request.getLatitude());
+        payload.put("longitude", request.getLongitude());
+        notifyObservers("TRACKING_RECORDED", payload);
+
+        return locationAdapter.adaptToLocationTrackingDTO(event);
+    }
 }
+
