@@ -24,17 +24,22 @@ public class MongoEventLogger implements EntityObserver {
     public void onEvent(String action, Object payload) {
         if (!(payload instanceof Map<?, ?> raw)) return;
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> params = (Map<String, Object>) raw;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> params = (Map<String, Object>) raw;
 
-        MongoEvent event = eventFactory.createEvent(EventType.LOCATION,
-                Map.of("driverId", params.get("driverId"),
-                       "action", action,
-                       "latitude", params.getOrDefault("latitude", null),
-                       "longitude", params.getOrDefault("longitude", null)));
+            MongoEvent event = eventFactory.createEvent(EventType.LOCATION,
+                    Map.of("driverId", params.get("driverId"),
+                           "action", action,
+                           "latitude", params.getOrDefault("latitude", null),
+                           "longitude", params.getOrDefault("longitude", null)));
 
-        if (event instanceof LocationEvent le) {
-            locationEventRepository.save(le);
+            if (event instanceof LocationEvent le) {
+                locationEventRepository.save(le);
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(MongoEventLogger.class)
+                    .warn("Soft-dependency failure: Failed to log location event to MongoDB: {}", e.getMessage());
         }
     }
 }
