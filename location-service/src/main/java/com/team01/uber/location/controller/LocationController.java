@@ -63,10 +63,19 @@ public class LocationController {
     public ResponseEntity<LocationAnalyticsDTO> getAnalytics(
             @RequestParam String startDate,
             @RequestParam String endDate) {
-
-        LocationAnalyticsDTO analytics = locationService.getAnalytics(startDate, endDate);
-        locationService.logAnalyticsViewed(startDate, endDate);
-        return ResponseEntity.ok(analytics);
+// Log ANALYTICS_VIEWED event to MongoDB (must run on every invocation, even cache hits)
+        try {
+            locationEventRepository.save((LocationEvent) eventFactory.createEvent(EventType.LOCATION, Map.of(
+                    "action", "ANALYTICS_VIEWED",
+                    "driverId", 0L, // Global analytics, no specific driver
+                    "timestamp", LocalDateTime.now(),
+                    "details", Map.of("startDate", startDate, "endDate", endDate)
+            )));
+        } catch (Exception e) {
+            log.warn("Failed to log ANALYTICS_VIEWED event: {}", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(locationService.getAnalytics(startDate, endDate));
     }
 
     @PostMapping
