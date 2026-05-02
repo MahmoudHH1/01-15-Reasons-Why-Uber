@@ -329,22 +329,25 @@ public class LocationService {
     }
 
     @Cacheable(value = "location-service::S4-F12",
-               key = "#driverId + ':' + #startTime + ':' + #endTime")
+               key = "#driverId + ':' + (#startTime == null ? '' : #startTime) + ':' + (#endTime == null ? '' : #endTime)")
     public List<LocationTrackingDTO> getTrackingTimeline(Long driverId, String startTime, String endTime) {
         if (locationRepository.countDriverById(driverId) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
         List<LocationTrackingEvent> events;
-        if (startTime != null && endTime != null) {
+        // Guard: Skip filter if either param is null or blank (A6-F12 fix)
+        if (startTime != null && !startTime.isBlank() && endTime != null && !endTime.isBlank()) {
             try {
                 Instant start = parseToInstant(startTime, true);
                 Instant end = parseToInstant(endTime, false);
                 events = trackingRepository.findByDriverIdAndTimestampBetween(driverId, start, end);
             } catch (Exception e) {
+                // Reject invalid formats with 400
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format: " + e.getMessage());
             }
         } else {
+            // Default to all events for the driver if range is incomplete
             events = trackingRepository.findByDriverId(driverId);
         }
 
@@ -366,6 +369,19 @@ public class LocationService {
             return dateTime.toInstant(java.time.ZoneOffset.UTC);
         } catch (Exception e) {
             throw new IllegalArgumentException("Unsupported date format: " + dateStr);
+        }
+    }
+
+    public void logAnalyticsViewed(String startDate, String endDate) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", 0L); // Global analytics
+            payload.put("startDate", startDate);
+            payload.put("endDate", endDate);
+            notifyObservers("ANALYTICS_VIEWED", payload);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(LocationService.class)
+                    .warn("Soft-dependency: Failed to emit ANALYTICS_VIEWED: {}", e.getMessage());
         }
     }
 
