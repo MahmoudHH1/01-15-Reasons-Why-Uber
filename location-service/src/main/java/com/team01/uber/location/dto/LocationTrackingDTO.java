@@ -13,6 +13,8 @@ public class LocationTrackingDTO {
     private Long rideId;
     private String notes;
 
+    public LocationTrackingDTO() {}
+
     public LocationTrackingDTO(Instant timestamp, Double latitude, Double longitude,
                                Double speed, Double heading, Double accuracy,
                                Long rideId, String notes) {
@@ -34,4 +36,13 @@ public class LocationTrackingDTO {
     public Double getAccuracy() { return accuracy; }
     public Long getRideId() { return rideId; }
     public String getNotes() { return notes; }
+
+    public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
+    public void setSpeed(Double speed) { this.speed = speed; }
+    public void setHeading(Double heading) { this.heading = heading; }
+    public void setAccuracy(Double accuracy) { this.accuracy = accuracy; }
+    public void setRideId(Long rideId) { this.rideId = rideId; }
+    public void setNotes(String notes) { this.notes = notes; }
 }
