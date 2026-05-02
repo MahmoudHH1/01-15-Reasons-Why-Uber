@@ -17,16 +17,22 @@ public class UserLoaderHandler extends AuthHandler {
             ctx.getResponse().getWriter().write("User not found");
             return false;
         }
-        
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM users WHERE email = ?", 
-                Integer.class, 
-                ctx.getEmail()
-        );
-        
-        if (count == null || count == 0) {
+
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM users WHERE email = ?",
+                    Integer.class,
+                    ctx.getEmail()
+            );
+
+            if (count == null || count == 0) {
+                ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                ctx.getResponse().getWriter().write("User not found in PG");
+                return false;
+            }
+        } catch (Exception e) {
             ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            ctx.getResponse().getWriter().write("User not found in PG");
+            ctx.getResponse().getWriter().write("User lookup failed");
             return false;
         }
         return true;
