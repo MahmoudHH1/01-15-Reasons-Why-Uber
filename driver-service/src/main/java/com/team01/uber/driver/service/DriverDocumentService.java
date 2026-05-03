@@ -83,7 +83,7 @@ public class DriverDocumentService {
         return driverDocumentRepository.findByDriverId(driverId);
     }
 
-    @Cacheable(value = "driver-service::driver-document", key = "#driverId + ':' + #docId")
+    @Cacheable(value = "driver-service::driver-document", key = "#docId")
     public DriverDocument getDocumentById(Long driverId, Long docId) {
         return driverDocumentRepository.findByIdAndDriverId(docId, driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
@@ -97,7 +97,7 @@ public class DriverDocumentService {
         existing.setExpiryDate(updated.getExpiryDate());
         existing.setMetadata(updated.getMetadata());
         DriverDocument saved = driverDocumentRepository.save(existing);
-        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + docId);
         cacheInvalidator.deleteEntity("driver", driverId) ;
         invalidateDocumentFeatureCaches();
         return saved;
@@ -108,7 +108,7 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         }
         driverDocumentRepository.deleteById(docId);
-        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + docId);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + docId);
         cacheInvalidator.deleteEntity("driver", driverId);
         invalidateDocumentFeatureCaches();
     }
@@ -152,7 +152,7 @@ public class DriverDocumentService {
                 )
         ));
 
-        cacheInvalidator.deleteKey("driver-service::driver-document::" + driverId + ":" + documentId);
+        cacheInvalidator.deleteKey("driver-service::driver-document::" + documentId);
         cacheInvalidator.deleteEntity("driver", driverId);
         invalidateDocumentFeatureCaches();
 
