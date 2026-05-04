@@ -66,8 +66,22 @@ public class RecommendationService {
     @Cacheable(value = "ride-service::S3-F12", key = "#userId + '-' + #limit")
     public List<DriverRecommendationDTO> loadRecommendations(Long userId, int limit) {
         try (var session = neo4jDriver.session()) {
-            return session.run(RECOMMENDATIONS_CYPHER, Values.parameters("userId", userId, "limit", limit))
+            List<DriverRecommendationDTO> fromGraph = session
+                    .run(RECOMMENDATIONS_CYPHER, Values.parameters("userId", userId, "limit", limit))
                     .list(neo4jRecordAdapter::adapt);
+            return fromGraph.stream().map(this::overrideFromPostgres).toList();
         }
+    }
+
+    private DriverRecommendationDTO overrideFromPostgres(DriverRecommendationDTO graphDto) {
+        String pgName = rideRepository.findDriverNameById(graphDto.getDriverId());
+        String pgVehicleType = rideRepository.findDriverVehicleTypeById(graphDto.getDriverId());
+
+        return DriverRecommendationDTO.builder()
+                .driverId(graphDto.getDriverId())
+                .name(pgName != null ? pgName : graphDto.getName())
+                .vehicleType(pgVehicleType != null ? pgVehicleType : graphDto.getVehicleType())
+                .score(graphDto.getScore())
+                .build();
     }
 }
