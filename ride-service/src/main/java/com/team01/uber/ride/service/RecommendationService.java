@@ -5,6 +5,8 @@ import com.team01.uber.ride.dto.DriverRecommendationDTO;
 import com.team01.uber.ride.repository.RideRepository;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Values;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @Service
 public class RecommendationService {
+
+    private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
 
     private static final int DEFAULT_LIMIT = 5;
     private static final String RECOMMENDATIONS_CYPHER = """
@@ -70,6 +74,9 @@ public class RecommendationService {
                     .run(RECOMMENDATIONS_CYPHER, Values.parameters("userId", userId, "limit", limit))
                     .list(neo4jRecordAdapter::adapt);
             return fromGraph.stream().map(this::overrideFromPostgres).toList();
+        } catch (Exception e) {
+            log.warn("Neo4j unavailable for driver recommendations (userId={}): {}", userId, e.getMessage());
+            return List.of();
         }
     }
 
