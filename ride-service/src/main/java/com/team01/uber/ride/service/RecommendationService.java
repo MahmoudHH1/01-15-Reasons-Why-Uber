@@ -22,10 +22,10 @@ public class RecommendationService {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final String RECOMMENDATIONS_CYPHER = """
-            MATCH (target:UserNode {userId: $userId})-[:RODE_WITH]->(shared:DriverNode)
-                  <-[:RODE_WITH]-(other:UserNode)
+            MATCH (target:User {userId: $userId})-[:RODE_WITH]->(shared:Driver)
+                  <-[:RODE_WITH]-(other:User)
             WHERE other.userId <> $userId
-            MATCH (other)-[:RODE_WITH]->(rec:DriverNode)
+            MATCH (other)-[:RODE_WITH]->(rec:Driver)
             WHERE NOT (target)-[:RODE_WITH]->(rec)
             RETURN rec.driverId    AS driverId,
                    rec.name        AS name,
