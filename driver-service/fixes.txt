@@ -1,0 +1,51 @@
+Failure Groups — Driver Service
+Group 1 (Largest Cascade): Elasticsearch Full-Text Search — TC38, TC39, TC42, TC44, TC45
+Root causes confirmed by code survey:
+
+TC44, TC45 (indexing pipeline): Auto-reindex on PUT calls driverIndexerService.index(), but vehicleType is extracted from vehicleDetails["vehicleType"] which may be null if the driver was created without explicit vehicleType in vehicleDetails. More critically, the description field defaults to "" only on create/full-update, not on vehicle-patch. If the indexing document is malformed, ES will store wrong data (TC44) or the new name won't be findable (TC45).
+
+TC38 (status filter): The ES query applies a term filter on status keyword. Since the field is keyword-typed, it's case-sensitive. If the test sends enum values that don't exactly match what was indexed, the filter silently returns nothing.
+
+TC39 (rating range): The ES range filter uses gte/lte. If the rating wasn't indexed (because indexing is broken per TC44), the test data simply isn't there to be filtered.
+
+TC42 (relevance/boosting): The multi_match query targets name and description with no boost weights. Both fields are treated equally, so name-match and description-match rank identically — the spec requires name to outrank description.
+
+Cascade chain: Fix indexing first (TC44/TC45 root) → then fix query filters (TC38/TC39) → then add field boosting (TC42). Broken indexing is upstream of all three search filter failures.
+
+Group 2 (Cascade): 404 Exception Handling — TC239, TC370
+Root cause: Both tests expect HTTP 404 for non-existent resources.
+
+TC239 — PUT /api/drivers/{driverId}/documents/999999/verify: findById(documentId) returns Optional.empty(). Whether this becomes 404 or 500 depends entirely on whether a @ControllerAdvice / ResponseStatusException is wired correctly.
+TC370 — PUT /api/drivers/999999/vehicle: getDriverById() should throw 404, but if exception propagation is broken (swallowed or mapped to 500), the test fails.
+Fix once, get two: Ensuring the global exception handler returns 404 on ResourceNotFoundException (or switching to ResponseStatusException(NOT_FOUND)) fixes both simultaneously.
+
+Group 3 (Cascade): Missing Input Validation — TC243, TC244
+Root cause confirmed by code survey: both endpoints accept invalid input silently.
+
+TC243 — PUT /{id}/vehicle with {} (empty body): The service checks if updates == null || updates.isEmpty() and returns the driver as-is with 200 instead of rejecting with 400. Adding an explicit isEmpty() check that throws 400 is the fix.
+TC244 — GET /{id}/earnings?startDate=2026-12-31&endDate=2026-01-01: No date-range validation exists. The SQL BETWEEN on an inverted range returns 0 rows with 200 instead of 400. Adding if (startDate.isAfter(endDate)) throw 400 fixes this.
+Both belong to the same pattern: service-layer input validation is absent. Fix the pattern in both places together.
+
+Group 4 (Independent): Document Verification Happy Path — TC238
+Root cause: The verify endpoint's isAdminUser(verifiedBy) cross-service query hits the users table with a native SQL. This depends on:
+
+The test sending a valid verifiedBy admin user ID in the request body
+The users table being accessible to driver-service (shared PG DB — should be fine)
+The verify logic correctly setting verified = true and saving
+If TC239 is fixed (Group 2 exception handling), TC238 may also become unblocked if the current 500 is coming from the same exception propagation issue. Otherwise this is isolated to the verify business logic.
+
+Group 5 (Independent): Dashboard — TC48
+Root cause: GET /api/drivers/{id}/dashboard must return a DTO with totalRides (or total_rides) and totalRevenue (or total_revenue). The DriverDashboardDTO uses totalRides and totalEarnings — note the field is totalEarnings not totalRevenue. The grader accepts total_revenue OR totalRevenue, so if the actual field name is totalEarnings, neither camelCase variant matches. That alone would cause TC48 to fail regardless of business logic.
+
+Group 6 (Independent — Ride Service): Neo4j MERGE Key — TC82
+This is a ride-service bug, not driver-service. The POST /api/rides/{rideId}/record-interaction handler's Cypher MERGE clause identifies the Driver node by driver.name instead of driver.id, creating phantom nodes or mismatching existing ones. Fix: change the Cypher MERGE (d:Driver {name: $name}) to MERGE (d:Driver {id: $driverId}).
+
+Recommended Fix Order
+Priority	Group	TCs Fixed	Why First
+1	Group 1 — ES Indexing	TC44, TC45	Upstream of all search tests; broken data blocks TC38/TC39/TC42
+2	Group 1 — ES Query	TC38, TC39, TC42	Once data is correct, fix filters + boosting
+3	Group 2 — 404 Handling	TC239, TC370	One-line fix; two tests freed
+4	Group 3 — Input Validation	TC243, TC244	Two validations, same pattern
+5	Group 5 — Dashboard field name	TC48	Rename totalEarnings → totalRevenue in DTO
+6	Group 4 — Document Verify	TC238	Unblock after Group 2 fix; verify business logic
+7	Group 6 — Neo4j MERGE (ride-service)	TC82	Ride-service change, separate PR
