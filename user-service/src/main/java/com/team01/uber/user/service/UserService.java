@@ -250,7 +250,7 @@ public class UserService implements Observable {
         SavedAddress target = savedAddressRepository.findById(addressId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Address not found"));
         if (!target.getUser().getId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                     "Address does not belong to this user");
         }
         savedAddressRepository.clearDefaultForUser(userId);
