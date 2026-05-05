@@ -84,10 +84,16 @@ public class RecommendationService {
         String pgName = rideRepository.findDriverNameById(graphDto.getDriverId());
         String pgVehicleType = rideRepository.findDriverVehicleTypeById(graphDto.getDriverId());
 
+        String resolvedVehicleType = pgVehicleType != null && !pgVehicleType.isBlank()
+                ? pgVehicleType
+                : (graphDto.getVehicleType() != null && !graphDto.getVehicleType().isBlank()
+                        ? graphDto.getVehicleType()
+                        : "UNKNOWN");
+
         return DriverRecommendationDTO.builder()
                 .driverId(graphDto.getDriverId())
                 .name(pgName != null ? pgName : graphDto.getName())
-                .vehicleType(pgVehicleType != null ? pgVehicleType : graphDto.getVehicleType())
+                .vehicleType(resolvedVehicleType)
                 .score(graphDto.getScore())
                 .build();
     }
