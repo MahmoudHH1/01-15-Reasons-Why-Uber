@@ -230,7 +230,7 @@ public class DriverService {
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
         Driver driver = getDriverById(id);
         if (updates == null || updates.isEmpty()) {
-            return driver;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vehicle update body must not be empty");
         }
         Map<String, Object> existing = driver.getVehicleDetails();
         if (existing == null) {
