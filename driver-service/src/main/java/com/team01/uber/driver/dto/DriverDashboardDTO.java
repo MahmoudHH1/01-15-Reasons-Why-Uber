@@ -14,7 +14,7 @@ public class DriverDashboardDTO {
     private Long driverId;
     private String name;
     private Long totalRides;
-    private Double totalEarnings;
+    private Double totalRevenue;
     private Double averageRideFare;
     private Double averageRating;
     private Integer totalRatings;
