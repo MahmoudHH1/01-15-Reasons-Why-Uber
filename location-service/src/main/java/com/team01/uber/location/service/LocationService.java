@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import java.time.format.DateTimeParseException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -279,8 +280,14 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F6", key = "#startDate + ':' + #endDate + ':' + #driverId")
     public List<Location> getLocationsInDateRange(String startDate, String endDate, Long driverId) {
-        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
-        LocalDateTime end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        LocalDateTime start;
+        LocalDateTime end;
+        try {
+            start = LocalDate.parse(startDate).atStartOfDay();
+            end = LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD");
+        }
         if (driverId != null) {
             return locationRepository.findInDateRangeByDriver(start, end, driverId);
         }
@@ -293,8 +300,14 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
-        LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
-        LocalDateTime end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        LocalDateTime start;
+        LocalDateTime end;
+        try {
+            start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
+            end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS");
+        }
 
         List<Object[]> results = locationRepository.getMovementSummary(driverId, start, end);
         Object[] row = results.get(0);
@@ -387,8 +400,14 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F10", key = "#startDate + ':' + #endDate")
     public LocationAnalyticsDTO getAnalytics(String startDate, String endDate) {
-        LocalDateTime start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
-        LocalDateTime end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        LocalDateTime start;
+        LocalDateTime end;
+        try {
+            start = startDate.contains("T") ? LocalDateTime.parse(startDate) : LocalDate.parse(startDate).atStartOfDay();
+            end = endDate.contains("T") ? LocalDateTime.parse(endDate) : LocalDate.parse(endDate).atTime(LocalTime.MAX);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS");
+        }
 
         if (start.isAfter(end)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate cannot be after endDate");
