@@ -8,7 +8,10 @@ import com.team01.uber.user.model.User;
 import com.team01.uber.user.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,7 @@ public class UserController {
     public ResponseEntity<User> createUser(@RequestBody User user) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(user));
     }
+
     @PutMapping("/{id}/role")
     public ResponseEntity<User> updateUserRole(
             @PathVariable Long id,
@@ -42,9 +46,11 @@ public class UserController {
         }
         return ResponseEntity.ok(userService.updateUserRole(id, newRole));
     }
+
     @GetMapping("/{id}")
-    public User getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        checkOwnership(id);
+        return ResponseEntity.ok(userService.getUserById(id));
     }
 
     @GetMapping
@@ -59,6 +65,7 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        checkOwnership(id);
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
@@ -74,7 +81,9 @@ public class UserController {
     }
 
     @GetMapping("/search")
-    public List<User> searchUsers(@RequestParam(required = false) String name, @RequestParam(required = false) String email, @RequestParam(required = false) String role) {
+    public List<User> searchUsers(@RequestParam(required = false) String name,
+                                   @RequestParam(required = false) String email,
+                                   @RequestParam(required = false) String role) {
         return userService.searchUsers(name, email, role);
     }
 
@@ -97,6 +106,7 @@ public class UserController {
     public ResponseEntity<User> deactivateUser(@PathVariable Long id) {
         return ResponseEntity.ok(userService.deactivateUser(id));
     }
+
     @PutMapping("/{userId}/addresses/{addressId}/default")
     public ResponseEntity<User> setDefaultAddress(
             @PathVariable Long userId,
@@ -110,7 +120,7 @@ public class UserController {
             @RequestParam int minRides) {
         return ResponseEntity.ok(userService.findUsersByLanguageWithMinRides(lang, minRides));
     }
-  
+
     @GetMapping("/{id}/profile")
     public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserProfile(id));
@@ -122,5 +132,20 @@ public class UserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(userService.getActivityFeed(id, page, size));
+    }
+
+    private void checkOwnership(Long targetId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+
+        User caller = (User) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !caller.getId().equals(targetId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
     }
 }
