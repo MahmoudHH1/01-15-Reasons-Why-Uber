@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.neo4j.core.schema.Id;
 import org.springframework.data.neo4j.core.schema.Node;
+import org.springframework.data.neo4j.core.schema.Property;
 
 @Node("Driver")
 @Data
@@ -12,6 +13,7 @@ import org.springframework.data.neo4j.core.schema.Node;
 @AllArgsConstructor
 public class DriverNode {
     @Id
+    @Property("id")
     private Long driverId;
 
     private String name;

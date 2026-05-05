@@ -22,12 +22,12 @@ public class RecommendationService {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final String RECOMMENDATIONS_CYPHER = """
-            MATCH (target:User {userId: $userId})-[:RODE_WITH]->(shared:Driver)
+            MATCH (target:User {id: $userId})-[:RODE_WITH]->(shared:Driver)
                   <-[:RODE_WITH]-(other:User)
-            WHERE other.userId <> $userId
+            WHERE other.id <> $userId
             MATCH (other)-[:RODE_WITH]->(rec:Driver)
             WHERE NOT (target)-[:RODE_WITH]->(rec)
-            RETURN rec.driverId    AS driverId,
+            RETURN rec.id          AS driverId,
                    rec.name        AS name,
                    rec.vehicleType AS vehicleType,
                    count(DISTINCT other) AS score
