@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
@@ -48,6 +49,7 @@ public class LocationService {
     private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
     private final List<EntityObserver> initialObservers;
     private final LocationAdapter locationAdapter = new LocationAdapter();
+    private final CassandraRowAdapter cassandraRowAdapter = new CassandraRowAdapter();
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
@@ -378,7 +380,7 @@ public class LocationService {
         }
 
         return events.stream()
-                .map(locationAdapter::adaptToLocationTrackingDTO)
+                .map(cassandraRowAdapter::adapt)
                 .toList();
     }
 
