@@ -83,7 +83,7 @@ public class DriverSearchEsRepository {
             } else {
                 mustClause = Map.of("multi_match", Map.of(
                         "query", query,
-                        "fields", List.of("name", "description"),
+                        "fields", List.of("name^2", "description"),
                         "fuzziness", "AUTO"
                 ));
             }
@@ -93,7 +93,7 @@ public class DriverSearchEsRepository {
                 filters.add(Map.of("term", Map.of("vehicleType", vehicleType)));
             }
             if (status != null && !status.isBlank()) {
-                filters.add(Map.of("term", Map.of("status", status)));
+                filters.add(Map.of("term", Map.of("status", status.toUpperCase())));
             }
             if (minRating != null || maxRating != null) {
                 Map<String, Object> range = new HashMap<>();
