@@ -3,7 +3,7 @@ spring:
     name: location-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/uberdb
+    url: jdbc:postgresql://postgres:5432/uberdb
     username: postgres
     password: postgres
 
@@ -30,7 +30,7 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin
+      uri: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
     redis:
       host: redis
       port: 6379
