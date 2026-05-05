@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.neo4j.core.schema.Id;
 import org.springframework.data.neo4j.core.schema.Node;
 
-@Node
+@Node("Driver")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
