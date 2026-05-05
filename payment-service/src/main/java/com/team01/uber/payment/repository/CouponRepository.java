@@ -11,13 +11,14 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
     @Query(value = """
             SELECT c.id, c.code, c.discount_type::text, c.discount_value,
-                   c.current_uses, SUM(pc.discount_applied) AS total_discount_given,
+                   COUNT(pc.id) AS times_used,
+                   COALESCE(SUM(pc.discount_applied), 0) AS total_discount_given,
                    c.active, c.expiry_date
             FROM coupons c
             JOIN payment_coupons pc ON c.id = pc.coupon_id
             GROUP BY c.id, c.code, c.discount_type, c.discount_value,
-                     c.current_uses, c.active, c.expiry_date
-            ORDER BY c.current_uses DESC
+                     c.active, c.expiry_date
+            ORDER BY COUNT(pc.id) DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findTopUsedCoupons(@Param("limit") int limit);
