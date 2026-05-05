@@ -177,13 +177,10 @@ public class RideService {
 
     // S3-F1
     @Cacheable(value = "ride-service::S3-F1", key="#status + '-' + #startDate.toString() + '-' + #endDate.toString()")
-    public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate) {
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
-        if (status == null) {
-            return rideRepository.findByRequestedAtBetweenOrderByRequestedAtDesc(start, end);
-        }
-        return rideRepository.findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(start, end, status);
+    public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate, Long userId) {
+        LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
+        LocalDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
+        return rideRepository.searchRidesFlexible(status, start, end, userId);
     }
 
     @Caching(evict = {

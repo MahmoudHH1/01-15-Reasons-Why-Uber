@@ -22,12 +22,15 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Object[]> findCompletedPaymentsSummaryByUser(@Param("userId") Long userId);
 
     @Query(value = "SELECT * FROM payments WHERE (:status IS NULL OR status::text = :status) " +
-            "AND created_at BETWEEN :startDate AND :endDate " +
+            "AND (CAST(:startDate AS timestamp) IS NULL OR created_at >= :startDate) " +
+            "AND (CAST(:endDate AS timestamp) IS NULL OR created_at <= :endDate) " +
+            "AND (:userId IS NULL OR user_id = :userId) " +
             "ORDER BY created_at DESC", nativeQuery = true)
     List<Payment> findByStatusAndDateRange(
             @Param("status") String status,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
+            @Param("endDate") LocalDateTime endDate,
+            @Param("userId") Long userId
     );
 
     @Query(value = "SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM payments " +

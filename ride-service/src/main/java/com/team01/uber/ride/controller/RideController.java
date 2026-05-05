@@ -56,9 +56,10 @@ public class RideController {
     @GetMapping("/search")
     public List<Ride> searchRides(
             @RequestParam(required = false) RideStatus status,
-            @RequestParam LocalDate startDate,
-            @RequestParam LocalDate endDate) {
-        return rideService.searchRides(status, startDate, endDate);
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false) Long userId) {
+        return rideService.searchRides(status, startDate, endDate, userId);
     }
 
     @PutMapping("/{id}")

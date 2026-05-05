@@ -113,10 +113,13 @@ public class PaymentController {
     @GetMapping("/search")
     public List<Payment> searchPayments(
             @RequestParam(required = false) PaymentStatus status,
-            @RequestParam String startDate,
-            @RequestParam String endDate
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long userId
     ) {
-        return paymentService.searchPayments(status, parseStartDate(startDate), parseEndDate(endDate));
+        LocalDateTime start = startDate == null ? null : parseStartDate(startDate);
+        LocalDateTime end = endDate == null ? null : parseEndDate(endDate);
+        return paymentService.searchPayments(status, start, end, userId);
     }
 
     private LocalDateTime parseStartDate(String dateStr) {
