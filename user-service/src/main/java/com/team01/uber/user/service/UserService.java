@@ -297,6 +297,14 @@ public class UserService implements Observable {
 
     @Cacheable(value = "user-service::S1-F12", key = "#userId + '-' + #page + '-' + #size")
     public ActivityFeedDTO getActivityFeed(Long userId, int page, int size) {
+
+        if (page < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page index must not be less than zero");
+        }
+        if (size <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page size must not be less than one");
+        }
+
         User authenticatedUser = (User) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
         if (!authenticatedUser.getId().equals(userId) &&
