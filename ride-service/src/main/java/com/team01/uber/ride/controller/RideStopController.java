@@ -1,5 +1,6 @@
 package com.team01.uber.ride.controller;
 
+import com.team01.uber.ride.dto.AddStopsRequest;
 import com.team01.uber.ride.dto.RideWithStopsDTO;
 import com.team01.uber.ride.dto.StopRequestDTO;
 import com.team01.uber.ride.model.RideStop;
@@ -21,7 +22,8 @@ public class RideStopController {
     }
 
     @PostMapping
-    public ResponseEntity<RideWithStopsDTO> addStops(@PathVariable Long rideId, @RequestBody List<StopRequestDTO> stops) {
+    public ResponseEntity<RideWithStopsDTO> addStops(@PathVariable Long rideId, @RequestBody AddStopsRequest body) {
+        List<StopRequestDTO> stops = body == null ? null : body.stops();
         return ResponseEntity.status(HttpStatus.CREATED).body(rideStopService.addStops(rideId, stops));
     }
 

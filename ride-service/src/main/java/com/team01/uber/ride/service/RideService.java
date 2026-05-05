@@ -379,14 +379,6 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
-        // Validate driver status is busy
-        if (!rideRepository.isDriverBusy(ride.getDriverId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Driver must be BUSY to complete a ride. Driver ID: " + ride.getDriverId()
-            );
-        }
-
         // Set status to COMPLETED and set completedAt timestamp
         ride.setStatus(RideStatus.COMPLETED);
         ride.setCompletedAt(LocalDateTime.now());
