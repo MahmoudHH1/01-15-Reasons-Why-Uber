@@ -37,8 +37,6 @@ If TC239 is fixed (Group 2 exception handling), TC238 may also become unblocked 
 Group 5 (Independent): Dashboard — TC48
 Root cause: GET /api/drivers/{id}/dashboard must return a DTO with totalRides (or total_rides) and totalRevenue (or total_revenue). The DriverDashboardDTO uses totalRides and totalEarnings — note the field is totalEarnings not totalRevenue. The grader accepts total_revenue OR totalRevenue, so if the actual field name is totalEarnings, neither camelCase variant matches. That alone would cause TC48 to fail regardless of business logic.
 
-Group 6 (Independent — Ride Service): Neo4j MERGE Key — TC82
-This is a ride-service bug, not driver-service. The POST /api/rides/{rideId}/record-interaction handler's Cypher MERGE clause identifies the Driver node by driver.name instead of driver.id, creating phantom nodes or mismatching existing ones. Fix: change the Cypher MERGE (d:Driver {name: $name}) to MERGE (d:Driver {id: $driverId}).
 
 Recommended Fix Order
 Priority	Group	TCs Fixed	Why First
@@ -48,4 +46,3 @@ Priority	Group	TCs Fixed	Why First
 4	Group 3 — Input Validation	TC243, TC244	Two validations, same pattern
 5	Group 5 — Dashboard field name	TC48	Rename totalEarnings → totalRevenue in DTO
 6	Group 4 — Document Verify	TC238	Unblock after Group 2 fix; verify business logic
-7	Group 6 — Neo4j MERGE (ride-service)	TC82	Ride-service change, separate PR
