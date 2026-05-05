@@ -38,12 +38,10 @@ public class ApprovedRefundResult extends RefundResult {
                 "paymentId", saved.getId(),
                 "method", saved.getMethod().name(),
                 "amount", saved.getAmount(),
-                "details", Map.of(
-                        "strategyName", strategyName,
-                        "reason", request.getReason() == null ? "" : request.getReason(),
-                        "refundAmount", getAmount(),
-                        "refundSurgeIncluded", surgeIncluded
-                )
+                "strategyName", strategyName,
+                "reason", request.getReason() == null ? "" : request.getReason(),
+                "refundAmount", getAmount(),
+                "refundSurgeIncluded", surgeIncluded
         ));
         ctx.cache.invalidateAllPaymentFeatureCaches(saved.getId());
 
