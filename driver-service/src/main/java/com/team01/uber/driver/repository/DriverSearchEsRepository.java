@@ -1,26 +1,37 @@
 package com.team01.uber.driver.repository;
 
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.json.JsonData;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.team01.uber.driver.model.DriverSearchDocument;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.elasticsearch.client.elc.NativeQuery;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.IndexOperations;
-import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public class DriverSearchEsRepository {
     private static final Logger log = LoggerFactory.getLogger(DriverSearchEsRepository.class);
-    private final ElasticsearchOperations operations;
 
-    public DriverSearchEsRepository(ElasticsearchOperations operations) {
-        this.operations = operations;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+    private final String esBaseUri;
+
+    public DriverSearchEsRepository(
+            @Value("${spring.elasticsearch.uris:http://elasticsearch:9200}") String esBaseUri) {
+        this.esBaseUri = esBaseUri;
     }
 
     @PostConstruct
@@ -30,49 +41,112 @@ public class DriverSearchEsRepository {
 
     public void ensureIndexExists() {
         try {
-            IndexOperations indexOps = operations.indexOps(DriverSearchDocument.class);
-            if (!indexOps.exists()) {
-                indexOps.createWithMapping();
+            String mapping = """
+                    {
+                      "mappings": {
+                        "properties": {
+                          "id":          {"type": "keyword"},
+                          "name":        {"type": "text"},
+                          "vehicleType": {"type": "keyword"},
+                          "description": {"type": "text"},
+                          "rating":      {"type": "double"},
+                          "status":      {"type": "keyword"}
+                        }
+                      }
+                    }
+                    """;
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(esBaseUri + "/drivers"))
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(mapping))
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            // 200 = created, 400 resource_already_exists = already exists — both are fine
+            if (resp.statusCode() / 100 != 2 && resp.statusCode() != 400) {
+                log.warn("Failed to ensure 'drivers' ES index mapping: status {}", resp.statusCode());
             }
         } catch (Exception e) {
             log.warn("Failed to ensure 'drivers' ES index mapping: {}", e.getMessage());
         }
     }
 
-    public SearchHits<DriverSearchDocument> searchFullText(String query,
-                                                           String vehicleType,
-                                                           String status,
-                                                           Double minRating,
-                                                           Double maxRating) {
-        String safeQuery = query == null ? "" : query;
-        Query mustQuery = Query.of(q -> q.multiMatch(m -> m
-                .query(safeQuery)
-                .fields(List.of("name", "description"))
-                .fuzziness("AUTO")));
+    public List<DriverSearchDocument> searchFullText(String query,
+                                                     String vehicleType,
+                                                     String status,
+                                                     Double minRating,
+                                                     Double maxRating) {
+        try {
+            Map<String, Object> mustClause;
+            if (query == null || query.isBlank()) {
+                mustClause = Map.of("match_all", Map.of());
+            } else {
+                mustClause = Map.of("multi_match", Map.of(
+                        "query", query,
+                        "fields", List.of("name", "description"),
+                        "fuzziness", "AUTO"
+                ));
+            }
 
-        BoolQuery.Builder boolBuilder = new BoolQuery.Builder().must(mustQuery);
+            List<Map<String, Object>> filters = new ArrayList<>();
+            if (vehicleType != null && !vehicleType.isBlank()) {
+                filters.add(Map.of("term", Map.of("vehicleType", vehicleType)));
+            }
+            if (status != null && !status.isBlank()) {
+                filters.add(Map.of("term", Map.of("status", status)));
+            }
+            if (minRating != null || maxRating != null) {
+                Map<String, Object> range = new HashMap<>();
+                if (minRating != null) range.put("gte", minRating);
+                if (maxRating != null) range.put("lte", maxRating);
+                filters.add(Map.of("range", Map.of("rating", range)));
+            }
 
-        if (vehicleType != null && !vehicleType.isBlank()) {
-            String vt = vehicleType;
-            boolBuilder.filter(Query.of(q -> q.term(t -> t.field("vehicleType").value(vt))));
+            Map<String, Object> boolQuery = new HashMap<>();
+            boolQuery.put("must", List.of(mustClause));
+            if (!filters.isEmpty()) {
+                boolQuery.put("filter", filters);
+            }
+
+            Map<String, Object> requestBody = Map.of("query", Map.of("bool", boolQuery));
+            String body = objectMapper.writeValueAsString(requestBody);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(esBaseUri + "/drivers/_search"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() / 100 != 2) {
+                log.warn("ES search returned {}: {}", resp.statusCode(), resp.body());
+                return List.of();
+            }
+
+            return parseHits(resp.body());
+        } catch (Exception e) {
+            log.warn("ES search failed: {}", e.getMessage());
+            return List.of();
         }
-        if (status != null && !status.isBlank()) {
-            String st = status;
-            boolBuilder.filter(Query.of(q -> q.term(t -> t.field("status").value(st))));
-        }
-        if (minRating != null || maxRating != null) {
-            boolBuilder.filter(Query.of(q -> q.range(r -> r.untyped(u -> {
-                u.field("rating");
-                if (minRating != null) u.gte(JsonData.of(minRating));
-                if (maxRating != null) u.lte(JsonData.of(maxRating));
-                return u;
-            }))));
-        }
+    }
 
-        NativeQuery nq = NativeQuery.builder()
-                .withQuery(Query.of(q -> q.bool(boolBuilder.build())))
-                .build();
-
-        return operations.search(nq, DriverSearchDocument.class);
+    private List<DriverSearchDocument> parseHits(String responseBody) throws Exception {
+        JsonNode root = objectMapper.readTree(responseBody);
+        JsonNode hitsArray = root.path("hits").path("hits");
+        List<DriverSearchDocument> results = new ArrayList<>();
+        for (JsonNode hit : hitsArray) {
+            JsonNode src = hit.path("_source");
+            DriverSearchDocument doc = DriverSearchDocument.builder()
+                    .id(src.has("id") ? src.get("id").asLong() : null)
+                    .name(src.has("name") ? src.get("name").asText(null) : null)
+                    .vehicleType(src.has("vehicleType") ? src.get("vehicleType").asText(null) : null)
+                    .description(src.has("description") ? src.get("description").asText(null) : null)
+                    .rating(src.has("rating") ? src.get("rating").asDouble() : null)
+                    .status(src.has("status") ? src.get("status").asText(null) : null)
+                    .build();
+            results.add(doc);
+        }
+        return results;
     }
 }
