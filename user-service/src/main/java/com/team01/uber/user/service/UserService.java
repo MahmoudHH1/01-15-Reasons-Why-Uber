@@ -105,14 +105,13 @@ public class UserService implements Observable {
     })
     public User updateUser(Long id, User updated) {
         User existing = getUserById(id);
-        validateRequiredUpdateKeys(updated);
-        existing.setName(updated.getName());
-        existing.setEmail(updated.getEmail());
-        existing.setPassword(updated.getPassword());
-        existing.setPhone(updated.getPhone());
-        existing.setRole(updated.getRole());
-        existing.setStatus(updated.getStatus());
-        existing.setPreferences(updated.getPreferences());
+        if (updated.getName() != null) existing.setName(updated.getName());
+        if (updated.getEmail() != null) existing.setEmail(updated.getEmail());
+        if (updated.getPassword() != null) existing.setPassword(updated.getPassword());
+        if (updated.getPhone() != null) existing.setPhone(updated.getPhone());
+        if (updated.getRole() != null) existing.setRole(updated.getRole());
+        if (updated.getStatus() != null) existing.setStatus(updated.getStatus());
+        if (updated.getPreferences() != null) existing.setPreferences(updated.getPreferences());
         User saved = userRepository.save(existing);
         notifyObservers(AuthEvent.ACTION_USER_UPDATED, Map.of("userId", saved.getId()));
         return saved;
