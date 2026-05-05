@@ -36,9 +36,13 @@ import com.team01.uber.location.repository.LocationEventRepository;
 import com.team01.uber.location.service.LocationService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.validation.annotation.Validated;
 
 @RestController
 @RequestMapping("/api/locations")
+@Validated
 public class LocationController {
 
     private final LocationService locationService;
@@ -132,15 +136,15 @@ public class LocationController {
     @GetMapping("/driver/{driverId}/summary")
     public ResponseEntity<DriverMovementSummaryDTO> getDriverMovementSummary(
             @PathVariable Long driverId,
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam @NotBlank String startDate,
+            @RequestParam @NotBlank String endDate) {
         return ResponseEntity.ok(locationService.getDriverMovementSummary(driverId, startDate, endDate));
     }
 
     @GetMapping("/stationary")
     public ResponseEntity<List<StationaryDriverDTO>> findStationaryDrivers(
             @RequestParam Double maxSpeed,
-            @RequestParam int sinceMinutes) {
+            @RequestParam @Min(0) int sinceMinutes) {
         return ResponseEntity.ok(locationService.findStationaryDrivers(maxSpeed, sinceMinutes));
     }
 
@@ -148,7 +152,7 @@ public class LocationController {
     public ResponseEntity<List<NearbyDriverDTO>> findNearbyDrivers(
             @RequestParam Double lat,
             @RequestParam Double lon,
-            @RequestParam Double radiusKm) {
+            @RequestParam @Min(0) Double radiusKm) {
         return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm));
     }
 
