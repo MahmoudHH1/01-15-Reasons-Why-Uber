@@ -1,0 +1,669 @@
+════════════════════════════════════════════════════════════════════════
+  MILESTONE 2 — GRADING REPORT
+  Theme  :  Uber
+  Repo   :  repo
+  Mode   :  Standard  (add -e DEBUG=1 to the docker run for full details)
+════════════════════════════════════════════════════════════════════════
+
+  ✓  Stack healthy  (maven build + docker compose up + health-wait all passed)
+
+────────────────────────────────────────────────────────────────────────
+  FEATURE TESTS  (TC001-TC378)                                 258/378
+────────────────────────────────────────────────────────────────────────
+
+  S1 — user-service  54/69 (78%)
+
+    [ ERROR ]  TC03 — Read Own Profile Happy Path
+           read own profile returns 2xx and json object
+           read_own_profile_returns_2xx_and_json_object() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC04 — Register Duplicate Email
+           register with duplicate email returns 4xx
+           register_with_duplicate_email_returns_4xx() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC17 — Idor Read Other User
+           customer a cannot read user b profile
+           TC17: customer A reading customer B's profile must NOT be 2xx (status 200). A 2xx here means cross-user IDOR is ...
+
+    [ ERROR ]  TC18 — Idor Update Other User
+           customer a cannot update user b profile
+           customer_a_cannot_update_user_b_profile() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC19 — Idor Delete Other User
+           customer a cannot delete user b
+           TC19: customer A deleting customer B must NOT be 2xx (status 204). A 2xx here means cross-user delete is unprote...
+
+    [ ERROR ]  TC20 — Owner Update Own Profile
+           owner can update own profile
+           owner_can_update_own_profile() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC22 — Admin Update Any User
+           admin can update any user
+           TC22 admin update customer: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:11:59.871Z","status":400,"...
+
+    [ ERROR ]  TC23 — Admin Delete Any User
+           admin can delete any user hard
+           admin_can_delete_any_user_hard() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC301 — Ub Refund Wrong State
+           refund wrong state
+           refund_wrong_state() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC326 — Ub User Summary Not Found
+           user summary not found
+           user_summary_not_found() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC342 — Ub Ride Search By User
+           search by user
+           TC342: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:07:35.868Z","status":400,"error":"Bad Request",...
+
+    [ FAIL  ]  TC360 — Ub Payment Search By User
+           search by user
+           TC360: expected 2xx but got 400 body={
+
+    [ ERROR ]  TC376 — Ub Search Users All
+           search all users
+           search_all_users() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC47 — Index No Token
+           index no token returns 401
+           TC47 setup create: expected 2xx but got 400 body={
+
+    [ ERROR ]  TC83 — Record Ride User Node
+           record ride user node
+           record_ride_user_node() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+    (54 passing tests not shown)
+
+  S2 — catalog-service  8/15 (53%)
+
+    [ ERROR ]  TC101 — Location Total Events
+           total events isolated
+           total_events_isolated() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC104 — Location Events By Hour
+           events by hour isolated
+           events_by_hour_isolated() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC116 — Location Events By Hour Omits Zero
+           events by hour omits zero
+           events_by_hour_omits_zero() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC127 — Tracking Notes Round Trip
+           tracking notes round trip
+           tracking_notes_round_trip() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC137 — Vehicle Type Total Revenue
+           total revenue
+           total_revenue() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC158 — Vehicle Type Revenue Decomposition
+           revenue decomposition
+           revenue_decomposition() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC363 — Ub Revenue Avg
+           revenue avg
+           revenue_avg() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+    (8 passing tests not shown)
+
+  S3 — order-service  21/33 (64%)
+
+    [ ERROR ]  TC112 — Location Analytics Viewed Logged
+           analytics viewed on first call
+           analytics_viewed_on_first_call() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC113 — Location Analytics Cache Hit
+           analytics viewed on cache hit
+           analytics_viewed_on_cache_hit() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC150 — Vehicle Type Analytics Cache Hit
+           analytics viewed on cache hit
+           analytics_viewed_on_cache_hit() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC219 — Ub Ride Summary Excludes Cancelled
+           summary excludes cancelled
+           summary_excludes_cancelled() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC260 — Ub Analytics Happy
+           analytics happy
+           TC260: completionRate=0.75 ==> expected: <0.75> but was: <75.0>
+
+    [ ERROR ]  TC263 — Ub Cancel Completed
+           cancel completed
+           cancel_completed() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC28 — Activity Size Zero
+           activity size zero does not 5xx
+           TC28: size=0 must NOT 5xx — controller must validate / clamp / reject gracefully, not let PageRequest.of throw I...
+
+    [ FAIL  ]  TC29 — Activity Negative Size
+           activity negative size returns 4xx
+           TC29: size=-1 must NOT 5xx — controller must validate gracefully. status=500 body={"timestamp":"2026-05-05T11:09...
+
+    [ ERROR ]  TC339 — Ub Top Rated Threshold
+           top rated threshold
+           top_rated_threshold() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC33 — Activity Negative Page
+           activity negative page returns 4xx
+           TC33: page=-1 must NOT 5xx — PageRequest.of(int page, int size) requires page >= 0; controller must validate gra...
+
+    [ ERROR ]  TC34 — Activity String Page
+           activity string page returns 4xx
+           activity_string_page_returns_4xx() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC75 — Record Ride Cancelled
+           record ride cancelled 400
+           record_ride_cancelled_400() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+    (21 passing tests not shown)
+
+  S4 — delivery-service  33/63 (52%)
+
+    [ ERROR ]  TC100 — Location Dashboard Happy Path
+           dashboard happy path
+           dashboard_happy_path() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC102 — Location Active Drivers
+           active drivers distinct
+           active_drivers_distinct() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC103 — Location Average Speed
+           average speed isolated
+           average_speed_isolated() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC105 — Location Empty Range
+           empty range zeros
+           empty_range_zeros() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC106 — Location Invalid Range
+           invalid date range 400
+           invalid_date_range_400() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC109 — Location Boundary Inclusion
+           boundary included
+           boundary_included() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC110 — Location Out Of Range
+           out of range excluded
+           out_of_range_excluded() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC111 — Location Avg Speed Zero
+           avg speed zero on empty
+           avg_speed_zero_on_empty() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC114 — Location Cache Same Body
+           cache same body
+           cache_same_body() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC115 — Location Cache No Reaggregate
+           cache does not reaggregate
+           cache_does_not_reaggregate() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC117 — Location Active Drivers Distinct
+           active drivers distinct only
+           active_drivers_distinct_only() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC118 — Tracking Happy Path
+           tracking happy path
+           tracking_happy_path() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC119 — Tracking Cassandra Fields
+           tracking cassandra fields
+           tracking_cassandra_fields() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC120 — Tracking Multiple
+           tracking multiple events
+           tracking_multiple_events() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC124 — Tracking Optional Fields
+           tracking optional fields nullable
+           tracking_optional_fields_nullable() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC125 — Tracking Mongo Driver Id
+           tracking mongo driver id
+           tracking_mongo_driver_id() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC126 — Tracking Coords Preserved
+           tracking coords preserved
+           tracking_coords_preserved() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC248 — Ub Driver Search No Match
+           search no match
+           search_no_match() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC249 — Ub Ride Search By Status
+           search by status
+           TC249: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:03:25.849Z","status":400,"error":"Bad Request",...
+
+    [ ERROR ]  TC253 — Ub Assign Not Found
+           assign not found
+           assign_not_found() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC276 — Ub Latest Location Empty
+           latest empty
+           latest_empty() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC277 — Ub Update Location Happy
+           update location happy
+           update_location_happy() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC285 — Ub Location Metadata Bad Op
+           metadata bad op
+           metadata_bad_op() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC286 — Ub Location History Happy
+           history happy
+           history_happy() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC297 — Ub Driver Movement Summary Bad Date
+           summary bad date
+           TC297: must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ FAIL  ]  TC298 — Ub Payment Search By Status
+           search by status
+           TC298: expected 2xx but got 400 body={
+
+    [ ERROR ]  TC355 — Ub Driver Summary Max Speed
+           summary max speed
+           summary_max_speed() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC38 — Search Exact Status
+           search filter status returns only matching
+           TC38 setup create TC38 Status0_440174960: expected 2xx but got 400 body={
+
+    [ FAIL  ]  TC73 — Record Ride Different Driver
+           record ride different driver
+           No @Node class declares Neo4j label 'User'. Per the M2 spec, this label is mandatory for the recommendation grap...
+
+    [ FAIL  ]  TC82 — Record Ride Driver Node
+           record ride driver node
+           No @Node class declares Neo4j label 'Driver'. Per the M2 spec, this label is mandatory for the recommendation gr...
+    (33 passing tests not shown)
+
+  S5 — checkout-service  42/51 (82%)
+
+    [ ERROR ]  TC160 — Payment Method Success Count
+           success count isolated
+           success_count_isolated() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC167 — Payment Method Empty Range
+           empty range empty list
+           empty_range_empty_list() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC172 — Payment Method Cache Same Body
+           cache same body
+           cache_same_body() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC309 — Ub Apply Coupon Expired
+           apply coupon expired
+           apply_coupon_expired() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC320 — Ub Top Coupons Limit
+           top coupons limit
+           top_coupons_limit() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC323 — Ub Payment Details No Coupons
+           details no coupons
+           details_no_coupons() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC362 — Ub Coupon Uses Increment
+           coupon uses increment
+           coupon_uses_increment() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC364 — Ub Details Transaction Field
+           details transaction
+           details_transaction() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC365 — Ub Top Coupons Times Used
+           top coupons times used
+           TC365: timesUsed=2; got 0 ==> expected: <2> but was: <0>
+    (42 passing tests not shown)
+
+  S? — (unclassified)  100/147 (68%)
+
+    [ ERROR ]  TC128 — Timeline Happy Path
+           timeline happy path
+           timeline_happy_path() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC129 — Timeline Time Range
+           timeline time range
+           timeline_time_range() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC135 — Timeline Dto Shape
+           timeline dto shape
+           timeline_dto_shape() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC136 — Vehicle Type Happy Path
+           vehicle type happy path
+           vehicle_type_happy_path() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC138 — Vehicle Type Surge Fee Jsonb
+           surge fee from jsonb
+           surge_fee_from_jsonb() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC194 — Ub Update Preferences Merge
+           preferences merge
+           preferences_merge() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC200 — Ub Deactivate Active Ride
+           deactivate active 400
+           deactivate_active_400() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC211 — Ub Default Address Foreign
+           default address foreign
+           TC211: must be 404 (foreign address); got 400 ==> expected: <404> but was: <400>
+           → Resource not found — verify entity exists and endpoint path matches spec
+
+    [ ERROR ]  TC215 — Ub Lang Min Rides Happy
+           lang min rides happy
+           lang_min_rides_happy() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC238 — Ub Verify Document Happy
+           verify doc happy
+           TC238: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:10:50.081Z","status":400,"error":"Bad Request",...
+
+    [ FAIL  ]  TC239 — Ub Verify Document Not Found
+           verify doc not found
+           TC239: must be 404; got 400 ==> expected: <404> but was: <400>
+           → Resource not found — verify entity exists and endpoint path matches spec
+
+    [ FAIL  ]  TC243 — Ub Vehicle Empty Body
+           vehicle empty body
+           TC243: empty body must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ FAIL  ]  TC244 — Ub Earnings Invalid Range
+           earnings invalid range
+           TC244: must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ FAIL  ]  TC256 — Ub Complete Ride Happy
+           complete happy
+           TC256: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:07:39.147Z","status":400,"error":"Bad Request",...
+
+    [ ERROR ]  TC264 — Ub Add Stops Happy
+           add stops happy
+           add_stops_happy() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC265 — Ub Add Stops Not Found
+           add stops not found
+           TC265: must be 404; got 400 ==> expected: <404> but was: <400>
+           → Resource not found — verify entity exists and endpoint path matches spec
+
+    [ FAIL  ]  TC268 — Ub Ride Search No Match
+           search no match
+           TC268: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:03:27.802Z","status":400,"error":"Bad Request",...
+
+    [ FAIL  ]  TC280 — Ub Nearby Invalid Radius
+           nearby invalid radius
+           TC280: negative radius must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ ERROR ]  TC282 — Ub Batch Empty
+           batch empty
+           batch_empty() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC293 — Ub Stationary Negative Param
+           stationary negative
+           TC293: negative sinceMinutes must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ FAIL  ]  TC325 — Ub Process Bad Card
+           process bad card
+           TC325: bad cardLastFour must be 400; got 201 ==> expected: <400> but was: <201>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ ERROR ]  TC331 — Ub Top Riders Date Filter
+           top riders date filter
+           top_riders_date_filter() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC338 — Ub Vehicle Type Unknown
+           vehicle type unknown
+           TC338: unknown enum must be 400; got 200 ==> expected: <400> but was: <200>
+           → Bad request expected — ensure @Valid / @NotBlank triggers on blank fields
+
+    [ FAIL  ]  TC341 — Ub Verify Doc By Rider
+           verify doc by rider
+           TC341: rider must be 403; got 400 ==> expected: <403> but was: <400>
+           → Forbidden — RBAC check is too strict or role mapping is wrong
+
+    [ FAIL  ]  TC344 — Ub Complete Fare Set
+           complete fare set
+           TC344: expected 2xx but got 400 body={"timestamp":"2026-05-05T11:11:24.078Z","status":400,"error":"Bad Request",...
+
+    [ ERROR ]  TC350 — Ub Ride Search Invalid Date
+           search invalid date
+           search_invalid_date() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC371 — Ub Complete Unknown
+           complete unknown
+           complete_unknown() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC37 — Search Exact Categorical Filter
+           search filter categorical returns only matching
+           Uber Driver entity has no non-status categorical filter field — see Uber M1 §6.2. The only enum on Driver is 'st...
+
+    [ FAIL  ]  TC39 — Search Rating Range
+           search rating range returns entities in range
+           TC39 setup create TC39 Low_214943170: expected 2xx but got 400 body={
+
+    [ FAIL  ]  TC42 — Search Sorted By Relevance
+           search results sorted by relevance
+           TC42 setup create Tc42Word935927930 Kitchen: expected 2xx but got 400 body={
+
+    [ ERROR ]  TC43 — Index Happy Path
+           index happy path returns 2xx
+           index_happy_path_returns_2xx() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC44 — Index Matches Pg
+           index doc matches pg attributes
+           TC44 setup create: expected 2xx but got 400 body={
+
+    [ FAIL  ]  TC45 — Index Auto Reindex On Update
+           auto reindex on update
+           TC45 setup create: expected 2xx but got 400 body={
+
+    [ FAIL  ]  TC48 — Dashboard Happy Path
+           dashboard happy path
+           TC48: dashboard must include totalRevenue; got {"driverId":1,"name":"TC48 Driver 158425200","totalRides":0,"tota...
+
+    [ FAIL  ]  TC49 — Dashboard Aggregates Match Pg
+           dashboard aggregates match pg
+           No FK from ride table 'rides' to catalog table 'drivers'. The S3 ride entity must have a relation to the S2 cata...
+
+    [ FAIL  ]  TC52 — Dashboard No Rides
+           dashboard no rides returns zeros
+           No FK from ride table 'rides' to catalog table 'drivers'. The S3 ride entity must have a relation to the S2 cata...
+
+    [ ERROR ]  TC54 — Ride Dashboard Happy Path
+           dashboard happy path
+           dashboard_happy_path() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC58 — Ride Dashboard Completion Rate
+           completion rate isolated
+           completion_rate_isolated() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC60 — Ride Dashboard Empty Range
+           empty range zeros
+           empty_range_zeros() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC70 — Record Ride Happy Path
+           record ride happy
+           No @Node class declares Neo4j label 'User'. Per the M2 spec, this label is mandatory for the recommendation grap...
+
+    [ FAIL  ]  TC71 — Record Ride Idempotency
+           record ride idempotent
+           No @Node class declares Neo4j label 'User'. Per the M2 spec, this label is mandatory for the recommendation grap...
+
+    [ FAIL  ]  TC72 — Record Ride Two Distinct
+           record ride two distinct
+           No @Node class declares Neo4j label 'User'. Per the M2 spec, this label is mandatory for the recommendation grap...
+
+    [ FAIL  ]  TC81 — Record Ride Last Ride Date
+           record ride last ride date
+           No @Node class declares Neo4j label 'User'. Per the M2 spec, this label is mandatory for the recommendation grap...
+
+    [ ERROR ]  TC86 — Recommendations Score
+           recommendations score ranking
+           recommendations_score_ranking() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC92 — Recommendations Not Found
+           recommendations not found 404
+           recommendations_not_found_404() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ ERROR ]  TC95 — Recommendations Enriched Fields
+           recommendations enriched fields
+           recommendations_enriched_fields() timed out after 30 seconds
+           → Test timeout (30 s) — service may be stuck or taking too long to respond
+
+    [ FAIL  ]  TC99 — Recommendations Vehicle Type Enrichment
+           recommendations vehicle type enriched
+           TC99: vehicleType must not be blank; got= ==> expected: <false> but was: <true>
+    (100 passing tests not shown)
+
+────────────────────────────────────────────────────────────────────────
+  DESIGN PATTERN TESTS  (TC379-TC425)                            42/47
+────────────────────────────────────────────────────────────────────────
+
+  DP-1  Strategy  5/7 (71%)
+    Refund strategy interface + 3 concrete strategies + no if/else on refund type in service
+
+    [ FAIL  ]  TC382 — full Refund With Surge Audit Trail
+           TC382: audit doc must contain strategyName field; doc={"_id": {"$oid": "69f9ceeea776d5c760612605"}, "paymentId":...
+
+    [ FAIL  ]  TC383 — base Fare Only Refund Audit Trail
+           TC383: audit must have strategyName; doc={"_id": {"$oid": "69f9ceeea776d5c760612606"}, "paymentId": 1, "action":...
+    (5 passing checks not shown)
+
+  DP-2  Observer  7/7 (100%)
+    EntityObserver + MongoEventLogger — pure GoF, not @EventListener; unregister method required
+    All checks passed ✓
+
+  DP-3  Chain of Responsibility  8/8 (100%)
+    AuthHandler chain: ≥3 handlers (Token, Signature, UserLoader); Security filter delegates to chain head
+    All checks passed ✓
+
+  DP-4  Builder  3/5 (60%)
+    Builder on M2 dashboard DTOs + all 16 M1 DTOs retrofitted; regression tests must still pass
+
+    [ FAIL  ]  TC401 — m2Dashboard Dtos Have Builder
+           TC401: M2 dashboard DTOs missing Builder pattern: [DriverDashboardDTO]. Per spec §3.5, all 5-plus-field analytic...
+
+    [ FAIL  ]  TC402 — m1Dtos Have Builder
+           TC402: These M1 DTOs are missing Builder: [TopRiderDTO, DriverEarningsDTO, TopDriverDTO, DriverDocumentAlertDTO]...
+    (3 passing checks not shown)
+
+  DP-5  Singleton  6/6 (100%)
+    JwtConfigurationManager: private constructor, thread-safe init, NOT a Spring bean (@Component absent)
+    All checks passed ✓
+
+  DP-6  Factory  8/8 (100%)
+    MongoEvent interface + 5 event classes + EventFactory.createEvent(EventType, Map) dispatch
+    All checks passed ✓
+
+  DP-7  Adapter  5/6 (83%)
+    Adapter classes wrapping MongoDB Document, ES SearchHit, Neo4j Record, Cassandra Row, Object[] results
+
+    [ FAIL  ]  TC420 — adapter Classes Present
+           TC420: Missing Adapter classes: [CassandraRowAdapter (location-service)]. Per spec §3.8, each service must have ...
+    (5 passing checks not shown)
+
+════════════════════════════════════════════════════════════════════════
+  RESULTS SUMMARY
+════════════════════════════════════════════════════════════════════════
+
+  Score     300/425   (70.6%)
+  Passed     300
+  Failed      49
+  Errors      76
+
+  Breakdown
+    Feature Tests (TC001-TC378)     258/378 (68%)
+      S1 — user-service                54/69
+      S2 — catalog-service              8/15
+      S3 — order-service               21/33
+      S4 — delivery-service            33/63
+      S5 — checkout-service            42/51
+      S? — (unclassified)             100/147
+    Design Patterns (TC379-TC425)    42/47  (89%)
+
+  Total time  :  43m 39s
+  Debug mode  :  add -e DEBUG=1 for full error details and stack traces
+  Maven log   :  /tmp/m2-mvn-output.log  (always written — tail -f for live output)
+
+════════════════════════════════════════════════════════════════════════
