@@ -311,6 +311,10 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS");
         }
 
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be on or before endDate");
+        }
+
         List<Object[]> results = locationRepository.getMovementSummary(driverId, start, end);
         Object[] row = results.get(0);
 
