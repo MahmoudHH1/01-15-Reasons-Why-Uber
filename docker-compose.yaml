@@ -149,6 +149,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: redispass
       SERVER_ERROR_INCLUDE_MESSAGE: always
+      JVM_OPTS: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=512m"
     ports:
       - "8085:8080"
     depends_on:
@@ -234,6 +235,7 @@ services:
       CASSANDRA_KEYSPACE: uberks
       MAX_HEAP_SIZE: 512M
       HEAP_NEWSIZE: 128M
+      JVM_OPTS: "-Dcassandra.skip_wait_for_gossip_to_settle=0 -Dcassandra.ring_delay_ms=1000 -Dcassandra.write_request_timeout_in_ms=30000"
     volumes:
       - cassandra-data:/var/lib/cassandra
     healthcheck:
