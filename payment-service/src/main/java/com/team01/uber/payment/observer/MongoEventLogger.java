@@ -28,17 +28,25 @@ public class MongoEventLogger implements EntityObserver {
 
     @Override
     public void onEvent(String eventType, Object payload) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("action", eventType);
-        if (payload instanceof Map<?, ?> payloadMap) {
-            payloadMap.forEach((k, v) -> params.put(k.toString(), v));
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("action", eventType);
+            if (payload instanceof Map<?, ?> payloadMap) {
+                payloadMap.forEach((k, v) -> params.put(k.toString(), v));
+            }
+            PaymentAuditEvent event = (PaymentAuditEvent)
+                    EventFactory.createEvent(EventType.PAYMENT_AUDIT, params);
+            repository.save(event);
+        } catch (Exception e) {
+            log.warn("Failed to persist payment audit event '{}' to MongoDB: {}", eventType, e.getMessage());
         }
-        PaymentAuditEvent event = (PaymentAuditEvent)
-                EventFactory.createEvent(EventType.PAYMENT_AUDIT, params);
-        repository.save(event);
 
         if (!"ANALYTICS_VIEWED".equals(eventType) && !"DASHBOARD_VIEWED".equals(eventType)) {
-            cacheInvalidationService.invalidateAnalyticsCaches();
+            try {
+                cacheInvalidationService.invalidateAnalyticsCaches();
+            } catch (Exception e) {
+                log.warn("Failed to invalidate analytics caches for '{}': {}", eventType, e.getMessage());
+            }
         }
     }
 }

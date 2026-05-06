@@ -27,18 +27,20 @@ public class MongoEventLogger implements EntityObserver {
 
     @Override
     public void onEvent(String action, Object payload) {
-        Map<String, Object> payloadMap = (Map<String, Object>) payload;
+        try {
+            Map<String, Object> payloadMap = (Map<String, Object>) payload;
 
-        // Build params with only what EventFactory needs at the top level,
-        // plus the full payload stored under "details" — no key duplication.
-        Map<String, Object> params = new HashMap<>();
-        params.put("action", action);
-        params.put("rideId", payloadMap.get("rideId"));
-        params.put("details", payloadMap);
+            Map<String, Object> params = new HashMap<>();
+            params.put("action", action);
+            params.put("rideId", payloadMap.get("rideId"));
+            params.put("details", payloadMap);
 
-        MongoEvent event = eventFactory.createEvent(boundEventType, params);
-        if (event instanceof RideEvent rideEvent) {
-            rideEventRepository.save(rideEvent);
+            MongoEvent event = eventFactory.createEvent(boundEventType, params);
+            if (event instanceof RideEvent rideEvent) {
+                rideEventRepository.save(rideEvent);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to persist ride event '{}' to MongoDB: {}", action, e.getMessage());
         }
     }
 }
