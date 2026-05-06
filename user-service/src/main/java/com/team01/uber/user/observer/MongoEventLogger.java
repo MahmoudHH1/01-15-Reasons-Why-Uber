@@ -5,7 +5,6 @@ import com.team01.uber.user.factory.EventFactory;
 import com.team01.uber.user.model.mongo.AuthEvent;
 import com.team01.uber.user.repository.AuthEventRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 
@@ -23,16 +22,11 @@ public class MongoEventLogger implements EntityObserver {
         this.authEventRepository = authEventRepository;
     }
 
-    @Async
     @Override
     public void onEvent(String action, Object payload) {
-        try {
-            Map<String, Object> params = new HashMap<>((Map<String, Object>) payload);
-            params.put("action", action);
-            AuthEvent event = (AuthEvent) EventFactory.createEvent(boundEventType, params);
-            authEventRepository.save(event);
-        } catch (Exception e) {
-            log.warn("Failed to log event to MongoDB: {}", e.getMessage());
-        }
+        Map<String, Object> params = new HashMap<>((Map<String, Object>) payload);
+        params.put("action", action);
+        AuthEvent event = (AuthEvent) EventFactory.createEvent(boundEventType, params);
+        authEventRepository.save(event);
     }
 }

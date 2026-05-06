@@ -4,12 +4,10 @@ import com.team01.uber.payment.observer.MongoEventLogger;
 import com.team01.uber.payment.service.PaymentCouponService;
 import com.team01.uber.payment.service.PaymentService;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableAsync;
 
 import jakarta.annotation.PostConstruct;
 
 @Configuration
-@EnableAsync
 public class ObserverConfig {
 
     private final PaymentService paymentService;

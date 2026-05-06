@@ -6,7 +6,6 @@ import com.team01.uber.ride.model.MongoEvent;
 import com.team01.uber.ride.model.RideEvent;
 import com.team01.uber.ride.repository.RideEventRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -26,26 +25,20 @@ public class MongoEventLogger implements EntityObserver {
         this.boundEventType = EventType.RIDE;
     }
 
-    @Async
-    @SuppressWarnings("unchecked")
     @Override
     public void onEvent(String action, Object payload) {
-        try {
-            Map<String, Object> payloadMap = (Map<String, Object>) payload;
+        Map<String, Object> payloadMap = (Map<String, Object>) payload;
 
-            // Build params with only what EventFactory needs at the top level,
-            // plus the full payload stored under "details" — no key duplication.
-            Map<String, Object> params = new HashMap<>();
-            params.put("action", action);
-            params.put("rideId", payloadMap.get("rideId"));
-            params.put("details", payloadMap);
+        // Build params with only what EventFactory needs at the top level,
+        // plus the full payload stored under "details" — no key duplication.
+        Map<String, Object> params = new HashMap<>();
+        params.put("action", action);
+        params.put("rideId", payloadMap.get("rideId"));
+        params.put("details", payloadMap);
 
-            MongoEvent event = eventFactory.createEvent(boundEventType, params);
-            if (event instanceof RideEvent rideEvent) {
-                rideEventRepository.save(rideEvent);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to log event to MongoDB: {}", e.getMessage());
+        MongoEvent event = eventFactory.createEvent(boundEventType, params);
+        if (event instanceof RideEvent rideEvent) {
+            rideEventRepository.save(rideEvent);
         }
     }
 }

@@ -13,10 +13,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.scheduling.annotation.EnableAsync;
 
 @Configuration
-@EnableAsync
 @EnableWebSecurity
 public class SecurityConfig {
 
