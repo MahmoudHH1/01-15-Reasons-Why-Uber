@@ -1,92 +1,95 @@
-[
-  {
-    "service": "ride-service",
-    "githubUsername": "MohamedAbdel-Azeem",
-    "name": "Mohamed Khaled Naguib",
-    "studentId": "55-25378"
-  },
-  {
-    "service": "ride-service",
-    "githubUsername": "sp4rkii",
-    "name": "Ahmed Wael Ibrahim",
-    "studentId": "55-13512"
-  },
-  {
-    "service": "ride-service",
-    "githubUsername": "Youssef-Malek2004",
-    "name": "Youssef Mohamed Malek",
-    "studentId": "55-24816"
-  },
-  {
-    "service": "payment-service",
-    "githubUsername": "seiftarek158",
-    "name": "Seif Tarek Mostafa",
-    "studentId": "55-24853"
-  },
-  {
-    "service": "payment-service",
-    "githubUsername": "YahiaHesham",
-    "name": "Yahia Hesham Anwer",
-    "studentId": "55-25376"
-  },
-  {
-    "service": "payment-service",
-    "githubUsername": "seifo195",
-    "name": "Seifeldin Hesham Abdelrahman",
-    "studentId": "55-0664"
-  },
-  {
-    "service": "location-service",
-    "githubUsername": "OHarridy",
-    "name": "Omar Mostafa Fouad Elharridy",
-    "studentId": "55-0654"
-  },
-  {
-    "service": "location-service",
-    "githubUsername": "Naefu",
-    "name": "Ahmed Ibrahim El-Mosallamy",
-    "studentId": "55-0823"
-  },
-  {
-    "service": "location-service",
-    "githubUsername": "youssef20031",
-    "name": "Youssef Maged Mourice Nazir Hanna",
-    "studentId": "55-2829"
-  },
-  {
-    "service": "user-service",
-    "githubUsername": "Agaae",
-    "name": "Ahmed Gamal Elkot",
-    "studentId": "55-24478"
-  },
-  {
-    "service": "user-service",
-    "githubUsername": "Welo5",
-    "name": "Abdelrahman Mohamed Wael",
-    "studentId": "55-26445"
-  },
-  {
-    "service": "user-service",
-    "githubUsername": "seifabdalla",
-    "name": "Seif Tarek Ahmed",
-    "studentId": "55-3258"
-  },
-  {
-    "service": "driver-service",
-    "githubUsername": "MahmoudHH1",
-    "name": "Mahmoud Hebishy",
-    "studentId": "55-18387"
-  },
-  {
-    "service": "driver-service",
-    "githubUsername": "Ahmed20150",
-    "name": "Ahmed Gasser",
-    "studentId": "55-25085"
-  },
-  {
-    "service": "driver-service",
-    "githubUsername": "ZiadRaafat",
-    "name": "Ziad Raafat",
-    "studentId": "55-7978"
-  }
-]
+{
+  "theme": "Uber",
+  "team":[
+    {
+      "service": "ride-service",
+      "githubUsername": "MohamedAbdel-Azeem",
+      "name": "Mohamed Khaled Naguib",
+      "id": "55-25378"
+    },
+    {
+      "service": "ride-service",
+      "githubUsername": "sp4rkii",
+      "name": "Ahmed Wael Ibrahim",
+      "id": "55-13512"
+    },
+    {
+      "service": "ride-service",
+      "githubUsername": "Youssef-Malek2004",
+      "name": "Youssef Mohamed Malek",
+      "id": "55-24816"
+    },
+    {
+      "service": "payment-service",
+      "githubUsername": "seiftarek158",
+      "name": "Seif Tarek Mostafa",
+      "id": "55-24853"
+    },
+    {
+      "service": "payment-service",
+      "githubUsername": "YahiaHesham",
+      "name": "Yahia Hesham Anwer",
+      "id": "55-25376"
+    },
+    {
+      "service": "payment-service",
+      "githubUsername": "seifo195",
+      "name": "Seifeldin Hesham Abdelrahman",
+      "id": "55-0664"
+    },
+    {
+      "service": "location-service",
+      "githubUsername": "OHarridy",
+      "name": "Omar Mostafa Fouad Elharridy",
+      "id": "55-0654"
+    },
+    {
+      "service": "location-service",
+      "githubUsername": "Naefu",
+      "name": "Ahmed Ibrahim El-Mosallamy",
+      "id": "55-0823"
+    },
+    {
+      "service": "location-service",
+      "githubUsername": "youssef20031",
+      "name": "Youssef Maged Mourice Nazir Hanna",
+      "id": "55-2829"
+    },
+    {
+      "service": "user-service",
+      "githubUsername": "Agaae",
+      "name": "Ahmed Gamal Elkot",
+      "id": "55-24478"
+    },
+    {
+      "service": "user-service",
+      "githubUsername": "Welo5",
+      "name": "Abdelrahman Mohamed Wael",
+      "id": "55-26445"
+    },
+    {
+      "service": "user-service",
+      "githubUsername": "seifabdalla",
+      "name": "Seif Tarek Ahmed",
+      "id": "55-3258"
+    },
+    {
+      "service": "driver-service",
+      "githubUsername": "MahmoudHH1",
+      "name": "Mahmoud Hebishy",
+      "id": "55-18387"
+    },
+    {
+      "service": "driver-service",
+      "githubUsername": "Ahmed20150",
+      "name": "Ahmed Gasser",
+      "id": "55-25085"
+    },
+    {
+      "service": "driver-service",
+      "githubUsername": "ZiadRaafat",
+      "name": "Ziad Raafat",
+      "id": "55-7978"
+    }
+  ]
+}
