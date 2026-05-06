@@ -6,6 +6,7 @@ import com.team01.uber.ride.model.MongoEvent;
 import com.team01.uber.ride.model.RideEvent;
 import com.team01.uber.ride.repository.RideEventRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -25,6 +26,7 @@ public class MongoEventLogger implements EntityObserver {
         this.boundEventType = EventType.RIDE;
     }
 
+    @Async
     @SuppressWarnings("unchecked")
     @Override
     public void onEvent(String action, Object payload) {

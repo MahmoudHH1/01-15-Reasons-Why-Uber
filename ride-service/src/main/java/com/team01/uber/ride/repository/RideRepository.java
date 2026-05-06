@@ -81,7 +81,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
 
 
     @Modifying
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional
     @Query(value = "INSERT INTO payments (ride_id, user_id, amount, method, status, created_at) " +
             "VALUES (:rideId, :userId, :amount, 'CASH', 'PENDING', :createdAt)",
             nativeQuery = true)

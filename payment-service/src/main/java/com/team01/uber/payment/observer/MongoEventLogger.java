@@ -7,6 +7,7 @@ import com.team01.uber.payment.repository.PaymentAuditEventRepository;
 import com.team01.uber.payment.service.CacheInvalidationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -26,6 +27,7 @@ public class MongoEventLogger implements EntityObserver {
         this.cacheInvalidationService = cacheInvalidationService;
     }
 
+    @Async
     @Override
     public void onEvent(String eventType, Object payload) {
         try {
