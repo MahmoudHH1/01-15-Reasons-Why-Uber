@@ -48,13 +48,21 @@ public class RideStopService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
 
+        if (requests == null || requests.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "stops list must not be empty");
+        }
+
         if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot add stops to a ride that is not REQUESTED or ACCEPTED");
         }
 
+        java.util.Set<Integer> seenOrders = new java.util.HashSet<>();
         for (StopRequestDTO req : requests) {
             if (req.latitude() == null || req.longitude() == null || req.address() == null || req.address().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Each stop must have latitude, longitude, and address");
+            }
+            if (req.stopOrder() != null && !seenOrders.add(req.stopOrder())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate stopOrder in request: " + req.stopOrder());
             }
         }
 
@@ -70,7 +78,7 @@ public class RideStopService {
             stop.setAddress(req.address());
             stop.setMetadata(req.metadata());
             stop.setStatus(RideStopStatus.PENDING);
-            stop.setStopOrder(nextOrder++);
+            stop.setStopOrder(req.stopOrder() != null ? req.stopOrder() : nextOrder++);
             newStops.add(stop);
         }
 
