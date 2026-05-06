@@ -62,14 +62,15 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             @Param("status") RideStatus status
     );
 
-    @Query("SELECT r FROM Ride r WHERE " +
-            "(:status IS NULL OR r.status = :status) AND " +
-            "(:start IS NULL OR r.requestedAt >= :start) AND " +
-            "(:end IS NULL OR r.requestedAt < :end) AND " +
-            "(:userId IS NULL OR r.userId = :userId) " +
-            "ORDER BY r.requestedAt DESC")
+    @Query(value = "SELECT * FROM rides WHERE " +
+            "(CAST(:status AS text) IS NULL OR status::text = CAST(:status AS text)) AND " +
+            "(CAST(:start AS timestamp) IS NULL OR requested_at >= CAST(:start AS timestamp)) AND " +
+            "(CAST(:end AS timestamp) IS NULL OR requested_at < CAST(:end AS timestamp)) AND " +
+            "(CAST(:userId AS bigint) IS NULL OR user_id = CAST(:userId AS bigint)) " +
+            "ORDER BY requested_at DESC",
+            nativeQuery = true)
     List<Ride> searchRidesFlexible(
-            @Param("status") RideStatus status,
+            @Param("status") String status,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             @Param("userId") Long userId

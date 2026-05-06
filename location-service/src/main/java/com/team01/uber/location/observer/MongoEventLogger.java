@@ -5,12 +5,17 @@ import com.team01.uber.location.factory.EventFactory;
 import com.team01.uber.location.model.LocationEvent;
 import com.team01.uber.location.model.MongoEvent;
 import com.team01.uber.location.repository.LocationEventRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
 public class MongoEventLogger implements EntityObserver {
+
+    private static final Logger log = LoggerFactory.getLogger(MongoEventLogger.class);
 
     private final LocationEventRepository locationEventRepository;
     private final EventFactory eventFactory;
@@ -24,16 +29,22 @@ public class MongoEventLogger implements EntityObserver {
     public void onEvent(String action, Object payload) {
         if (!(payload instanceof Map<?, ?> raw)) return;
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> params = (Map<String, Object>) raw;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> params = (Map<String, Object>) raw;
 
-        MongoEvent event = eventFactory.createEvent(EventType.LOCATION,
-                Map.of("driverId", params.get("driverId"),
-                       "action", action,
-                       "details", params));
+            Map<String, Object> factoryInput = new HashMap<>();
+            factoryInput.put("driverId", params.get("driverId"));
+            factoryInput.put("action", action);
+            factoryInput.put("details", params);
 
-        if (event instanceof LocationEvent le) {
-            locationEventRepository.save(le);
+            MongoEvent event = eventFactory.createEvent(EventType.LOCATION, factoryInput);
+
+            if (event instanceof LocationEvent le) {
+                locationEventRepository.save(le);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to persist location event '{}' to MongoDB: {}", action, e.getMessage());
         }
     }
 }

@@ -176,11 +176,12 @@ public class RideService {
     }
 
     // S3-F1
-    @Cacheable(value = "ride-service::S3-F1", key="#status + '-' + #startDate.toString() + '-' + #endDate.toString()")
+    @Cacheable(value = "ride-service::S3-F1",
+            key = "T(java.util.Objects).toString(#status, '') + '-' + T(java.util.Objects).toString(#startDate, '') + '-' + T(java.util.Objects).toString(#endDate, '') + '-' + T(java.util.Objects).toString(#userId, '')")
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate, Long userId) {
         LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
         LocalDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
-        return rideRepository.searchRidesFlexible(status, start, end, userId);
+        return rideRepository.searchRidesFlexible(status == null ? null : status.name(), start, end, userId);
     }
 
     @Caching(evict = {
@@ -301,7 +302,7 @@ public class RideService {
                 : 0.0;
 
         double completionRate = totalRides > 0
-                ? ((double) completedRides / totalRides) * 100.0
+                ? (double) completedRides / totalRides
                 : 0.0;
 
         return RideAnalyticsDTO.builder()

@@ -60,6 +60,7 @@ public class UserController {
 
     @PutMapping("/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User user) {
+        checkOwnership(id);
         return userService.updateUser(id, user);
     }
 

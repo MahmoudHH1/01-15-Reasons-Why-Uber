@@ -1,7 +1,6 @@
 package com.team01.uber.driver.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -28,7 +27,6 @@ public class Driver {
     private String name;
 
     @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
     @Column(nullable = false, unique = true)
     private String email;
 

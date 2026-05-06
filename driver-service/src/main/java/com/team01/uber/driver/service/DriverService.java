@@ -173,6 +173,9 @@ public class DriverService {
                                                              String status,
                                                              Double minRating,
                                                              Double maxRating) {
+        if (minRating != null && maxRating != null && minRating > maxRating) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minRating cannot be greater than maxRating");
+        }
         List<DriverSearchDocument> hits = searchEsRepository.searchFullText(query, vehicleType, status, minRating, maxRating);
         return hits.stream()
                 .map(searchHitAdapter::adapt)

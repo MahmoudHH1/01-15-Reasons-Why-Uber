@@ -30,14 +30,18 @@ public class MongoEventLogger implements EntityObserver {
 
     @Override
     public void onEvent(String eventType, Object payload) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("action", eventType);
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("action", eventType);
 
-        if (payload instanceof Map<?, ?> map) {
-            map.forEach((k, v) -> params.put(k.toString(), v));
+            if (payload instanceof Map<?, ?> map) {
+                map.forEach((k, v) -> params.put(k.toString(), v));
+            }
+
+            MongoEvent event = eventFactory.createEvent(boundEventType, params);
+            driverEventRepository.save((DriverEvent) event);
+        } catch (Exception e) {
+            log.warn("Failed to persist driver event '{}' to MongoDB: {}", eventType, e.getMessage());
         }
-
-        MongoEvent event = eventFactory.createEvent(boundEventType, params);
-        driverEventRepository.save((DriverEvent) event);
     }
 }

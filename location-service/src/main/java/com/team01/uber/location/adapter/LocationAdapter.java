@@ -24,15 +24,12 @@ public class LocationAdapter {
 
     public LocationAnalyticsDTO adaptToLocationAnalytics(Object[] stats, List<Object[]> hourlyData) {
         Map<Integer, Long> eventsByHour = new HashMap<>();
-        // Initialize all hours with 0
-        for (int i = 0; i < 24; i++) {
-            eventsByHour.put(i, 0L);
-        }
-        
         for (Object[] row : hourlyData) {
             int hour = ((Number) row[0]).intValue();
             long count = ((Number) row[1]).longValue();
-            eventsByHour.put(hour, count);
+            if (count > 0) {
+                eventsByHour.put(hour, count);
+            }
         }
 
         return LocationAnalyticsDTO.builder()
