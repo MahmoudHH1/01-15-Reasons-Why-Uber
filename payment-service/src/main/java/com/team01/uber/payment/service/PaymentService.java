@@ -370,10 +370,10 @@ public class PaymentService {
                 .build();
     }
 
-    @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate")
-    public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate) {
+    @Cacheable(value = "payment-service::S5-F1", key = "#status + ':' + #startDate + ':' + #endDate + ':' + #userId")
+    public List<Payment> searchPayments(PaymentStatus status, LocalDateTime startDate, LocalDateTime endDate, Long userId) {
         String statusStr = status != null ? status.name() : null;
-        return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate);
+        return paymentRepository.findByStatusAndDateRange(statusStr, startDate, endDate, userId);
     }
 
     @Cacheable(value = "payment-service::S5-F6", key = "#startDate + ':' + #endDate")

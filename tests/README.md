@@ -8,6 +8,8 @@ retrofits, §5 JWT, §6 docker stack, §7 NoSQL entities, §8 caching,
 
 The suite is **read-only on the codebase** — it only hits HTTP, Redis,
 MongoDB, Elasticsearch, and Cassandra. It does not mutate source files.
+MongoDB is a **HARD dependency** — its unavailability will prevent
+service startup and cause event-logged features to fail immediately.
 
 ---
 

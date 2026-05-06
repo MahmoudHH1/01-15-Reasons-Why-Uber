@@ -62,13 +62,26 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             @Param("status") RideStatus status
     );
 
+    @Query("SELECT r FROM Ride r WHERE " +
+            "(:status IS NULL OR r.status = :status) AND " +
+            "(:start IS NULL OR r.requestedAt >= :start) AND " +
+            "(:end IS NULL OR r.requestedAt < :end) AND " +
+            "(:userId IS NULL OR r.userId = :userId) " +
+            "ORDER BY r.requestedAt DESC")
+    List<Ride> searchRidesFlexible(
+            @Param("status") RideStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("userId") Long userId
+    );
+
 
     @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id AND status = 'BUSY'", nativeQuery = true)
     boolean isDriverBusy(@Param("id") Long id);
 
 
     @Modifying
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional
     @Query(value = "INSERT INTO payments (ride_id, user_id, amount, method, status, created_at) " +
             "VALUES (:rideId, :userId, :amount, 'CASH', 'PENDING', :createdAt)",
             nativeQuery = true)

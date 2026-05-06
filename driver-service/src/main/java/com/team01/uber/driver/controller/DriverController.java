@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -56,9 +57,16 @@ public class DriverController {
     public List<TopDriverDTO> getTopRatedDrivers(@RequestParam int limit) {
         return driverService.getTopRatedDrivers(limit);
     }
+    private static final Set<String> ALLOWED_VEHICLE_TYPES =
+            Set.of("SEDAN", "SUV", "HATCHBACK", "VAN", "LUXURY");
+
     @GetMapping("/vehicle-type")
     public List<Driver> filterByVehicleType(@RequestParam String type,
                                             @RequestParam(required = false) DriverStatus status) {
+        if (type == null || !ALLOWED_VEHICLE_TYPES.contains(type.toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unknown vehicle type: " + type);
+        }
         return driverService.filterByVehicleType(type, status);
     }
     @GetMapping("/search")

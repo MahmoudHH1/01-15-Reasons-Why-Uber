@@ -1,4 +1,4 @@
-package com.team01.uber.payment.config;
+package com.team01.uber.ride.config;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;

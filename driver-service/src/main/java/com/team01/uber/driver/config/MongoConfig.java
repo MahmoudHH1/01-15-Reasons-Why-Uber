@@ -9,39 +9,40 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
+import org.springframework.data.mongodb.core.MongoDatabaseFactorySupport;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 
 @Configuration
 public class MongoConfig {
 
-    // Spring Data MongoDB 5.x (Spring Boot 4.0.x) does not apply credentials
-    // from spring.data.mongodb.uri to MongoClientSettings — credential stays null.
-    // This config reads the URI directly via applyConnectionString so authentication works.
-    @Value("${spring.data.mongodb.uri}")
+    @Value("${spring.data.mongodb.uri:mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin}")
     private String mongoUri;
-
-    @Value("${spring.data.mongodb.database:ubermongo}")
-    private String database;
 
     @Bean
     @Primary
     public MongoClient mongoClient() {
+        ConnectionString cs = new ConnectionString(mongoUri);
         MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(mongoUri))
+                .applyConnectionString(cs)
+                .applyToSocketSettings(b -> b.connectTimeout(3000, java.util.concurrent.TimeUnit.MILLISECONDS))
+                .applyToClusterSettings(b -> b.serverSelectionTimeout(3000, java.util.concurrent.TimeUnit.MILLISECONDS))
                 .build();
+        System.out.println("[MongoConfig] Connecting to: " + cs.getHosts() + " db=" + cs.getDatabase() + " user=" + cs.getUsername());
         return MongoClients.create(settings);
     }
 
     @Bean
     @Primary
     public MongoDatabaseFactory mongoDatabaseFactory(MongoClient mongoClient) {
-        return new SimpleMongoClientDatabaseFactory(mongoClient, database);
+        ConnectionString cs = new ConnectionString(mongoUri);
+        String db = cs.getDatabase() != null ? cs.getDatabase() : "ubermongo";
+        return new SimpleMongoClientDatabaseFactory(mongoClient, db);
     }
 
     @Bean
     @Primary
-    public MongoTemplate mongoTemplate(MongoDatabaseFactory mongoDatabaseFactory) {
-        return new MongoTemplate(mongoDatabaseFactory);
+    public MongoTemplate mongoTemplate(MongoDatabaseFactory factory) {
+        return new MongoTemplate(factory);
     }
 }

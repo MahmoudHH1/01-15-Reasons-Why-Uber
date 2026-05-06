@@ -70,6 +70,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mongo:
+        condition: service_healthy
 
   driver-service:
     build:
@@ -151,6 +153,8 @@ services:
       - "8085:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
 
   mongo:

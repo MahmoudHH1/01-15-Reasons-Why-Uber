@@ -24,13 +24,9 @@ public class MongoEventLogger implements EntityObserver {
 
     @Override
     public void onEvent(String action, Object payload) {
-        try {
-            Map<String, Object> params = new HashMap<>((Map<String, Object>) payload);
-            params.put("action", action);
-            AuthEvent event = (AuthEvent) EventFactory.createEvent(boundEventType, params);
-            authEventRepository.save(event);
-        } catch (Exception e) {
-            log.warn("Failed to log event to MongoDB: {}", e.getMessage());
-        }
+        Map<String, Object> params = new HashMap<>((Map<String, Object>) payload);
+        params.put("action", action);
+        AuthEvent event = (AuthEvent) EventFactory.createEvent(boundEventType, params);
+        authEventRepository.save(event);
     }
 }
