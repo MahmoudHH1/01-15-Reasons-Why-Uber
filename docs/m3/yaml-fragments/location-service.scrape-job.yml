@@ -1,0 +1,4 @@
+- job_name: 'location-service'
+  metrics_path: '/actuator/prometheus'
+  static_configs:
+    - targets: ['location-service.uber.svc.cluster.local:8080']
