@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra-statefulset
+spec:
+  serviceName: cassandra
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      containers:
+        - name: cassandra
+          image: cassandra:latest
+          ports:
+            - containerPort: 9042
+              name: cql
+          env:
+            - name: MAX_HEAP_SIZE
+              value: "256M"
+          resources:
+            limits:
+              memory: 768Mi
+            requests:
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - cqlsh
+                - -e
+                - "DESCRIBE KEYSPACES"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - cqlsh
+                - -e
+                - "DESCRIBE KEYSPACES"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: cassandra-data
+              mountPath: /var/lib/cassandra
+      volumes:
+        - name: cassandra-data
+          persistentVolumeClaim:
+            claimName: cassandra-pvc
