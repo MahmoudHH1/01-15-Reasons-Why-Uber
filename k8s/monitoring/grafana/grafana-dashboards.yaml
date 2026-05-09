@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  user-dashboard.json: |
+    {
+      "title": "User Service Dashboard (STUB)",
+      "panels": []
+    }
+  driver-dashboard.json: |
+    {
+      "title": "Driver Service Dashboard (STUB)",
+      "panels": []
+    }
+  ride-dashboard.json: |
+    {
+      "title": "Ride Service Dashboard (STUB)",
+      "panels": []
+    }
+  location-dashboard.json: |
+    {
+      "title": "Location Service Dashboard (STUB)",
+      "panels": []
+    }
+  payment-dashboard.json: |
+    {
+      "title": "Payment Service Dashboard (STUB)",
+      "panels": []
+    }
