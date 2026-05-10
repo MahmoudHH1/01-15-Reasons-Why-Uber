@@ -18,7 +18,10 @@ FILES=(uber-m3.md Uber_Tests_Description.md Grader_Run_Guide.md)
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOCS="${ROOT}/docs/m3"
-TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+# Format: YYYY-MM-DD-HHMM (UTC). Honors SNAPSHOT_TIMESTAMP if set so the
+# workflow can share one timestamp between the archive directory and the
+# bot's branch name. Falls back to a fresh stamp for local invocations.
+TIMESTAMP="${SNAPSHOT_TIMESTAMP:-$(date -u +%Y-%m-%d-%H%M)}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 

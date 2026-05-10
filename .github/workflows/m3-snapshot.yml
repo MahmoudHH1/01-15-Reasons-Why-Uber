@@ -30,8 +30,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Compute snapshot timestamp
+        id: ts
+        # Single source of truth for "when did this run happen". Reused
+        # by the script (so the archive dir is named with this) and by
+        # the bot branch name, so archive and branch share a prefix.
+        run: echo "value=$(date -u +%Y-%m-%d-%H%M)" >> "$GITHUB_OUTPUT"
+
       - name: Run snapshot script
         id: snap
+        env:
+          SNAPSHOT_TIMESTAMP: ${{ steps.ts.outputs.value }}
         run: |
           set +e
           ./scripts/snapshot-m3.sh
@@ -43,11 +52,6 @@ jobs:
             *) echo "snapshot script failed with exit $rc" >&2; exit "$rc" ;;
           esac
 
-      - name: Branch suffix
-        id: ts
-        if: steps.snap.outputs.changed == 'true'
-        run: echo "value=$(date -u +%Y-%m-%d-%H%M)-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-
       - name: Open / update PR
         if: steps.snap.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -55,10 +59,11 @@ jobs:
           # Per-run branch — every change-detected run gets its own branch
           # and PR. Avoids force-push (which the repo ruleset blocks) and
           # preserves one PR per upstream change instead of clobbering
-          # an in-flight rolling PR. The suffix is "<UTC date>-<HHMM>-<run_id>"
-          # so the date is human-readable up front and github.run_id at the
-          # end guarantees uniqueness across same-day re-runs.
-          branch: chore/cc/m3-snapshot-bot-${{ steps.ts.outputs.value }}/55-25085
+          # an in-flight rolling PR. Branch shares the same <UTC date>-<HHMM>
+          # prefix as the archive directory so the two are easy to correlate;
+          # github.run_id at the end guarantees uniqueness across same-minute
+          # re-runs.
+          branch: chore/cc/m3-snapshot-bot-${{ steps.ts.outputs.value }}-${{ github.run_id }}/55-25085
           base: main
           delete-branch: false
           commit-message: "chore(cc): refresh m3 spec snapshot (55-25085)"
