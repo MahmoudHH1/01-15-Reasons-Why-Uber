@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Re-fetch the M3 spec from the docsify site, diff against the committed
-# canonical copy, and (if changed) save a dated immutable snapshot.
+# Re-fetch the M3 spec from the docsify site. If anything changed:
+#   1. Replace the canonical copies under docs/m3/ with the live versions.
+#   2. Write a fresh, timestamped, immutable archive directory under
+#      docs/m3/archive/<UTC-timestamp>/ containing ALL spec files
+#      (full snapshot, not just the changed ones) plus a SHA256 manifest.
+# If nothing changed, exit silently and write nothing.
 #
 # Usage:   ./scripts/snapshot-m3.sh
 # Exit:    0 = no change, 1 = fetch failure, 2 = change detected
@@ -14,48 +18,54 @@ FILES=(uber-m3.md Uber_Tests_Description.md Grader_Run_Guide.md)
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOCS="${ROOT}/docs/m3"
-DATE="$(date -u +%Y-%m-%d)"
-SNAP="${DOCS}/archive/${DATE}"
+TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
-mkdir -p "${SNAP}"
-changed=0
-fetched=0
-
+# Phase 1 — fetch every file into TMP and detect what changed. No writes
+# to docs/m3/ yet; we want full atomicity per run.
+declare -a changed_files=()
 for f in "${FILES[@]}"; do
   if ! curl -fsSL --max-time 30 "${BASE}/${f}" -o "${TMP}/${f}"; then
     echo "FAIL: could not fetch ${BASE}/${f}" >&2
     exit 1
   fi
-  fetched=$((fetched + 1))
-
   if [[ ! -f "${DOCS}/${f}" ]] || ! cmp -s "${TMP}/${f}" "${DOCS}/${f}"; then
-    echo "CHANGED: ${f}"
-    if [[ -f "${DOCS}/${f}" ]]; then
-      diff -u "${DOCS}/${f}" "${TMP}/${f}" | sed -n '1,40p' || true
-      echo "  (showing first 40 diff lines; run \`git diff docs/m3/${f}\` for full)"
-    else
-      echo "  (new file)"
-    fi
-    cp "${TMP}/${f}" "${DOCS}/${f}"
-    cp "${TMP}/${f}" "${SNAP}/${f}"
-    changed=$((changed + 1))
-  else
-    echo "unchanged: ${f}"
+    changed_files+=("${f}")
   fi
 done
 
-if [[ ${changed} -gt 0 ]]; then
-  ( cd "${SNAP}" && shasum -a 256 *.md > SHA256SUMS )
-  echo
-  echo "${changed}/${fetched} file(s) changed. Snapshot saved to: docs/m3/archive/${DATE}/"
-  echo "Review full diff with:  git diff docs/m3/"
-  exit 2
+# Phase 2 — no change → no archive, no canonical update, exit 0.
+if [[ ${#changed_files[@]} -eq 0 ]]; then
+  echo "All ${#FILES[@]} files unchanged. No new snapshot written."
+  exit 0
 fi
 
-# Nothing changed — clean up the empty dated dir we created.
-rmdir "${SNAP}" 2>/dev/null || true
+# Phase 3 — change detected. Surface the diff(s), then atomically:
+#   - replace every canonical file with the live version
+#   - write a complete timestamped archive containing ALL files
+SNAP="${DOCS}/archive/${TIMESTAMP}"
+mkdir -p "${SNAP}"
+
+echo "Change detected in ${#changed_files[@]}/${#FILES[@]} file(s):"
+for f in "${changed_files[@]}"; do
+  echo "  CHANGED: ${f}"
+  if [[ -f "${DOCS}/${f}" ]]; then
+    diff -u "${DOCS}/${f}" "${TMP}/${f}" | sed -n '1,40p' || true
+    echo "    (showing first 40 diff lines; run \`git diff docs/m3/${f}\` for full)"
+  else
+    echo "    (new file)"
+  fi
+done
+
+for f in "${FILES[@]}"; do
+  cp "${TMP}/${f}" "${DOCS}/${f}"
+  cp "${TMP}/${f}" "${SNAP}/${f}"
+done
+( cd "${SNAP}" && shasum -a 256 *.md > SHA256SUMS )
+
 echo
-echo "All ${fetched} files unchanged. No new snapshot written."
-exit 0
+echo "Canonical copies under docs/m3/ updated to live."
+echo "Full snapshot of all ${#FILES[@]} files saved to: docs/m3/archive/${TIMESTAMP}/"
+echo "Review full diff with:  git diff docs/m3/"
+exit 2

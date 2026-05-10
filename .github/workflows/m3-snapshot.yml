@@ -57,12 +57,12 @@ jobs:
             (https://scalable-docs.netlify.app/#/uber-m3).
 
             **Review the diff carefully** — staff sometimes change requirements
-            silently. Update any in-flight feature branches and
-            `docs/m2/*.md` companion docs that depend on changed wording, then
-            merge.
+            silently.
 
             The dated directory under `docs/m3/archive/` is immutable evidence
             of the upstream content at fetch time.
+
+            If this PR is approved and merged, the `docs/m3/` content will be updated to match the new upstream content (latest archived version).
 
             Triggered by `.github/workflows/m3-snapshot.yml`.
           add-paths: |
