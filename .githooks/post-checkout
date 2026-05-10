@@ -23,33 +23,33 @@ if echo "$BRANCH" | grep -qE "^(main|master|develop)$"; then
   exit 0
 fi
 
-# Accepted patterns:
-#   M1/M2 — type/service/feature-name/student-id
-#     e.g. feat/user/S1-F1/55-8078
-#     e.g. feat/user-service/search-users/55-8078
-#   M3   — type/M3/<ID>/student-id              (§13.1)
+# M3 §13.1 branch format — the only accepted pattern from M3 onward.
+#   <type>/M3/<ID>/<student-id>
 #     e.g. feat/M3/S5-INFRA/55-24853
-#   M3   — type/M3/<scope>/<ID>/student-id      (per-feature blocks in §3–§7)
+#   <type>/M3/<scope>/<ID>/<student-id>          (per-feature blocks in §3–§7)
 #     e.g. feat/M3/payment/S5-F4/55-24853
+# The earlier M1/M2 format <type>/<service>/<feature>/<id> is no longer accepted.
 TYPE='(feat|fix|bugfix|hotfix|release|docs|refactor|test|chore)'
 SEG='[A-Za-z0-9][A-Za-z0-9._-]*'
 STUDENT='[0-9]+-[0-9]+'
-PATTERN="^${TYPE}/${SEG}/(${SEG}/)?${SEG}/${STUDENT}$"
+PATTERN="^${TYPE}/M3/${SEG}(/${SEG})?/${STUDENT}$"
 
 if ! echo "$BRANCH" | grep -qE "$PATTERN"; then
   echo ""
-  echo "Branch '$BRANCH' does not follow the required naming convention."
+  echo "Branch '$BRANCH' does not follow the M3 naming convention (§13.1)."
   echo ""
-  echo "   Required (M1/M2) : <type>/<service>/<feature-name>/<student-id>"
-  echo "   Example          : feat/user/S1-F1/55-8078"
-  echo "   Example          : feat/ride/S3-F2/55-8078"
+  echo "   Required : <type>/M3/<ID>/<student-id>"
+  echo "   Required : <type>/M3/<scope>/<ID>/<student-id>"
   echo ""
-  echo "   Required (M3)    : <type>/M3/<ID>/<student-id>"
-  echo "   Required (M3)    : <type>/M3/<scope>/<ID>/<student-id>"
-  echo "   Example          : feat/M3/S5-INFRA/55-24853"
-  echo "   Example          : feat/M3/payment/S5-F4/55-24853"
+  echo "   Examples : feat/M3/S5-INFRA/55-24853"
+  echo "              feat/M3/payment/S5-F4/55-24853"
+  echo "              chore/M3/githooks/55-24853"
   echo ""
-  echo "   Allowed types    : feat, fix, bugfix, hotfix, release, docs, refactor, test, chore"
+  echo "   Allowed types : feat, fix, bugfix, hotfix, release, docs, refactor, test, chore"
+  echo ""
+  echo "   The pre-M3 format (<type>/<service>/<feature>/<id>) is no longer accepted."
+  echo "   To check out a historical M1/M2 branch, run with --no-verify or temporarily"
+  echo "   set core.hooksPath to empty: git -c core.hooksPath= checkout <branch>."
   echo ""
   git checkout -
   git branch -d "$BRANCH" 2>/dev/null

@@ -127,20 +127,30 @@ The Driver entity must auto-sync to Elasticsearch on every CRUD POST/PUT (re-ind
 
 Pre-M2 Payment rows lack `transactionDetails.surgeFee`. Any reader (S5-F10 in particular) treats a missing/null `surgeFee` as `0.15 * amount` (15% of total). New writes (M1 S5-F4 retrofit) compute the fee from `Ride.metadata.surgeMultiplier` if present (`baseFare * (multiplier - 1)`), else 15% of total. No DB backfill migration.
 
-### Branch & commit conventions (M2 expansions, §2)
+### Branch & commit conventions (M3 §13.1 — strict, M1/M2 format no longer accepted)
 
-Branch format: `<type>/<scope>/<descriptor>/<studentID>`.
+Branch format (the only one accepted by `.githooks/post-checkout` from M3 onward):
 
-- `<type>`: `feat`, `fix`, `hotfix`, `refactor`, `docs`, `test`, `chore`, `perf` (M2 expanded the M1 set).
-- `<scope>`: `user`, `driver`, `ride`, `location`, `payment` (per-service), or `m1`, `cc`, `infra` (cross-cutting).
-- `<descriptor>`: stable ID (`S<n>-F<m>`, `MOD-<n>`, `CC-<n>`, `DP-<n>`) when one exists; otherwise a short kebab-case slug.
+```
+<type>/M3/<ID>/<studentID>
+<type>/M3/<scope>/<ID>/<studentID>
+```
+
+- `<type>`: `feat`, `fix`, `bugfix`, `hotfix`, `release`, `docs`, `refactor`, `test`, `chore`.
+- `M3`: literal — the milestone marker. The earlier M1/M2 format `<type>/<service>/<feature>/<id>` is **rejected**.
+- `<scope>` (optional middle segment): `user`, `driver`, `ride`, `location`, `payment` (per-service), or `cc`, `infra`, `githooks`, etc. (cross-cutting). Use the per-feature `<scope>` from the M3 spec when there is one (e.g., `payment` for S5-F4); for cross-cutting work pick the most specific tag.
+- `<ID>`: stable identifier — `S<n>-<ID>` (e.g., `S5-F4`, `S5-INFRA`, `S3-F11`), or a short kebab-case slug for cross-cutting work (e.g., `githooks`, `compose-update`).
 - `<studentID>`: always last. Required by the auto-grader.
 
-Examples: `feat/user/S1-F10/55-24478`, `feat/m1/MOD-3/55-25085`, `feat/cc/CC-5/55-8080`, `fix/payment/refund-amount-rounding/55-8080`, `hotfix/user/token-expiry-leak/55-8080`.
+Examples:
+- `feat/M3/S5-INFRA/55-24853` (M3 minimal — §13.1)
+- `feat/M3/payment/S5-F4/55-24853` (M3 with scope — per-feature blocks §3–§7)
+- `chore/M3/githooks/55-24853` (cross-cutting infra)
+- `docs/M3/spec-update/55-24853`
 
-Commit subject: `<type>(<scope>): <imperative subject> (<studentID>)` — keep ≤72 chars, no trailing period. When a commit implements a numbered design pattern, **cite the DP ID in the subject** (e.g., "implements DP-1 Strategy").
+Commit subject (unchanged from M2): `<type>(<scope>): <imperative subject> (<studentID>)` — keep ≤72 chars, no trailing period. When a commit implements a numbered design pattern, **cite the DP ID in the subject**.
 
-Cross-cutting work uses scope `cc` (e.g., `feat(cc): CC-5 add elasticsearch + neo4j + cassandra to compose (55-25085)`).
+> **Historical M1/M2 branches still exist on `origin` and in `main`'s merge history.** Checking one out locally will trip the hook and auto-delete the local copy. To inspect a historical branch, run `git -c core.hooksPath= checkout <branch>` to bypass the hook for that single command.
 
 **Per-member zero rule:** any team member with no commits, or whose commits cannot be matched to any feature branch, gets a ZERO. Per-member checks affect only that member; team-wide checks (CRUD missing, build broken) affect everyone. Do not push directly to `main` — every change must come through a PR.
 
@@ -177,16 +187,20 @@ Use this student ID for **all** branch names and commit messages in the session.
 
 The auto-grader cross-references `team.json` against git history. Violations = **ZERO credit**.
 
-### Branch Naming (Mandatory)
+### Branch Naming (Mandatory — M3 §13.1)
 
 ```
-feat/<service>/<feature-name>/<studentId>
+<type>/M3/<ID>/<studentId>
+<type>/M3/<scope>/<ID>/<studentId>
 ```
 
 Examples:
-- `feat/user/S1-F1/55-24478`
-- `feat/driver/S2-F3/55-25085`
-- `feat/docker/55-25085` (for dockerization)
+- `feat/M3/S5-INFRA/55-24853`
+- `feat/M3/payment/S5-F4/55-24853`
+- `feat/M3/ride/S3-F4/55-25378`
+- `chore/M3/githooks/55-24853`
+
+The earlier M1/M2 format `feat/<service>/<feature-name>/<studentId>` is no longer accepted — the local `post-checkout` hook rejects it. Historical branches in `main`'s merge history are unaffected.
 
 ### Commit Message Format (Mandatory)
 
@@ -221,9 +235,9 @@ Each commit should be a small, logical step. A feature branch should have 3-5 co
 
 ```
 git checkout main && git pull origin main
-git checkout -b feat/<service>/<feature-ID>/<studentId>
+git checkout -b feat/M3/<scope>/<feature-ID>/<studentId>
 # ... implement incrementally with multiple commits ...
-git push origin feat/<service>/<feature-ID>/<studentId>
+git push origin feat/M3/<scope>/<feature-ID>/<studentId>
 # Create PR on GitHub, get 1+ teammate review, merge with regular merge commit
 ```
 
