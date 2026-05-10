@@ -35,7 +35,7 @@ spec:
               value: "64m"
           resources:
             limits:
-              memory: 768Mi
+              memory: 1280Mi
           readinessProbe:
             tcpSocket:
               port: 7687
