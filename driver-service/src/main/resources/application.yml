@@ -7,7 +7,7 @@ spring:
       load-on-startup: 1
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/uberdb
+    url: jdbc:postgresql://driver-postgres:5432/uberdb-drivers
     username: postgres
     password: postgres
 
@@ -39,6 +39,22 @@ spring:
 server:
   port: 8080
 
+feign:
+  ride-service:
+    url: http://ride-service:8080
+  user-service:
+    url: http://user-service:8080
+
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
