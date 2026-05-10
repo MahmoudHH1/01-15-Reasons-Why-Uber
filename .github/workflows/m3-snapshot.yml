@@ -67,5 +67,13 @@ jobs:
             Triggered by `.github/workflows/m3-snapshot.yml`.
           add-paths: |
             docs/m3/**
-          reviewers: Ahmed20150
-          assignees: Ahmed20150
+          reviewers: |
+            Ahmed20150
+            seiftarek158
+            OHarridy
+            YahiaHesham
+          assignees: |
+            Ahmed20150
+            seiftarek158
+            OHarridy
+            YahiaHesham
