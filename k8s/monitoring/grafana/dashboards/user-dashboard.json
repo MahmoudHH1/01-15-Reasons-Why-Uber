@@ -1,0 +1,66 @@
+{
+  "title": "User Service Dashboard",
+  "uid": "user-service",
+  "panels": [
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate({app=\"uber\", service=\"user-service\", level=\"ERROR\"} [1m]))",
+          "legendFormat": "Error rate"
+        }
+      ]
+    },
+    {
+      "title": "Feign Call Outcomes",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate({app=\"uber\", service=\"user-service\"} |= \"Feign call\" [5m]))",
+          "legendFormat": "Feign calls"
+        }
+      ]
+    },
+    {
+      "title": "RabbitMQ Event Audit",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate({app=\"uber\", service=\"user-service\"} |= \"routingKey\" [5m]))",
+          "legendFormat": "Events"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"user-service\"}[5m]))",
+          "legendFormat": "Requests/s"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Latency P99",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])) by (le, uri))",
+          "legendFormat": "P99 {{uri}}"
+        }
+      ]
+    },
+    {
+      "title": "JVM Heap Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{job=\"user-service\", area=\"heap\"}",
+          "legendFormat": "Heap used"
+        }
+      ]
+    }
+  ]
+}
