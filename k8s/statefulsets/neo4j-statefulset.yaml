@@ -31,6 +31,8 @@ spec:
               value: "512m"
             - name: NEO4J_server_memory_heap_initial__size
               value: "256m"
+            - name: NEO4J_server_memory_pagecache_size
+              value: "64m"
           resources:
             limits:
               memory: 768Mi
