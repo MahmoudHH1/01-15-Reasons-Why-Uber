@@ -47,7 +47,12 @@ jobs:
         if: steps.snap.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: chore/cc/m3-snapshot-bot/55-25085
+          # Per-run branch — every change-detected run gets its own branch
+          # and PR. Avoids force-push (which the repo ruleset blocks) and
+          # preserves one PR per upstream change instead of clobbering
+          # an in-flight rolling PR. github.run_id is monotonic, unique
+          # per run, and 1:1 mappable to the Actions run that opened it.
+          branch: chore/cc/m3-snapshot-bot-${{ github.run_id }}/55-25085
           base: main
           delete-branch: false
           commit-message: "chore(cc): refresh m3 spec snapshot (55-25085)"
