@@ -3,9 +3,9 @@
 ## True Microservices: Service Isolation, Inter-Service Communication & Kubernetes
 
 > **Weight:** 40% of final grade  
-> **Theme:** Ride Hailing (talabat)
+> **Theme:** Ride Hailing (Uber)
 >
-> **Deadline:** Saturday 17/06/2027 at 11:59 PM
+> **Deadline:** sunday 18/05/2026 at 11:59 PM
 
 ---
 
