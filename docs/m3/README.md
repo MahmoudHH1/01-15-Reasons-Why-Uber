@@ -17,10 +17,61 @@ byte-for-byte diffable archives. This directory is that archive.
 | `uber-m3.md` | Uber-theme M3 specification (DB isolation, OpenFeign, RabbitMQ, API Gateway, Kubernetes). The canonical, latest copy. |
 | `Uber_Tests_Description.md` | Auto-grader test scenarios for the Uber theme. |
 | `Grader_Run_Guide.md` | How to run the grader locally. |
-| `archive/<YYYY-MM-DD>/` | Immutable dated snapshot of the three files plus a `SHA256SUMS` manifest, written each time the snapshot script detects a change. |
+| `archive/<YYYY-MM-DD-HHMM>/` | Immutable timestamped snapshot of all three files plus a `SHA256SUMS` manifest, written every time the snapshot script detects a change. See "Naming conventions" below. |
 
 `M3_Specification.pdf` at the repo root was an early reference snapshot.
 **The website (mirrored here) is authoritative** if the two ever diverge.
+
+## Naming conventions
+
+Archive directories and bot PR branches share a **UTC timestamp prefix**
+(`YYYY-MM-DD-HHMM`) so a given PR and its corresponding immutable snapshot
+can be paired at a glance.
+
+### Archive directories
+
+```
+docs/m3/archive/YYYY-MM-DD-HHMM/
+                └──────┬──────┘
+                       └─ UTC date + HHMM the snapshot was captured
+                          (e.g. `2026-05-15-0600` = 06:00 UTC, 15 May 2026)
+```
+
+Format: hyphens throughout, no colons (Windows-safe), no `T`/`Z` markers
+(UTC is documented; readability beats strict ISO-8601). Sorted
+lexicographically = sorted chronologically.
+
+### Bot branch
+
+When the workflow detects an upstream change, it pushes:
+
+```
+chore/cc/m3-snapshot-bot-YYYY-MM-DD-HHMM-<run_id>/55-25085
+└──┬──┘ └──────────┬───────────────────┘ └───┬──┘ └──┬───┘
+  type      descriptor + UTC prefix           │       student ID
+            (matches the archive dir)         │       (project convention)
+                                              └─ github.run_id
+                                                 (uniqueness for
+                                                  same-minute re-runs)
+```
+
+Example:
+
+```
+chore/cc/m3-snapshot-bot-2026-05-15-0600-15482910493/55-25085
+                          ─────┬──────── ─────┬─────
+                               │              └─ run_id; never repeats
+                               └─ shared with `docs/m3/archive/2026-05-15-0600/`
+```
+
+That shared `YYYY-MM-DD-HHMM` prefix is the audit-trail bridge: paste a
+PR's timestamp into `docs/m3/archive/<prefix>/` to find the immutable
+snapshot it created, and vice versa.
+
+The workflow generates the timestamp once (in a `Compute snapshot
+timestamp` step) and passes it both to the script (via `SNAPSHOT_TIMESTAMP`
+env var) and to peter-evans (in the `branch:` input), so the two are
+guaranteed identical for any given run.
 
 ## Refreshing — stealth-change detection
 
