@@ -43,6 +43,11 @@ jobs:
             *) echo "snapshot script failed with exit $rc" >&2; exit "$rc" ;;
           esac
 
+      - name: Branch suffix
+        id: ts
+        if: steps.snap.outputs.changed == 'true'
+        run: echo "value=$(date -u +%Y-%m-%d-%H%M)-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
       - name: Open / update PR
         if: steps.snap.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -50,9 +55,10 @@ jobs:
           # Per-run branch — every change-detected run gets its own branch
           # and PR. Avoids force-push (which the repo ruleset blocks) and
           # preserves one PR per upstream change instead of clobbering
-          # an in-flight rolling PR. github.run_id is monotonic, unique
-          # per run, and 1:1 mappable to the Actions run that opened it.
-          branch: chore/cc/m3-snapshot-bot-${{ github.run_id }}/55-25085
+          # an in-flight rolling PR. The suffix is "<UTC date>-<HHMM>-<run_id>"
+          # so the date is human-readable up front and github.run_id at the
+          # end guarantees uniqueness across same-day re-runs.
+          branch: chore/cc/m3-snapshot-bot-${{ steps.ts.outputs.value }}/55-25085
           base: main
           delete-branch: false
           commit-message: "chore(cc): refresh m3 spec snapshot (55-25085)"
