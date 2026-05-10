@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.dto.BatchLocationRequest;
@@ -278,6 +279,17 @@ public class LocationService {
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
+    }
+
+    public LocationDTO getRecentLocationForDriver(Long driverId) {
+        Location latest = locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No location found for driver"));
+
+        if (latest.getTimestamp().isBefore(LocalDateTime.now().minusMinutes(5))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No recent location found for driver (older than 5 minutes)");
+        }
+
+        return locationAdapter.adaptToLocationDTO(latest);
     }
 
     @Cacheable(value = "location-service::S4-F6", key = "#startDate + ':' + #endDate + ':' + #driverId")
