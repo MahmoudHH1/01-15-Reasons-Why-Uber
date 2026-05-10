@@ -5,7 +5,7 @@
 > **Weight:** 40% of final grade  
 > **Theme:** Ride Hailing (Uber)
 >
-> **Deadline:** Saturday 17/05/2026 at 11:59 PM
+> **Deadline:** sunday 18/05/2026 at 11:59 PM
 
 ---
 
