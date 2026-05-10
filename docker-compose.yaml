@@ -28,6 +28,22 @@ services:
     depends_on:
       - postgres
 
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: uber-api-gateway
+    environment:
+      JWT_SECRET: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - driver-service
+      - ride-service
+      - location-service
+      - payment-service
+
   ride-service:
     build:
       context: ./ride-service
