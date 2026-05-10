@@ -24,6 +24,15 @@ byte-for-byte diffable archives. This directory is that archive.
 
 ## Refreshing — stealth-change detection
 
+`.github/workflows/m3-snapshot.yml` runs `scripts/snapshot-m3.sh` daily at
+**06:00 UTC (~09:00 Cairo)**. When the upstream site has changed, it opens
+(or updates) a single PR titled *"chore(cc): m3 docsify spec changed
+upstream"* with the new content + dated archive snapshot. Review the diff,
+then merge to update `docs/m3/` on `main`. No direct pushes — the PR is the
+review gate.
+
+You can also run the script locally for an immediate check:
+
 ```bash
 ./scripts/snapshot-m3.sh
 ```
@@ -42,8 +51,8 @@ since the last commit. The `archive/` directory is the long-term audit trail —
 even if someone overwrites the canonical copy without committing, the
 immutable dated copies still exist.
 
-**Recommended cadence:** run at the start of every M3 work session. The skill
-`/loop 30m ./scripts/snapshot-m3.sh` will keep it polling automatically.
+The Action can also be triggered on-demand from the GitHub Actions tab
+(*"Run workflow"*) — useful right before starting M3 work.
 
 ## Adding pages to the archive
 
