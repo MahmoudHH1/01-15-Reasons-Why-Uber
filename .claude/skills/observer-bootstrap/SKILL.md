@@ -1,19 +1,30 @@
 ---
 name: observer-bootstrap
-description: Wire the classical GoF Observer chain per service — EntityObserver interface, MongoEventLogger bound to a fixed EventType, Subject mixin/abstract base with register/unregister/notifyObservers, EventFactory dispatch, and one wired demo write. Replaces ad-hoc Mongo writes scattered across services.
+description: Wire the classical GoF Observer chain per service — EntityObserver interface, MongoEventLogger bound to a fixed EventType, Subject mixin/abstract base with register/unregister/notifyObservers, EventFactory dispatch, and one wired demo write. Carries over from M2 to M3 unchanged (uber-m3.md:44 — "MongoDB event logging (Observer pattern stays in place)"); coexists with M3's RabbitMQ event surface, which has its own state-guarded consumers. Replaces ad-hoc Mongo writes scattered across services.
 ---
 
 # Observer Bootstrap
 
-You are wiring the **classical GoF Observer pattern** in one service per `Uber_descriptionM2.pdf` §3.3 (Observer), §3.7 (Factory), §4.5 (composition), §7.1 (event types).
+You are wiring the **classical GoF Observer pattern** in one service. The pattern carries over from M2 to M3 unchanged — `docs/m3/uber-m3.md:44` says "MongoDB event logging (Observer pattern stays in place)". Original spec authority: `Uber_descriptionM2.pdf` §3.3 (Observer), §3.7 (Factory), §4.5 (composition), §7.1 (event types).
 
 The hard rule: **all MongoDB event writes must flow through this chain — no `@EventListener` may write to Mongo, and no class may construct events with `new <Event>(...)` outside the factory.** The grader source-scans both. Spring's `ApplicationEventPublisher` + `@EventListener` is fine for *non-Mongo* events (e.g., logging), but cannot be the path that persists Mongo documents.
 
+## Coexistence with M3 RabbitMQ consumers (uber-m3.md:2645)
+
+In M3 a single business write can produce **two** event surfaces:
+
+1. **Observer → MongoDB** — the local-state audit log this skill wires (e.g., `RIDE_COMPLETED` → `ride_events`).
+2. **RabbitMQ publisher → TopicExchange** — the cross-service async event for choreography saga participants (e.g., `ride.completed` on `ride.events`). Wired by `rabbitmq-bootstrap`, not this skill.
+
+When the corresponding RabbitMQ consumer in another service receives the event and mutates local state, that consumer must be **state-guarded for idempotency** per Critical Rule #11 (uber-m3.md:2645): "Use **state-based idempotency** — check the target row's status before mutating." Otherwise an at-least-once retry doubles the write. Example: `ride.completed` consumer in driver-service that increments earnings must read the driver row first and skip if the rideId has already been counted.
+
+This skill does not wire the RabbitMQ side. It only ensures the Observer chain is in place. The two layers stay independent.
+
 ## Sources of Truth (Read First)
 
-1. **`docs/m2/event-actions.md`** — canonical action vocabularies + payment-shaped action rules + the no-`new <Event>(...)` and no-`@EventListener` rules. **Read this before wiring any event.** The tables in this skill summarize it; the doc is canonical.
-2. **`docs/m2/design-patterns.md`** — DP-2 Observer + DP-6 Factory grader hooks. Read the relevant sections.
-3. **`Uber_descriptionM2.pdf` §3.3, §3.7, §4.5, §7.1** — spec text. Use `pdf-clause-finder` if you need a verbatim clause.
+1. **`docs/m3/event-actions.md`** — canonical action vocabularies + payment-shaped action rules + the no-`new <Event>(...)` and no-`@EventListener` rules + the new RabbitMQ routing-key column. **Read this before wiring any event.** The tables in this skill summarize it; the doc is canonical.
+2. **`docs/m3/design-patterns.md`** — DP-2 Observer + DP-6 Factory grader hooks. Read the relevant sections.
+3. **`Uber_descriptionM2.pdf` §3.3, §3.7, §4.5, §7.1** — original M2 spec text. Use `spec-clause-finder --milestone m2` if you need a verbatim clause.
 
 If the doc and this skill disagree, trust the doc and flag the drift.
 
@@ -23,7 +34,7 @@ Confirm developer + ID. Pick a service (or run for "all 5", but each service is 
 
 ```
 git checkout main && git pull origin main
-git checkout -b feat/cc/CC-4-observer-<service>/<studentId>
+git checkout -b chore/M3/cc/observer-<service>/<studentId>
 ```
 
 ## Step 2: EntityObserver interface (DP-2)
