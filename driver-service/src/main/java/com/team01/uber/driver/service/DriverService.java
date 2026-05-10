@@ -129,6 +129,12 @@ public class DriverService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
     }
 
+    public Map<String, String> getDriverAvailability(Long id) {
+        Driver driver = driverRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
+        return Map.of("status", driver.getStatus().name());
+    }
+
     public List<Driver> getAllDrivers() {
         return driverRepository.findAll();
     }
