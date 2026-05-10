@@ -1,33 +1,40 @@
 ---
 name: cache-audit
-description: Audit Redis caching coverage and invalidation against the M2 spec — verifies that all 27 cached M1 GETs + 10 CRUD GET-by-ID + 15 M2 reads are cached with correct keys/TTLs, and that every write invalidates the right wildcard pattern. Run after M1 retrofits land and again before each PR.
+description: Audit Redis caching coverage and invalidation against the spec — verifies that all 27 cached M1 GETs + 10 CRUD GET-by-ID + 15 M2 reads are cached with correct keys/TTLs, and that every write invalidates the right wildcard pattern. Caching invariants carry over from M2 to M3 unchanged (uber-m3.md:43). Run after retrofits land and again before each PR.
 ---
 
 # Cache Audit
 
-You are verifying that the Redis caching layer matches `Uber_descriptionM2.pdf` §4.4 exactly. The auto-grader inspects Redis between calls (`redis-cli KEYS '...'`) and times two consecutive calls — the second must be faster. Missed cache keys, wrong TTLs, or missed invalidations all cost points.
+You are verifying that the Redis caching layer matches the spec exactly. Caching invariants are carried over verbatim from M2 to M3 — see `docs/m3/uber-m3.md:43`: "Redis caching (all cached endpoints remain cached)". The auto-grader inspects Redis between calls (`redis-cli KEYS '...'`) and times two consecutive calls — the second must be faster. Missed cache keys, wrong TTLs, or missed invalidations all cost points.
 
 ## Sources of Truth (Read First)
 
-1. **`docs/m2/cache-matrix.md`** — canonical cache key + TTL + invalidation enumeration. **Read this before starting.** The tables in this skill are a quick-reference summary; the doc is the source of truth.
-2. **`Uber_descriptionM2.pdf` §4.4 + §8** — the spec text. Use the `pdf-clause-finder` agent if you need a verbatim clause.
+1. **`docs/m3/cache-matrix.md`** — canonical cache key + TTL + invalidation enumeration. **Read this before starting.** The tables in this skill are a quick-reference summary; the doc is the source of truth.
+2. **`docs/m3/uber-m3.md` line 43** — confirms M2 caching invariants carry over to M3 unchanged.
+3. **`Uber_descriptionM2.pdf` §4.4 + §8** — the original M2 spec text. Use `spec-clause-finder --milestone m2` if you need a verbatim clause.
 
-If `docs/m2/cache-matrix.md` and this skill ever disagree, trust the doc and flag the skill drift to the user.
+If `docs/m3/cache-matrix.md` and this skill ever disagree, trust the doc and flag the skill drift to the user.
 
 ## Step 1: Setup
 
-Confirm the stack is up:
+Confirm the stack is up. M3 default is the MiniKube cluster (uber-m3.md:2615); fallback is docker-compose.
 
 ```
+# K8s (M3 grading surface)
+kubectl get pods -n uber                       # all pods Running
+kubectl port-forward -n uber svc/redis 6379:6379 &   # if running audit from host
+
+# or docker-compose (local dev fallback)
 docker compose ps   # postgres, redis, mongo, elasticsearch, neo4j, cassandra all healthy
 ```
 
-If Redis is not running, start it (`docker compose up -d redis`). The audit needs to run live calls and inspect Redis.
+If Redis is not running, start it. The audit needs to run live calls and inspect Redis.
 
-Get a token for an authenticated user (the audit hits protected endpoints):
+Get a token for an authenticated user (the audit hits protected endpoints — gateway forwards `Authorization` to services):
 
 ```
-curl -s -X POST http://localhost:8081/api/auth/login \
+GATEWAY_URL="${GATEWAY_URL:-http://$(minikube ip):30080}"
+curl -s -X POST "${GATEWAY_URL}/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"<seeded-user>","password":"<password>"}' | jq -r .token
 ```
