@@ -290,14 +290,19 @@ public class DriverService {
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-        if (!driverRepository.rideExists(rideId)) {
+        com.team01.uber.contracts.dto.RideDTO ride;
+        try {
+            ride = rideServiceClient.getRide(rideId);
+        } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for rideId {}: {}", rideId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
-        if (!driverRepository.rideBelongsToDriver(rideId, driverId)) {
+        if (!driverId.equals(ride.driverId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
         }
-        String rideStatus = driverRepository.getRideStatus(rideId);
-        if (!"COMPLETED".equals(rideStatus)) {
+        if (!"COMPLETED".equals(ride.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not completed");
         }
         int totalRatings = driver.getTotalRatings();
@@ -363,15 +368,18 @@ public class DriverService {
             log.warn("Redis cache read failed for key {}: {}", cacheKey, e.getMessage());
         }
 
-        // Query PostgreSQL
-        Object[] row = driverRepository.getDashboardStats(id);
-        if (row.length > 0 && row[0] instanceof Object[]) {
-            row = (Object[]) row[0];
+        // Fetch ride aggregation via Feign → ride-service
+        DriverRideSummaryDTO stats;
+        try {
+            stats = rideServiceClient.getDriverStats(id);
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for dashboard stats driver {}: {}", id, e.getMessage());
+            stats = DriverRideSummaryDTO.empty(id);
         }
 
-        long totalRides = ((Number) row[0]).longValue();
-        double totalEarnings = ((Number) row[1]).doubleValue();
-        double averageRideFare = ((Number) row[2]).doubleValue();
+        long totalRides = stats.totalRides();
+        double totalEarnings = stats.totalEarnings();
+        double averageRideFare = stats.averageFare();
 
         DriverDashboardDTO dto = DriverDashboardDTO.builder()
                 .driverId(id)
