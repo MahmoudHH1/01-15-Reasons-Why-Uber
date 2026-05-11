@@ -14,12 +14,9 @@ COPY driver-service/pom.xml ./driver-service/pom.xml
 COPY driver-service/src ./driver-service/src
 
 RUN chmod +x driver-service/mvnw && \
-    # -N installs the root pom to .m2 without validating its module list
-    driver-service/mvnw install -N -DskipTests && \
-    # install contracts so driver-service can resolve it
-    driver-service/mvnw install -f contracts/pom.xml -DskipTests && \
-    # package driver-service
-    driver-service/mvnw package -f driver-service/pom.xml -DskipTests
+    driver-service/mvnw install -N -DskipTests -Dgit-build-hook.skip=true && \
+    driver-service/mvnw install -f contracts/pom.xml -DskipTests -Dgit-build-hook.skip=true && \
+    driver-service/mvnw package -f driver-service/pom.xml -DskipTests -Dgit-build-hook.skip=true
 
 FROM eclipse-temurin:25.0.2_10-jdk
 WORKDIR /app
