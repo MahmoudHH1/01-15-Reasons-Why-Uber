@@ -60,7 +60,7 @@ public class PaymentController {
             @PathVariable Long userId,
             @RequestParam String startDate,
             @RequestParam String endDate) {
-        return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, startDate, endDate));
+        return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, parseStartDate(startDate), parseEndDate(endDate)));
     }
 
     @PutMapping("/{id}/refund")
@@ -131,7 +131,7 @@ public class PaymentController {
         return paymentService.searchPayments(status, start, end, userId);
     }
 
-    private LocalDateTime parseStartDate(String dateStr) {
+    private LocalDateTime   parseStartDate(String dateStr) {
         try {
             return LocalDateTime.parse(dateStr);
         } catch (java.time.format.DateTimeParseException e) {

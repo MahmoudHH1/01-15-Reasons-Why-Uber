@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -430,10 +429,8 @@ public class PaymentService {
         }).toList();
     }
 
-    public BigDecimal getUserPaymentTotal(Long userId, String startDate, String endDate) {
-        LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
-        LocalDateTime end = LocalDate.parse(endDate).atTime(23, 59, 59);
-        return paymentRepository.getUserPaymentTotal(userId, start, end);
+    public BigDecimal getUserPaymentTotal(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
+        return paymentRepository.getUserPaymentTotal(userId, startDate, endDate);
     }
 
     public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
