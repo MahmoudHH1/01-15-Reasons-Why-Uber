@@ -14,9 +14,14 @@ COPY driver-service/pom.xml ./driver-service/pom.xml
 COPY driver-service/src ./driver-service/src
 
 RUN chmod +x driver-service/mvnw && \
-    driver-service/mvnw install -N -DskipTests -Dgit-build-hook.skip=true && \
-    driver-service/mvnw install -f contracts/pom.xml -DskipTests -Dgit-build-hook.skip=true && \
-    driver-service/mvnw package -f driver-service/pom.xml -DskipTests -Dgit-build-hook.skip=true
+    driver-service/mvnw install:install-file \
+        -Dfile=pom.xml \
+        -DgroupId=com.team01.uber \
+        -DartifactId=uber \
+        -Dversion=1.0-SNAPSHOT \
+        -Dpackaging=pom && \
+    driver-service/mvnw install -f contracts/pom.xml -DskipTests && \
+    driver-service/mvnw package -f driver-service/pom.xml -DskipTests
 
 FROM eclipse-temurin:25.0.2_10-jdk
 WORKDIR /app
