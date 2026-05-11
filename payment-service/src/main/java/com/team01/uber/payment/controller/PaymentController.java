@@ -20,6 +20,7 @@ import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.RefundRequest;
 import com.team01.uber.payment.model.PaymentStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,6 +53,14 @@ public class PaymentController {
     @GetMapping("/user/{userId}/summary")
     public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
         return paymentService.getUserPaymentSummary(userId);
+    }
+
+    @GetMapping("/user/{userId}/total")
+    public ResponseEntity<BigDecimal> getUserPaymentTotal(
+            @PathVariable Long userId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, startDate, endDate));
     }
 
     @PutMapping("/{id}/refund")
