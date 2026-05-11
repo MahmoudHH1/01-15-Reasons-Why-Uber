@@ -29,7 +29,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (outcome) (count_over_time({app=\"uber\", service=\"payment-service\"} |= \"returned successfully\" or {app=\"uber\", service=\"payment-service\"} |= \"Feign call to\" |= \"failed\" [1m]))",
+          "expr": "count_over_time({app=\"uber\", service=\"payment-service\"} |~ \"returned successfully|Feign call to.*failed\" [1m])",
           "legendFormat": "feign calls/min"
         }
       ]
