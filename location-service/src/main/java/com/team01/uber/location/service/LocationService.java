@@ -352,7 +352,7 @@ public class LocationService {
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
             try {
-                DriverDTO driver = driverServiceClient.getDriver(driverId);
+                DriverDTO driver = driverClient.getDriver(driverId);
                 stationaryDrivers.add(StationaryDriverDTO.builder()
                         .driverId(driverId)
                         .driverName(driver.name())
@@ -376,7 +376,7 @@ public class LocationService {
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
             try {
-                DriverDTO driver = driverServiceClient.getDriver(driverId);
+                DriverDTO driver = driverClient.getDriver(driverId);
                 if ("AVAILABLE".equals(driver.status())) {
                     nearbyDrivers.add(NearbyDriverDTO.builder()
                             .driverId(driverId)
