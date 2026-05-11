@@ -1,0 +1,54 @@
+{
+  "title": "Payment Service Dashboard",
+  "uid": "payment-service",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["uber", "payment-service"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Error Rate (errors/min)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (service) (count_over_time({app=\"uber\", service=\"payment-service\", level=\"ERROR\"}[1m]))",
+          "legendFormat": "errors/min"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Feign Call Outcomes (success vs failure)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (outcome) (count_over_time({app=\"uber\", service=\"payment-service\"} |= \"returned successfully\" or {app=\"uber\", service=\"payment-service\"} |= \"Feign call to\" |= \"failed\" [1m]))",
+          "legendFormat": "feign calls/min"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Payment RabbitMQ Event Audit",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count_over_time({app=\"uber\", service=\"payment-service\"} | json | routingKey =~ \"payment\\..*\" [1m])",
+          "legendFormat": "payment events/min"
+        }
+      ]
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {}
+}
