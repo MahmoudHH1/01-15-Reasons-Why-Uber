@@ -8,7 +8,7 @@ RUN chmod +x mvnw
 # contracts depends on the root uber pom as parent; copy both so Maven resolves the parent via relativePath
 COPY pom.xml ./
 COPY contracts ./contracts
-RUN ./mvnw -f contracts/pom.xml install -DskipTests
+RUN git init && ./mvnw -f contracts/pom.xml install -DskipTests
 
 COPY location-service/pom.xml service-pom.xml
 COPY location-service/src ./src
