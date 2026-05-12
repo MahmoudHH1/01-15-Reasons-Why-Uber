@@ -1,0 +1,77 @@
+# Reference application.yml for driver-service (M3).
+# Sources: docs/m3/uber-m3.md §1, §2, §11.
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: driver-service
+
+  # M3: per-service PostgreSQL.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://driver-postgres:5432/uberdb-drivers}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      separator: "^^"
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:redis}
+      port: 6379
+      password: ${SPRING_REDIS_PASSWORD:redispass}
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin}
+
+  # Driver-service only: Elasticsearch (drivers index — full-text search).
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+
+  # M3: RabbitMQ.
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
+# M3: driver-service calls ride-service + user-service (per uber-m3.md:2551).
+feign:
+  ride-service:
+    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
+
+jwt:
+  secret: ${JWT_SECRET:bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u}
+  expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
