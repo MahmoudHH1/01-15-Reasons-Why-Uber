@@ -14,6 +14,10 @@ You are wiring OpenFeign as the synchronous read channel between services. Cross
 3. **`docs/m3/yaml-fragments/<service>.application.yml`** — `feign:` block per service.
 4. Saga pre-checks: `docs/m3/saga-events.md` (uber-m3.md:1225–1228) — the three S3-F4 Feign calls.
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text mid-run, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (`docs/m3/feign-contracts.md`, `docs/m3/saga-events.md` here) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
+
 ## Step 1: Identity + Branch
 
 ```

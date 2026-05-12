@@ -15,6 +15,10 @@ You are verifying that the Redis caching layer matches the spec exactly. Caching
 
 If `docs/m3/cache-matrix.md` and this skill ever disagree, trust the doc and flag the skill drift to the user.
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text mid-run, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (`docs/m3/cache-matrix.md` here) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
+
 ## Step 1: Setup
 
 Confirm the stack is up. M3 default is the MiniKube cluster (uber-m3.md:2615); fallback is docker-compose.

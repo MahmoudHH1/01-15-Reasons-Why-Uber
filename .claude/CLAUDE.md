@@ -34,6 +34,17 @@ M3-only:
   M1/M2 baseline    → docs/m3/baseline.md
 ```
 
+## Spec Lookup — Always Ask First (Token Discipline)
+
+Skills MUST NOT auto-dispatch `spec-clause-finder` for spec text mid-run. The agent spawns a full sub-conversation per call — it is **~10× more expensive** than reading a companion doc. Every time a skill needs spec text it MUST first present the user a choice via `AskUserQuestion`:
+
+| Option | Cost | Tradeoff |
+|---|---|---|
+| Read **`docs/m3/<companion>.md`** directly (Recommended) | ~1 file Read | Distilled tables / extracts; may be slightly stale if the doc has drifted from `uber-m3.md` |
+| Dispatch **`spec-clause-finder`** | Sub-agent context + grep/PDF parse | Verbatim spec quote with section + line/page citation; catches drift; ~10× more expensive |
+
+Default to the companion doc. Escalate to `spec-clause-finder` only when (a) the doc looks ambiguous or appears to contradict the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.**
+
 ## Session Setup — Identify the Developer
 
 At the start of every conversation where code will be written, committed, or branches created, you MUST confirm who is currently developing. **Do not assume based on memory or prior conversations.**

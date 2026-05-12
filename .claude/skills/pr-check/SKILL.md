@@ -36,6 +36,10 @@ If a check feels ambiguous, the doc is the tiebreaker:
 
 If a doc disagrees with this skill, trust the doc and flag the drift to the user.
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text during a PR check, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (the 11 `docs/m3/*.md` files listed above) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
+
 ## Step 0: Determine Branch Scope
 
 Read the current branch name. Classify it (used for reporting, NOT for skipping checks):

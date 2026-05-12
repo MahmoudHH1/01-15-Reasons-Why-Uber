@@ -13,6 +13,10 @@ You are running the three saga test scenarios from `docs/m3/uber-m3.md` §8.6 (l
 2. **`docs/m3/uber-m3.md` §8** — original spec (lines 1207–1397).
 3. **`docs/m3/feign-contracts.md`** — the three S3-F4 pre-check Feign endpoints.
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text mid-run, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (`docs/m3/saga-events.md`, `docs/m3/feign-contracts.md` here) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
+
 ## Stack defaults
 
 M3 grading surface is MiniKube (uber-m3.md:2615). Configurable via env var:

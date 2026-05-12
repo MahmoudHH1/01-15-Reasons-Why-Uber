@@ -33,6 +33,10 @@ These rules override every other instruction in this skill.
 | Per-service yaml block | `docs/m3/yaml-fragments/<svc>.application.yml` |
 | M2 invariants still graded | `docs/m3/m2-carryover.md` |
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text at any pipeline stage, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (the table above) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`. Stages 1 and 5b below embed this checkpoint explicitly.
+
 ## Pipeline Overview
 
 ```
@@ -61,7 +65,7 @@ Each stage produces a result the user reviews before the next stage runs.
    - **S<n>-EVENTS** — RabbitMQ topology + publishers/consumers + saga participation + Spring Boot K8s + actuator + ≥3 PromQL panels.
    - **S<n>-INFRA** — gateway route + scrape job + final dashboard JSON + assigned shared-infra item.
 
-   If the user gave free-text ("the saga trigger"), dispatch `spec-clause-finder --milestone m3` to find the matching slice.
+   If the user gave free-text ("the saga trigger"), **first** ask via `AskUserQuestion` whether to (a) read `docs/m3/saga-events.md` + the §13.2 slice table directly (Recommended, ~10× cheaper), or (b) dispatch `spec-clause-finder --milestone m3` to find the matching slice. Proceed with the chosen path. Never auto-dispatch the agent.
 
 3. Print a one-paragraph "what we're about to do" summary:
    ```
@@ -74,7 +78,12 @@ Each stage produces a result the user reviews before the next stage runs.
 
 ## Stage 1 — Read Spec Verbatim
 
-1. Dispatch `spec-clause-finder --milestone m3` for the §3–§7 block matching the slice's service, plus §8 if the slice touches the saga (S3-EVENTS, all `ride.completed`/`ride.cancelled` consumers per uber-m3.md:1354–1361).
+1. **Spec-lookup checkpoint** (per the rule at the top of this skill). Use `AskUserQuestion` to ask the user how to read the slice's spec:
+
+   - **Option A — Read `docs/m3/` companion docs directly (Recommended).** Pull from `docs/m3/feign-contracts.md` (Feign signatures), `docs/m3/saga-events.md` (if the slice touches saga participants per uber-m3.md:1354–1361), `docs/m3/event-actions.md` (Mongo + RabbitMQ vocab), and `docs/m3/k8s-manifests.md` (K8s artifacts). ~10× cheaper.
+   - **Option B — Dispatch `spec-clause-finder --milestone m3`** for the §3–§7 block matching the slice's service, plus §8 if applicable. More expensive but verbatim with line citations. Use when the docs look ambiguous or contradict each other.
+
+   Proceed with whichever option the user picks. Never auto-dispatch.
 
 2. Extract into a structured table:
 
@@ -177,7 +186,7 @@ Display the path, the case checklist (mapped to spec citations), and **checkpoin
 
 Build an audit table with one row per assertion. Columns: Case ID / What it asserts / Spec citation / Verdict (`KEEP` / `WEAKEN` / `CONTRADICTS` / `MOVE`).
 
-Use `spec-clause-finder` whenever in doubt. Cross-check against the M3 invariant docs:
+When an assertion is in doubt, **first** ask the user via `AskUserQuestion` whether to (a) re-check the relevant `docs/m3/*.md` (Recommended, ~10× cheaper) or (b) dispatch `spec-clause-finder --milestone m3`. Never auto-dispatch the agent. Cross-check against the M3 invariant docs:
 
 - Status codes must match the spec exactly (don't assert codes the spec doesn't list).
 - Cache keys + TTLs + invalidation patterns must match `docs/m3/cache-matrix.md`.

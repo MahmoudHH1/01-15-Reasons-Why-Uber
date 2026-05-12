@@ -26,6 +26,10 @@ You are wiring (or auditing) NoSQL clients. The set of stores and the per-servic
 
 If the doc and this skill disagree, trust the doc and flag the drift.
 
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text mid-run, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (`docs/m3/event-actions.md`, `docs/m3/yaml-fragments/<svc>.application.yml` here) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
+
 ## Step 1: Choose Mode
 
 Ask the user (use AskUserQuestion):
