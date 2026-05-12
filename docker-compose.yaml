@@ -123,8 +123,8 @@ services:
 
   location-service:
     build:
-      context: ./location-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: location-service/Dockerfile
     container_name: uber-location-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
