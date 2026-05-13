@@ -30,8 +30,8 @@ services:
 
   ride-service:
     build:
-      context: ./ride-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ride-service/Dockerfile
     container_name: uber-ride-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
