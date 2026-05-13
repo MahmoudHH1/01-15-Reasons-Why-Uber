@@ -21,7 +21,10 @@ spec:
             - containerPort: 8080
           env:
             - name: JWT_SECRET
-              value: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret
           resources:
             limits:
               memory: "768Mi"
