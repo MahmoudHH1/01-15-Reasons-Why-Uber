@@ -51,6 +51,16 @@ feign:
   driver-service:
     url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
 server:
   port: 8080
 

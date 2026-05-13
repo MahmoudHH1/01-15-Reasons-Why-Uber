@@ -361,10 +361,11 @@ public class LocationService {
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDriversLocal(maxSpeed, since);
-        
+
         List<StationaryDriverDTO> stationaryDrivers = new ArrayList<>();
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
+            MDC.put("driverId", String.valueOf(driverId));
             try {
                 DriverDTO driver = driverClient.getDriver(driverId);
                 stationaryDrivers.add(StationaryDriverDTO.builder()
@@ -376,7 +377,9 @@ public class LocationService {
                         .lastUpdated((LocalDateTime) row[4])
                         .build());
             } catch (Exception e) {
-                // Skip if driver details can't be fetched
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+            } finally {
+                MDC.remove("driverId");
             }
         }
         return stationaryDrivers;
@@ -385,10 +388,11 @@ public class LocationService {
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
         List<Object[]> results = locationRepository.findNearbyDriversLocal(lat, lon, radiusKm);
-        
+
         List<NearbyDriverDTO> nearbyDrivers = new ArrayList<>();
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
+            MDC.put("driverId", String.valueOf(driverId));
             try {
                 DriverDTO driver = driverClient.getDriver(driverId);
                 if ("AVAILABLE".equals(driver.status())) {
@@ -401,7 +405,9 @@ public class LocationService {
                             .build());
                 }
             } catch (Exception e) {
-                // Skip if driver details can't be fetched
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+            } finally {
+                MDC.remove("driverId");
             }
         }
         return nearbyDrivers;
