@@ -28,3 +28,4 @@ kubectl wait --for=condition=ready pod/cassandra-0 -n uber --timeout=300s
 echo "--- 7. Application Services ---"
 # Note: Services should be applied after databases are ready
 kubectl apply -f k8s/services/
+kubectl apply -f k8s/deployments/

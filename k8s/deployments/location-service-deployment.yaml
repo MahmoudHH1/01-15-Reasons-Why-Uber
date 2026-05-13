@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: location-service
+  namespace: uber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: location-service
+  template:
+    metadata:
+      labels:
+        app: location-service
+    spec:
+      containers:
+        - name: location-service
+          image: location-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://location-postgres:5432/uberdb-locations"
+            - name: SPRING_DATA_CASSANDRA_CONTACT_POINTS
+              value: "cassandra"
+          resources:
+            limits:
+              memory: "768Mi"
