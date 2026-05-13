@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'uber'
+        orgId: 1
+        folder: 'Uber'
+        type: file
+        disableDeletion: false
+        editable: true
+        updateIntervalSeconds: 10
+        options:
+          path: /var/lib/grafana/dashboards
+  # Each <svc>-INFRA slice owner adds their dashboard JSON as a key here when their slice lands.
+  # Reference: spec §11.5 "Required Files & Directory Structure" + §13.4 Day-0 stub.
+  # Owners (per docs/M3_Parallelism_Analysis.xlsx):
+  #   user-dashboard.json     — S1-INFRA-final  (Seif Tarek Ahmed,    55-3258)
+  #   driver-dashboard.json   — S2-INFRA-final  (Ziad Raafat,         55-7978)
+  #   ride-dashboard.json     — S3-INFRA-final  (Youssef Mohamed Malek, 55-24816)
+  #   location-dashboard.json — S4-INFRA-final  (Youssef Maged,       55-2829)
+  #   payment-dashboard.json  — S5-INFRA-final  (Seif Tarek Mostafa,  55-24853)
