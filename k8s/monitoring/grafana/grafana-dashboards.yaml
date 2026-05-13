@@ -103,8 +103,76 @@ data:
     }
   location-dashboard.json: |
     {
-      "title": "Location Service Dashboard (STUB)",
-      "panels": []
+      "title": "Location Service Dashboard",
+      "uid": "location-service",
+      "panels": [
+        {
+          "title": "Error Rate (LogQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"location-service\", level=\"ERROR\"} [1m]))",
+              "legendFormat": "Errors/min"
+            }
+          ]
+        },
+        {
+          "title": "Saga Listener Activity (LogQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"location-service\"} |= \"location.ride.saga-listener\" [5m]))",
+              "legendFormat": "Events processed"
+            }
+          ]
+        },
+        {
+          "title": "Cassandra Writes (LogQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"location-service\"} |= \"TRACKING_RECORDED\" [5m]))",
+              "legendFormat": "Cassandra writes"
+            }
+          ]
+        },
+        {
+          "title": "HTTP Request Rate (PromQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"location-service\"}[5m]))",
+              "legendFormat": "Requests/s"
+            }
+          ]
+        },
+        {
+          "title": "HTTP Latency P95 (PromQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m])) by (le, uri))",
+              "legendFormat": "P95 {{uri}}"
+            }
+          ]
+        },
+        {
+          "title": "JVM Live Threads (PromQL)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "expr": "jvm_threads_live_threads{job=\"location-service\"}",
+              "legendFormat": "Threads"
+            }
+          ]
+        }
+      ]
     }
   payment-dashboard.json: |
     {
