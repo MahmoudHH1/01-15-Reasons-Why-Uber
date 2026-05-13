@@ -27,6 +27,9 @@ import org.springframework.web.server.ResponseStatusException;
 import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.contracts.dto.DriverDTO;
 import com.team01.uber.contracts.events.LocationTrackedEvent;
+import com.team01.uber.contracts.events.RideCancelledEvent;
+import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.events.RidePlacedEvent;
 import com.team01.uber.location.config.LocationEventConfig;
 import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
@@ -428,6 +431,67 @@ public class LocationService {
         return events.stream()
                 .map(cassandraRowAdapter::adapt)
                 .toList();
+    }
+
+    public void handleRidePlaced(RidePlacedEvent event) {
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.placed for driverId={}", event.driverId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            payload.put("action",   "RIDE_PLACED");
+            notifyObservers("LOCATION_UPDATED", payload);
+            log.info("Processed ride.placed for driverId={}", event.driverId());
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
+    }
+
+    public void handleRideCompleted(RideCompletedEvent event) {
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.completed for driverId={}", event.driverId());
+            List<LocationTrackingEvent> events = trackingRepository.findByDriverId(event.driverId());
+            if (!events.isEmpty()) {
+                LocationTrackingEvent latest = events.get(0);
+                if (event.rideId().equals(latest.getRideId())) {
+                    log.info("ride.completed idempotency: rideId={} already marked on latest ping, skipping", event.rideId());
+                    return;
+                }
+                latest.setRideId(event.rideId());
+                trackingRepository.save(latest);
+                log.info("Processed ride.completed: marked final ping with rideId={} for driverId={}", event.rideId(), event.driverId());
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            notifyObservers("TRACKING_RECORDED", payload);
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
+    }
+
+    public void handleRideCancelled(RideCancelledEvent event) {
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.cancelled for driverId={}", event.driverId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            payload.put("reason",   event.reason());
+            notifyObservers("TRIP_CANCELLED", payload);
+            log.info("Processed ride.cancelled for driverId={}: logged TRIP_CANCELLED to Mongo", event.driverId());
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
     }
 
     private Instant parseToInstant(String dateStr, boolean startOfDay) {
