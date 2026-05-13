@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: location-service-configmap
+  namespace: uber
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
+  SPRING_DATASOURCE_USERNAME: postgres
+  SPRING_RABBITMQ_HOST: rabbitmq
+  FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080
