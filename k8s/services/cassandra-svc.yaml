@@ -3,10 +3,13 @@ kind: Service
 metadata:
   name: cassandra
   namespace: uber
+  labels:
+    app: cassandra
 spec:
   clusterIP: None
-  selector:
-    app: cassandra
   ports:
     - port: 9042
+      name: cql
       targetPort: 9042
+  selector:
+    app: cassandra
