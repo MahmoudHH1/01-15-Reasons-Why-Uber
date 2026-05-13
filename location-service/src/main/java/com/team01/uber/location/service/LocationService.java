@@ -12,6 +12,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import java.time.format.DateTimeParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -22,6 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.contracts.dto.DriverDTO;
+import com.team01.uber.contracts.events.LocationTrackedEvent;
+import com.team01.uber.location.config.LocationEventConfig;
 import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.client.DriverClient;
@@ -46,6 +52,8 @@ import jakarta.transaction.Transactional;
 @Service
 public class LocationService {
 
+    private static final Logger log = LoggerFactory.getLogger(LocationService.class);
+
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate redisTemplate;
@@ -54,18 +62,21 @@ public class LocationService {
     private final LocationAdapter locationAdapter = new LocationAdapter();
     private final CassandraRowAdapter cassandraRowAdapter = new CassandraRowAdapter();
     private final DriverClient driverClient;
+    private final RabbitTemplate rabbitTemplate;
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
                            LocationTrackingEventRepository trackingRepository,
                            RedisTemplate redisTemplate,
                            List<EntityObserver> observers,
-                           DriverClient driverClient) {
+                           DriverClient driverClient,
+                           RabbitTemplate rabbitTemplate) {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
         this.initialObservers = observers;
         this.driverClient = driverClient;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @PostConstruct
@@ -504,7 +515,6 @@ public class LocationService {
 
         trackingRepository.save(event);
 
-        // Notify observers (MongoDB event logging)
         Map<String, Object> payload = new HashMap<>();
         payload.put("driverId", driverId);
         payload.put("latitude", request.getLatitude());
@@ -516,6 +526,26 @@ public class LocationService {
         payload.put("notes", request.getNotes());
         payload.put("timestamp", now);
         notifyObservers("TRACKING_RECORDED", payload);
+
+        MDC.put("routingKey", LocationEventConfig.ROUTING_KEY_TRACKED);
+        try {
+            LocationTrackedEvent trackedEvent = new LocationTrackedEvent(
+                    driverId,
+                    request.getRideId(),
+                    request.getLatitude(),
+                    request.getLongitude()
+            );
+            rabbitTemplate.convertAndSend(
+                    LocationEventConfig.LOCATION_EXCHANGE,
+                    LocationEventConfig.ROUTING_KEY_TRACKED,
+                    trackedEvent
+            );
+            log.info("Published {} for driverId={}", LocationEventConfig.ROUTING_KEY_TRACKED, driverId);
+        } catch (Exception e) {
+            log.warn("Failed to publish {}: {}", LocationEventConfig.ROUTING_KEY_TRACKED, e.getMessage());
+        } finally {
+            MDC.remove("routingKey");
+        }
 
         return locationAdapter.adaptToLocationTrackingDTO(event);
     }
