@@ -1,0 +1,95 @@
+name: M3 spec snapshot
+
+# Runs scripts/snapshot-m3.sh once a day. If the upstream docsify site has
+# changed, opens (or updates) a single PR with the new content + dated
+# archive snapshot. Reviewer merges to update docs/m3/ on main.
+#
+# Why: M3's spec lives at https://scalable-docs.netlify.app/#/uber-m3 and
+# can change silently. This workflow is the stealth-change tripwire.
+
+on:
+  schedule:
+    # 06:00 UTC ~= 09:00 Cairo during EEST (Apr–Oct) / 08:00 in EET.
+    # GH Actions cron is UTC and DST-blind; close-enough to a 9 AM nudge.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: m3-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute snapshot timestamp
+        id: ts
+        # Single source of truth for "when did this run happen". Reused
+        # by the script (so the archive dir is named with this) and by
+        # the bot branch name, so archive and branch share a prefix.
+        run: echo "value=$(date -u +%Y-%m-%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      - name: Run snapshot script
+        id: snap
+        env:
+          SNAPSHOT_TIMESTAMP: ${{ steps.ts.outputs.value }}
+        run: |
+          set +e
+          ./scripts/snapshot-m3.sh
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changed=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "snapshot script failed with exit $rc" >&2; exit "$rc" ;;
+          esac
+
+      - name: Open / update PR
+        if: steps.snap.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Per-run branch — every change-detected run gets its own branch
+          # and PR. Avoids force-push (which the repo ruleset blocks) and
+          # preserves one PR per upstream change instead of clobbering
+          # an in-flight rolling PR. Branch shares the same <UTC date>-<HHMM>
+          # prefix as the archive directory so the two are easy to correlate;
+          # github.run_id at the end guarantees uniqueness across same-minute
+          # re-runs.
+          branch: chore/cc/m3-snapshot-bot-${{ steps.ts.outputs.value }}-${{ github.run_id }}/55-25085
+          base: main
+          delete-branch: false
+          commit-message: "chore(cc): refresh m3 spec snapshot (55-25085)"
+          title: "chore(cc): m3 docsify spec changed upstream"
+          body: |
+            Daily snapshot detected an upstream change to the M3 docsify site
+            (https://scalable-docs.netlify.app/#/uber-m3).
+
+            **Review the diff carefully** — staff sometimes change requirements
+            silently.
+
+            The dated directory under `docs/m3/archive/` is immutable evidence
+            of the upstream content at fetch time.
+
+            If this PR is approved and merged, the `docs/m3/` content will be updated to match the new upstream content (latest archived version).
+
+            Triggered by `.github/workflows/m3-snapshot.yml`.
+          add-paths: |
+            docs/m3/**
+          reviewers: |
+            Ahmed20150
+            seiftarek158
+            OHarridy
+            YahiaHesham
+          assignees: |
+            Ahmed20150
+            seiftarek158
+            OHarridy
+            YahiaHesham

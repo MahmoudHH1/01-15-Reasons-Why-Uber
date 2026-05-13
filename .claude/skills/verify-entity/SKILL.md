@@ -1,11 +1,11 @@
 ---
 name: verify-entity
-description: Compare entity class definitions against the M1 specification to catch missing fields, wrong types, incorrect constraints, or relationship misconfigurations.
+description: Compare entity class definitions against the M1 specification to catch missing fields, wrong types, incorrect constraints, or relationship misconfigurations. M3 adds the cross-service @ManyToOne→Long rule per uber-m3.md:104; intra-service @ManyToOne stays JPA-managed (uber-m3.md:117).
 ---
 
-# Verify Entity Against M1 Spec
+# Verify Entity Against Spec
 
-You are comparing the actual Java entity classes against the M1 specification to catch discrepancies before the auto-grader runs.
+You are comparing the actual Java entity classes against the spec to catch discrepancies before the auto-grader runs. The M1 entity definitions are the baseline; M3 adds one structural rule (cross-service `@ManyToOne` becomes plain `Long`) and the new Ride saga statuses.
 
 ## Steps
 
@@ -45,7 +45,9 @@ For each entity, check:
 | JSONB columns | `Map<String, Object>` type with proper JSONB annotations |
 | Relationships | Correct `@OneToMany`/`@ManyToOne` with proper owning/inverse sides |
 | @JsonIgnore | Present on inverse side of bidirectional relationships |
-| Cross-service FKs | Plain `Long` type, NOT JPA relationship annotations |
+| Cross-service FKs | Plain `Long` type, NOT JPA relationship annotations (uber-m3.md:104 — "Every `@ManyToOne` or `@JoinColumn` that pointed to another service's entity becomes a plain `Long` field") |
+| Intra-service FKs | `@ManyToOne` to entities **in the same service** stay JPA-managed (uber-m3.md:117 — `SavedAddress→User`, `DriverDocument→Driver`, `RideStop→Ride`, `PaymentCoupon→Payment/Coupon` all remain) |
+| Ride saga statuses | If verifying Ride, the status enum must include: `REQUESTED`, `ACCEPTED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` (M1) **plus M3-new** `PAYMENT_PENDING`, `PAID`, `PAYMENT_FAILED`, `REFUNDED` (uber-m3.md:46–55). |
 
 ### 5. Report
 
