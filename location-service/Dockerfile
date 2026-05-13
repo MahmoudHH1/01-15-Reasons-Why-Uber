@@ -7,7 +7,7 @@ COPY pom.xml ./
 COPY contracts ./contracts
 COPY location-service ./location-service
 
-RUN apt-get update -qq && apt-get install -y -qq python3 && python3 -c "import re; f=open('pom.xml','r'); c=f.read(); f.close(); c=re.sub(r'<plugin>\s*<groupId>com\.rudikershaw\.gitbuildhook</groupId>.*?</plugin>','',c,flags=re.DOTALL); c=c.replace('<module>user-service</module>',''); c=c.replace('<module>driver-service</module>',''); c=c.replace('<module>ride-service</module>',''); c=c.replace('<module>payment-service</module>',''); f=open('pom.xml','w'); f.write(c); f.close()"
+RUN apt-get update -qq && apt-get install -y -qq python3 && python3 -c "import re; f=open('pom.xml','r'); c=f.read(); f.close(); c=re.sub(r'<plugin>\s*<groupId>com\.rudikershaw\.gitbuildhook</groupId>.*?</plugin>','',c,flags=re.DOTALL); c=c.replace('<module>user-service</module>',''); c=c.replace('<module>driver-service</module>',''); c=c.replace('<module>ride-service</module>',''); c=c.replace('<module>payment-service</module>',''); c=c.replace('<module>api-gateway</module>',''); f=open('pom.xml','w'); f.write(c); f.close()"
 
 RUN chmod +x mvnw && ./mvnw install -DskipTests -pl contracts -am && ./mvnw clean package -DskipTests -pl location-service
 
