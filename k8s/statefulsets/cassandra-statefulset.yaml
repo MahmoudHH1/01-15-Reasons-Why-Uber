@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: cassandra-statefulset
+  namespace: uber
 spec:
   serviceName: cassandra
   replicas: 1
@@ -46,7 +47,11 @@ spec:
           volumeMounts:
             - name: cassandra-data
               mountPath: /var/lib/cassandra
-      volumes:
-        - name: cassandra-data
-          persistentVolumeClaim:
-            claimName: cassandra-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: cassandra-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

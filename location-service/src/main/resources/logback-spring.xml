@@ -11,7 +11,7 @@
         </http>
         <format>
             <label>
-                <pattern>app=uber,service=${spring.application.name}</pattern>
+                <pattern>app=uber,service=${spring.application.name},level=%level,env=k8s</pattern>
             </label>
             <message>
                 <pattern>
