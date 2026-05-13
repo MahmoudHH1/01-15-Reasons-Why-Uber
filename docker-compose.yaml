@@ -9,13 +9,28 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  location-postgres:
+    image: postgres:17
+    container_name: uber-location-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-locations
+    volumes:
+      - location-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-locations"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -27,6 +42,7 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+      - location-postgres
 
   api-gateway:
     build:
@@ -123,11 +139,11 @@ services:
 
   location-service:
     build:
-      context: ./location-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: location-service/Dockerfile
     container_name: uber-location-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_CASSANDRA_CONTACT_POINTS: cassandra
@@ -141,7 +157,7 @@ services:
     ports:
       - "8084:8080"
     depends_on:
-      postgres:
+      location-postgres:
         condition: service_healthy
       cassandra:
         condition: service_healthy
@@ -263,6 +279,7 @@ services:
 
 volumes:
   pgdata:
+  location-pgdata:
   mongo-data:
   es-data:
   neo4j-data:

@@ -33,7 +33,7 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
     int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);
 
     @Query(value = """
-            SELECT d.id as driver_id, d.name as driver_name, l.latitude, l.longitude,
+            SELECT l.driver_id, l.latitude, l.longitude,
                    SQRT(POWER(l.latitude - :lat, 2) + POWER(l.longitude - :lon, 2)) * 111 AS distance_km
             FROM locations l
             JOIN (
@@ -41,17 +41,13 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
                 FROM locations
                 GROUP BY driver_id
             ) latest_loc ON l.driver_id = latest_loc.driver_id AND l.timestamp = latest_loc.latest
-            JOIN drivers d ON l.driver_id = d.id
-            WHERE d.status = 'AVAILABLE'
-              AND SQRT(POWER(l.latitude - :lat, 2) + POWER(l.longitude - :lon, 2)) * 111 <= :radiusKm
+            WHERE SQRT(POWER(l.latitude - :lat, 2) + POWER(l.longitude - :lon, 2)) * 111 <= :radiusKm
             ORDER BY distance_km ASC
+            LIMIT 100
             """, nativeQuery = true)
-    List<Object[]> findNearbyAvailableDrivers(@Param("lat") Double lat,
-                                              @Param("lon") Double lon,
-                                              @Param("radiusKm") Double radiusKm);
-
-    @Query(value = "SELECT COUNT(*) FROM drivers WHERE id = :driverId", nativeQuery = true)
-    long countDriverById(@Param("driverId") Long driverId);
+    List<Object[]> findNearbyDriversLocal(@Param("lat") Double lat,
+                                         @Param("lon") Double lon,
+                                         @Param("radiusKm") Double radiusKm);
 
     @Query(value = "SELECT * FROM locations WHERE metadata->>:key = :value", nativeQuery = true)
     List<Location> findByMetadataKeyEq(@Param("key") String key, @Param("value") String value);
@@ -84,7 +80,7 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
                                       @Param("endDate") LocalDateTime endDate);
 
     @Query(value = """
-            SELECT d.id AS driver_id, d.name AS driver_name, l.latitude, l.longitude,
+            SELECT l.driver_id, l.latitude, l.longitude,
                    (l.metadata->>'speed')::numeric AS last_speed,
                    l.timestamp AS last_updated
             FROM locations l
@@ -93,12 +89,13 @@ public interface LocationRepository extends JpaRepository<Location, Long> {
                 FROM locations
                 GROUP BY driver_id
             ) latest_loc ON l.driver_id = latest_loc.driver_id AND l.timestamp = latest_loc.latest
-            JOIN drivers d ON l.driver_id = d.id
             WHERE (l.metadata->>'speed')::numeric <= :maxSpeed
               AND l.timestamp >= :since
+            ORDER BY l.timestamp ASC
+            LIMIT 100
             """, nativeQuery = true)
-    List<Object[]> findStationaryDrivers(@Param("maxSpeed") Double maxSpeed,
-                                         @Param("since") LocalDateTime since);
+    List<Object[]> findStationaryDriversLocal(@Param("maxSpeed") Double maxSpeed,
+                                              @Param("since") LocalDateTime since);
 
     @Query(value = """
             SELECT
