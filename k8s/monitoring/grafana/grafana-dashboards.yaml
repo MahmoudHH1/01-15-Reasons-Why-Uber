@@ -15,7 +15,7 @@ data:
   dashboards.yaml: |
     apiVersion: 1
     providers:
-      - name: 'uber'
+      - name: 'Default'
         orgId: 1
         folder: 'Uber'
         type: file
