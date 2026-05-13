@@ -36,9 +36,20 @@ spring:
       port: 6379
       password: redispass
 
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+
 feign:
   driver-service:
-    url: http://driver-service:8080
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
 
 server:
   port: 8080
