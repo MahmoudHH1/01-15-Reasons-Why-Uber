@@ -6,5 +6,5 @@ public record RideSummaryDTO(
         long completedRides,
         long cancelledRides,
         Double totalSpent,
-        Double averageFare   // added in M3 — was missing from original
+        Double averageFare
 ) {}
