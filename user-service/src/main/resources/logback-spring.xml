@@ -1,4 +1,13 @@
 <configuration>
+
+    <!-- SAFE local console output -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Loki appender (kept but optional) -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
@@ -24,7 +33,9 @@
         </format>
     </appender>
 
+    <!-- FIX: console is mandatory -->
     <root level="INFO">
-        <appender-ref ref="LOKI"/>
+        <appender-ref ref="CONSOLE"/>
     </root>
+
 </configuration>
