@@ -35,6 +35,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import com.team01.uber.user.messaging.publishers.UserEventPublisher;
+import com.team01.uber.contracts.feign.PaymentServiceClient;
+import java.math.BigDecimal;
 
 @Service
 public class UserService implements Observable {
@@ -45,6 +48,9 @@ public class UserService implements Observable {
     private final SavedAddressRepository savedAddressRepository;
     private final List<EntityObserver> observers = new ArrayList<>();
     private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
+    private final UserEventPublisher userEventPublisher;       
+    private final RideServiceClient rideServiceClient;             
+    private final PaymentServiceClient paymentServiceClient;       
 
     public UserService(UserRepository userRepository,
                        SavedAddressRepository savedAddressRepository,
@@ -168,11 +174,11 @@ public class UserService implements Observable {
             return UserRideSummaryDTO.builder()
                     .userId(userId)
                     .name(user.getName())
-                    .totalRides(summary.getTotalRides())
-                    .completedRides(summary.getCompletedRides())
-                    .cancelledRides(summary.getCancelledRides())
-                    .totalSpent(summary.getTotalSpent())
-                    .averageFare(summary.getAverageFare())
+                    .totalRides(summary.totalRides())
+                    .completedRides(summary.completedRides())
+                    .cancelledRides(summary.cancelledRides())
+                    .totalSpent(summary.totalSpent())
+                    .averageFare(summary.averageFare())
                     .build();
         } catch (feign.FeignException.NotFound e) {
             // User has no rides yet
@@ -245,7 +251,6 @@ public class UserService implements Observable {
                     riders.add(TopRiderDTO.builder()
                             .userId(user.getId())
                             .name(user.getName())
-                            .email(user.getEmail())
                             .totalSpent(totalSpent.doubleValue())
                             .build());
                 }
@@ -258,7 +263,7 @@ public class UserService implements Observable {
         
         // Sort by totalSpent descending and return top N
         return riders.stream()
-                .sorted((a, b) -> Double.compare(b.getTotalSpent(), a.getTotalSpent()))
+                .sorted((a, b) -> Double.compare(b.totalSpent(), a.totalSpent()))
                 .limit(limit)
                 .toList();
     }
@@ -338,7 +343,7 @@ public class UserService implements Observable {
         }
         
         // Fetch users by language preference (cap at 100)
-        List<User> candidates = userRepository.findByLanguagePreference(lang).stream().limit(100).toList();
+        List<User> candidates =userRepository.findByPreference("language", lang).stream().limit(100).toList();
         
         // Per-user Feign calls to ride-service
         List<User> qualified = new ArrayList<>();
@@ -357,7 +362,7 @@ public class UserService implements Observable {
         
         return qualified;
     }
-    
+
     @Cacheable(value = "user-service::S1-F8", key = "#userId")
     public UserProfileDTO getUserProfile(Long userId) {
         User user = userRepository.findById(userId)
