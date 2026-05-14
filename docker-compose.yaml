@@ -17,6 +17,22 @@ services:
       retries: 5
       start_period: 10s
 
+  payment-postgres:
+    image: postgres:17
+    container_name: uber-payment-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-payments
+    volumes:
+      - payment-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-payments"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: uber-pgadmin
@@ -27,6 +43,7 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+      - payment-postgres
 
   ride-service:
     build:
@@ -140,7 +157,7 @@ services:
       dockerfile: payment-service/Dockerfile
     container_name: uber-payment-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-postgres:5432/uberdb-payments
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
@@ -153,7 +170,7 @@ services:
     ports:
       - "8085:8080"
     depends_on:
-      postgres:
+      payment-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -247,6 +264,7 @@ services:
 
 volumes:
   pgdata:
+  payment-pgdata:
   mongo-data:
   es-data:
   neo4j-data:
