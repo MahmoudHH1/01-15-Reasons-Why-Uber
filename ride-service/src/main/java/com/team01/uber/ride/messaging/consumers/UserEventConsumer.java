@@ -1,4 +1,4 @@
-package com.team01.uber.ride.messaging;
+package com.team01.uber.ride.messaging.consumers;
 
 import com.team01.uber.contracts.events.UserDeactivatedEvent;
 import com.team01.uber.contracts.events.UserRegisteredEvent;

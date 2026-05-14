@@ -8,7 +8,7 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.model.RodeWithRelationship;
 import com.team01.uber.ride.model.UserNode;
-import com.team01.uber.ride.messaging.RideEventPublisherService;
+import com.team01.uber.ride.messaging.publishers.RideEventPublisherService;
 import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;

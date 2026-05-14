@@ -1,10 +1,11 @@
-package com.team01.uber.ride.messaging;
+package com.team01.uber.ride.messaging.consumers;
 
 import com.team01.uber.contracts.events.PaymentCompletedEvent;
 import com.team01.uber.contracts.events.PaymentFailedEvent;
 import com.team01.uber.contracts.events.PaymentInitiatedEvent;
 import com.team01.uber.contracts.events.PaymentRefundedEvent;
 import com.team01.uber.ride.enums.RideStatus;
+import com.team01.uber.ride.messaging.publishers.RideEventPublisherService;
 import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.service.RideService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;

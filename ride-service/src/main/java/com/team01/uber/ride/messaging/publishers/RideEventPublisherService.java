@@ -1,4 +1,4 @@
-package com.team01.uber.ride.messaging;
+package com.team01.uber.ride.messaging.publishers;
 
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
