@@ -1,10 +1,15 @@
 name: Mokaf7et el CI
 
-on: [pull_request]
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - main
+  pull_request:
 
 jobs:
   build:
-    name: Build
+    name: Build & Test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,16 +26,36 @@ jobs:
       - name: Build Spring Boot App
         run: mvn clean package -DskipTests
 
+      - name: Run Tests
+        run: mvn test
+
   docker:
-    name: Docker Build
+    name: Docker Build & Push
     runs-on: ubuntu-latest
     needs: build
     permissions:
       contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker compose build
+      - name: Build Docker images
+        run: docker compose -p uber build
 
+      - name: Log in to GitHub Container Registry
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          for svc in user-service driver-service ride-service location-service payment-service; do
+            docker tag uber-${svc} ghcr.io/${REPO}/${svc}:latest
+            docker push ghcr.io/${REPO}/${svc}:latest
+          done
