@@ -32,11 +32,11 @@ spring:
 
 feign:
   user-service:
-    url: http://user-service:8080
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
   ride-service:
-    url: http://ride-service:8080
+    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
   driver-service:
-    url: http://driver-service:8080
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
 
 server:
   port: 8080
