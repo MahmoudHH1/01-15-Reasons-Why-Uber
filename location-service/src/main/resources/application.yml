@@ -61,7 +61,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: "prometheus,health,info"
+        include: "prometheus,health,info,circuitbreakers"
+  health:
+    circuitbreakers:
+      enabled: true
   metrics:
     distribution:
       percentiles-histogram:
