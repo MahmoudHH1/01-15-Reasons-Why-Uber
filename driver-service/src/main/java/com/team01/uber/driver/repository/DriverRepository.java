@@ -18,7 +18,7 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     Optional<Driver> findByLicenseNumber(String licenseNumber);
 
     @Query(value = """
-            SELECT d.id, d.name, d.rating, d.total_ratings AS total_rides
+            SELECT d.id, d.name, d.rating, d.total_ratings
             FROM drivers d
             ORDER BY d.rating DESC
             LIMIT :limit

@@ -152,7 +152,7 @@ public class DriverService {
                         .driverId(((Number) row[0]).longValue())
                         .name((String) row[1])
                         .rating(((Number) row[2]).doubleValue())
-                        .totalRides(((Number) row[3]).longValue())
+                        .totalRatings(((Number) row[3]).longValue())
                         .build())
                 .toList();
     }
