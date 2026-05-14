@@ -18,6 +18,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import com.team01.uber.user.messaging.publishers.UserEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -44,10 +45,12 @@ public class UserService implements Observable {
     public UserService(UserRepository userRepository,
                        SavedAddressRepository savedAddressRepository,
                        MongoEventLogger mongoEventLogger,
-                       AuthEventRepository authEventRepository) {
+                       AuthEventRepository authEventRepository,
+                        UserEventPublisher userEventPublisher) {
         this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
         this.authEventRepository = authEventRepository;
+        this.userEventPublisher = userEventPublisher;
         registerObserver(mongoEventLogger);
     }
 
@@ -78,6 +81,10 @@ public class UserService implements Observable {
         User saved = userRepository.save(user);
         notifyObservers(AuthEvent.ACTION_USER_CREATED,
                 Map.of("userId", saved.getId(), "email", saved.getEmail()));
+        
+        // Publish RabbitMQ event
+        userEventPublisher.publishUserRegistered(saved.getId(), saved.getEmail(), saved.getRole().name());
+        
         return saved;
     }
 
@@ -227,6 +234,12 @@ public class UserService implements Observable {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "User not found with id: " + userId));
+        
+        // Idempotent check: if already deactivated, skip re-publication
+        if (user.getStatus() == UserStatus.DEACTIVATED) {
+            return user;  // 200 OK, no event
+        }
+        
         if (userRepository.countActiveRides(userId) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "User has active rides and cannot be deactivated");
@@ -234,6 +247,10 @@ public class UserService implements Observable {
         user.setStatus(UserStatus.DEACTIVATED);
         User saved = userRepository.save(user);
         notifyObservers(AuthEvent.ACTION_USER_DEACTIVATED, Map.of("userId", saved.getId()));
+        
+        // Publish RabbitMQ event
+        userEventPublisher.publishUserDeactivated(saved.getId());
+        
         return saved;
     }
 
