@@ -16,6 +16,9 @@ import com.team01.uber.user.repository.UserRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import com.team01.uber.contracts.feign.PaymentServiceClient;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import com.team01.uber.user.messaging.publishers.UserEventPublisher;
@@ -25,7 +28,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.contracts.dto.RideSummaryDTO;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -46,11 +50,15 @@ public class UserService implements Observable {
                        SavedAddressRepository savedAddressRepository,
                        MongoEventLogger mongoEventLogger,
                        AuthEventRepository authEventRepository,
-                        UserEventPublisher userEventPublisher) {
+                        UserEventPublisher userEventPublisher,
+                        RideServiceClient rideServiceClient,
+                        PaymentServiceClient paymentServiceClient) {
         this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
         this.authEventRepository = authEventRepository;
         this.userEventPublisher = userEventPublisher;
+        this.rideServiceClient = rideServiceClient;
+        this.paymentServiceClient = paymentServiceClient; 
         registerObserver(mongoEventLogger);
     }
 
@@ -153,21 +161,34 @@ public class UserService implements Observable {
 
     @Cacheable(value = "user-service::S1-F3", key = "#userId")
     public UserRideSummaryDTO getRideSummary(Long userId) {
-        getUserById(userId);
-        Object[] row = userRepository.getRideSummary(userId);
-        if (row == null || row.length == 0) {
+        User user = getUserById(userId);
+        
+        try {
+            RideSummaryDTO summary = rideServiceClient.getUserRideSummary(userId);
             return UserRideSummaryDTO.builder()
                     .userId(userId)
-                    .name(null)
+                    .name(user.getName())
+                    .totalRides(summary.getTotalRides())
+                    .completedRides(summary.getCompletedRides())
+                    .cancelledRides(summary.getCancelledRides())
+                    .totalSpent(summary.getTotalSpent())
+                    .averageFare(summary.getAverageFare())
+                    .build();
+        } catch (feign.FeignException.NotFound e) {
+            // User has no rides yet
+            return UserRideSummaryDTO.builder()
+                    .userId(userId)
+                    .name(user.getName())
                     .totalRides(0L)
                     .completedRides(0L)
                     .cancelledRides(0L)
                     .totalSpent(0.0)
                     .averageFare(0.0)
                     .build();
+        } catch (feign.FeignException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, 
+                    "Ride service unavailable: " + e.getMessage());
         }
-        Object[] data = (Object[]) row[0];
-        return objectArrayDtoAdapter.adaptToUserRideSummary(data);
     }
 
     @Caching(evict = {
@@ -210,9 +231,35 @@ public class UserService implements Observable {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "startDate must not be after endDate");
         }
-        return userRepository.findTopRiders(start, end, limit)
-                .stream()
-                .map(row -> objectArrayDtoAdapter.adaptToTopRider((Object[]) row))
+        
+        // Fetch all users (cap at 100 to avoid N+1 explosion)
+        List<User> candidates = userRepository.findAll().stream().limit(100).toList();
+        
+        // Per-user Feign calls to payment-service
+        List<TopRiderDTO> riders = new ArrayList<>();
+        for (User user : candidates) {
+            try {
+                BigDecimal totalSpent = paymentServiceClient.getUserTotalPayments(
+                        user.getId(), startDate, endDate);
+                if (totalSpent.compareTo(BigDecimal.ZERO) > 0) {
+                    riders.add(TopRiderDTO.builder()
+                            .userId(user.getId())
+                            .name(user.getName())
+                            .email(user.getEmail())
+                            .totalSpent(totalSpent.doubleValue())
+                            .build());
+                }
+            } catch (feign.FeignException.NotFound e) {
+                // User has no payments in this period, skip
+            } catch (feign.FeignException e) {
+                // Log warning but continue with other users
+            }
+        }
+        
+        // Sort by totalSpent descending and return top N
+        return riders.stream()
+                .sorted((a, b) -> Double.compare(b.getTotalSpent(), a.getTotalSpent()))
+                .limit(limit)
                 .toList();
     }
 
@@ -240,10 +287,18 @@ public class UserService implements Observable {
             return user;  // 200 OK, no event
         }
         
-        if (userRepository.countActiveRides(userId) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "User has active rides and cannot be deactivated");
+        // Feign call to check active rides
+        try {
+            int activeRideCount = rideServiceClient.getActiveRideCount(userId);
+            if (activeRideCount > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "User has active rides and cannot be deactivated");
+            }
+        } catch (feign.FeignException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Cannot verify ride status: " + e.getMessage());
         }
+        
         user.setStatus(UserStatus.DEACTIVATED);
         User saved = userRepository.save(user);
         notifyObservers(AuthEvent.ACTION_USER_DEACTIVATED, Map.of("userId", saved.getId()));
@@ -253,7 +308,6 @@ public class UserService implements Observable {
         
         return saved;
     }
-
     @Caching(evict = {
             @CacheEvict(value = "user-service::savedAddress", key = "#addressId"),
             @CacheEvict(value = "user-service::S1-F8", key = "#userId"),
@@ -276,15 +330,34 @@ public class UserService implements Observable {
                 Map.of("userId", userId, "addressId", addressId));
         return userRepository.findById(userId).get();
     }
-@Cacheable(value = "user-service::S1-F9", key = "#lang + '-' + #minRides")
 
+    @Cacheable(value = "user-service::S1-F9", key = "#lang + '-' + #minRides")
     public List<User> findUsersByLanguageWithMinRides(String lang, int minRides) {
         if (lang == null || lang.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
         }
-        return userRepository.findByLanguagePreferenceWithMinRides(lang, minRides);
+        
+        // Fetch users by language preference (cap at 100)
+        List<User> candidates = userRepository.findByLanguagePreference(lang).stream().limit(100).toList();
+        
+        // Per-user Feign calls to ride-service
+        List<User> qualified = new ArrayList<>();
+        for (User user : candidates) {
+            try {
+                long completedCount = rideServiceClient.getCompletedRideCount(user.getId());
+                if (completedCount >= minRides) {
+                    qualified.add(user);
+                }
+            } catch (feign.FeignException.NotFound e) {
+                // User has no rides, skip
+            } catch (feign.FeignException e) {
+                // Log warning but continue with other users
+            }
+        }
+        
+        return qualified;
     }
-
+    
     @Cacheable(value = "user-service::S1-F8", key = "#userId")
     public UserProfileDTO getUserProfile(Long userId) {
         User user = userRepository.findById(userId)
