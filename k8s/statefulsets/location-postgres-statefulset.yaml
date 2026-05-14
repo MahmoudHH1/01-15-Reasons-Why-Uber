@@ -36,27 +36,28 @@ spec:
                   name: location-postgres-secret
                   key: POSTGRES_DB
           resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
             limits:
               memory: 512Mi
+              cpu: 500m
           livenessProbe:
             exec:
               command:
                 - pg_isready
-                - -U
-                - postgres
             initialDelaySeconds: 15
             periodSeconds: 10
           readinessProbe:
             exec:
               command:
                 - pg_isready
-                - -U
-                - postgres
             initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+              subPath: pgdata
   volumeClaimTemplates:
     - metadata:
         name: data
