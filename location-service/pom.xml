@@ -51,6 +51,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- ── Circuit Breaker bonus (§15) ── -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+        </dependency>
+
         <!-- ── M1 dependencies (unchanged) ── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
