@@ -36,6 +36,20 @@ spring:
   elasticsearch:
     uris: http://elasticsearch:9200
 
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
 server:
   port: 8080
 
