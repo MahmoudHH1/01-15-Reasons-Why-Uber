@@ -30,18 +30,12 @@ public class RideEventConfig {
         return new TopicExchange("user.events");
     }
 
-    /** Dead-letter exchange for all ride-service consumer queues. */
-    @Bean
-    public TopicExchange rideEventsDlx() {
-        return new TopicExchange("ride.events.dlx");
-    }
-
     // ── ride.payment.* consumer queues ───────────────────────────────────────
 
     @Bean
     public Queue ridePaymentInitiatedQueue() {
         return QueueBuilder.durable("ride.payment.initiated")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.payment.initiated.dlq")
                 .build();
     }
@@ -60,7 +54,7 @@ public class RideEventConfig {
     @Bean
     public Queue ridePaymentCompletedQueue() {
         return QueueBuilder.durable("ride.payment.completed")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.payment.completed.dlq")
                 .build();
     }
@@ -79,7 +73,7 @@ public class RideEventConfig {
     @Bean
     public Queue ridePaymentFailedQueue() {
         return QueueBuilder.durable("ride.payment.failed")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.payment.failed.dlq")
                 .build();
     }
@@ -98,7 +92,7 @@ public class RideEventConfig {
     @Bean
     public Queue ridePaymentRefundedQueue() {
         return QueueBuilder.durable("ride.payment.refunded")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.payment.refunded.dlq")
                 .build();
     }
@@ -119,7 +113,7 @@ public class RideEventConfig {
     @Bean
     public Queue rideUserRegisteredQueue() {
         return QueueBuilder.durable("ride.user.registered")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.user.registered.dlq")
                 .build();
     }
@@ -138,7 +132,7 @@ public class RideEventConfig {
     @Bean
     public Queue rideUserDeactivatedQueue() {
         return QueueBuilder.durable("ride.user.deactivated")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.user.deactivated.dlq")
                 .build();
     }
@@ -159,7 +153,7 @@ public class RideEventConfig {
     @Bean
     public Queue rideSagaFeedbackQueue() {
         return QueueBuilder.durable("ride.saga-feedback")
-                .withArgument("x-dead-letter-exchange", "ride.events.dlx")
+                .withArgument("x-dead-letter-exchange", "")
                 .withArgument("x-dead-letter-routing-key", "ride.saga-feedback.dlq")
                 .build();
     }

@@ -33,6 +33,7 @@ public class UserEventConsumer {
                     .build());
         } catch (Exception e) {
             log.warn("Failed to audit USER_REGISTERED for userId={}: {}", event.userId(), e.getMessage());
+            throw e; // rethrow to trigger retry/dead-lettering
         }
     }
 
@@ -46,6 +47,7 @@ public class UserEventConsumer {
                     .build());
         } catch (Exception e) {
             log.warn("Failed to audit USER_DEACTIVATED for userId={}: {}", event.userId(), e.getMessage());
+            throw e; // rethrow to trigger retry/dead-lettering
         }
     }
 }
