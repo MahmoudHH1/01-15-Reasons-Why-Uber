@@ -1,5 +1,7 @@
 package com.team01.uber.ride.controller;
 
+import com.team01.uber.contracts.dto.DriverRideSummaryDTO;
+import com.team01.uber.contracts.dto.RideSummaryDTO;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
@@ -133,5 +135,38 @@ public class RideController {
         List<DriverRecommendationDTO> recommendations = recommendationService.getRecommendations(
                 userId, ctx.getUserId(), ctx.getRole(), limit);
         return ResponseEntity.ok(recommendations);
+    }
+
+    @GetMapping("/user/{userId}/summary")
+    public ResponseEntity<RideSummaryDTO> getUserRideSummary(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getUserRideSummary(userId));
+    }
+
+    @GetMapping("/user/{userId}/active-count")
+    public ResponseEntity<Integer> getActiveRideCountForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getActiveRideCountForUser(userId));
+    }
+
+    @GetMapping("/user/{userId}/completed-count")
+    public ResponseEntity<Long> getCompletedRideCountForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getCompletedRideCountForUser(userId));
+    }
+
+    @GetMapping("/driver/{driverId}/summary")
+    public ResponseEntity<DriverRideSummaryDTO> getDriverRideSummary(
+            @PathVariable Long driverId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return ResponseEntity.ok(rideService.getDriverRideSummary(driverId, startDate, endDate));
+    }
+
+    @GetMapping("/driver/{driverId}/active-count")
+    public ResponseEntity<Integer> getActiveRideCountForDriver(@PathVariable Long driverId) {
+        return ResponseEntity.ok(rideService.getActiveRideCountForDriver(driverId));
+    }
+
+    @GetMapping("/driver/{driverId}/completed-count")
+    public ResponseEntity<Long> getCompletedRideCountForDriver(@PathVariable Long driverId) {
+        return ResponseEntity.ok(rideService.getCompletedRideCountForDriver(driverId));
     }
 }
