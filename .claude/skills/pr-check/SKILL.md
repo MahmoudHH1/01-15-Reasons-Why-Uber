@@ -44,14 +44,13 @@ Before dispatching `spec-clause-finder` for verbatim spec text during a PR check
 
 Read the current branch name. Classify it (used for reporting, NOT for skipping checks):
 
-- `<type>/M3/<ID>/<studentID>` → M3 minimal slice (e.g., `feat/M3/S5-INFRA/55-24853`).
-- `<type>/M3/<scope>/<ID>/<studentID>` → M3 with scope (e.g., `feat/M3/payment/S5-F4/55-24853`).
-- Cross-cutting scopes: `cc`, `infra`, `githooks`, `docker`, etc.
+- `<type>/M3/<scope>/<ID>/<studentID>` — the **only** form documented in uber-m3.md:2531. Examples: `feat/M3/payment/S5-F4/55-24853`, `feat/M3/driver/S2-INFRA/55-7978`, `chore/M3/cc/githooks/55-24853`.
 - `<type>` ∈ {feat, fix, bugfix, hotfix, release, docs, refactor, test, chore}.
+- `<scope>`: `user`/`driver`/`ride`/`location`/`payment` for per-service work; `cc`/`infra`/`githooks`/etc. for cross-cutting work.
 
-Per uber-m3.md:2531 the M3 branch format is mandatory. The legacy M1/M2 format `<type>/<service>/<feature>/<id>` is **rejected** by `.githooks/post-checkout`.
+Per uber-m3.md:2531 the M3 branch format is mandatory. The legacy M1/M2 format `<type>/<service>/<feature>/<id>` is **rejected** by the canonical `.githooks/post-checkout`.
 
-> **Hook drift caveat:** if the active `.git/hooks/post-checkout` still enforces the M1/M2 format (this happens when `core.hooksPath` is unset and a stale hook is installed in `.git/hooks/`), the working format becomes `<type>/<scope>/<descriptor>/<id>` with `<scope>=cc` for cross-cutting work. Run `git config core.hooksPath .githooks` to install the canonical M3-aware hook from the repo. This is a one-time local fix, not a code change.
+> **Spec-vs-hook drift caveat:** the canonical `.githooks/post-checkout` regex includes `(/${SEG})?`, which permits a scope-less form (`<type>/M3/<ID>/<studentID>`) that is NOT in the spec. Treat any scope-less branch as a FAIL at this step regardless of what the hook lets through — the grader follows the spec text, not the hook regex. If the active local hook is the M1/M2-format leftover in `.git/hooks/post-checkout`, run `git config core.hooksPath .githooks` to install the canonical M3-aware hook. This is a one-time local fix, not a code change.
 
 Print the resolved branch type at the top of the report.
 
@@ -59,10 +58,10 @@ Print the resolved branch type at the top of the report.
 
 Check the current branch name and all commits on this branch (vs main):
 
-- Branch matches the M3 §13.1 pattern: `^<type>/M3/<ID>/<studentID>$` or `^<type>/M3/<scope>/<ID>/<studentID>$`.
+- Branch matches the M3 §13.1 pattern: `^<type>/M3/<scope>/<ID>/<studentID>$` (uber-m3.md:2531). The scope segment is **mandatory** per the spec — reject scope-less variants like `<type>/M3/<ID>/<studentID>` even though the hook regex tolerates them.
   - `<type>` ∈ {feat, fix, bugfix, hotfix, release, docs, refactor, test, chore}.
   - `M3` is literal — the milestone marker.
-  - `<scope>` (optional middle segment): `user`, `driver`, `ride`, `location`, `payment` (per-service), or `cc`/`infra`/`githooks`/etc. (cross-cutting).
+  - `<scope>`: `user`, `driver`, `ride`, `location`, `payment` (per-service), or `cc`/`infra`/`githooks`/etc. (cross-cutting).
   - `<ID>`: stable identifier — `S<n>-<ID>` (e.g., `S5-F4`, `S5-INFRA`, `S3-F11`), or a short kebab-case slug.
   - `<studentID>`: always last; matches a member in `team.json`.
 - Commit subjects match `<type>(<scope>): <imperative subject> (<studentID>)`. Keep ≤ 72 chars, no trailing period. When a commit implements a numbered design pattern, **cite the DP ID in the subject** (e.g., "implements DP-1 Strategy").
@@ -174,9 +173,9 @@ Output MUST be empty.
 
 The M3 §13.1 format is now mandatory (uber-m3.md:2531). Reaffirm here in case the Step 1 regex passed but the structure is suspicious:
 
-- Cross-cutting branches use `cc`/`infra`/`githooks`/etc. scope, e.g., `chore/M3/cc/claude-suite-m3/<id>`.
-- Per-service branches use the service shortname as scope, e.g., `feat/M3/payment/S5-F4/<id>`.
-- Per-slice infra branches use the slice ID as the descriptor, e.g., `feat/M3/S5-INFRA/<id>` (uber-m3.md:2531).
+- Cross-cutting branches use `cc`/`infra`/`githooks`/etc. as the scope segment, e.g., `chore/M3/cc/claude-suite-m3/<id>`.
+- Per-service branches use the service shortname as the scope segment, e.g., `feat/M3/payment/S5-F4/<id>`.
+- Per-slice INFRA branches use the service shortname as scope and the slice ID as the descriptor, e.g., `feat/M3/payment/S5-INFRA/<id>` (uber-m3.md:2531 — scope is mandatory; do not drop it just because the slice ID already includes the service number).
 - For DP-spanning commits, subject cites `DP-<n>` (M2 carry-over rule).
 
 If branch is `chore/M3/<scope>/<descriptor>/<id>` for project tooling and the diff only touches `.claude/`, `docs/m3/`, `.githooks/`, `.github/`, etc., service-side checks (Steps 3, 4, 5, 11, 12, 13, 14, 17–22) are N/A.

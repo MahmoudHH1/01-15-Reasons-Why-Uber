@@ -69,20 +69,21 @@ Verify against the team table below and confirm full name + student ID + assigne
 
 The auto-grader cross-references `team.json` against git history. Violations = **ZERO credit**.
 
-Branch format (the only one accepted by `.githooks/post-checkout` from M3 onward):
+Branch format per uber-m3.md §13.1 (line 2531):
 
 ```
-<type>/M3/<ID>/<studentID>
 <type>/M3/<scope>/<ID>/<studentID>
 ```
 
 - `<type>` ∈ {feat, fix, bugfix, hotfix, release, docs, refactor, test, chore}.
 - `M3` is literal — the milestone marker. The earlier M1/M2 format `<type>/<service>/<feature>/<id>` is **rejected**.
-- `<scope>` (optional): `user`, `driver`, `ride`, `location`, `payment` for per-service work; `cc`, `infra`, `githooks`, etc. for cross-cutting.
+- `<scope>`: `user`, `driver`, `ride`, `location`, `payment` for per-service work; `cc`, `infra`, `githooks`, etc. for cross-cutting.
 - `<ID>`: `S<n>-<ID>` (e.g., `S5-F4`, `S5-INFRA`, `S3-F11`), or a short kebab-case slug for cross-cutting work.
 - `<studentID>`: always last; required by the auto-grader.
 
-Examples: `feat/M3/S5-INFRA/55-24853`, `feat/M3/payment/S5-F4/55-24853`, `chore/M3/githooks/55-24853`.
+Examples: `feat/M3/payment/S5-F4/55-24853`, `feat/M3/payment/S5-INFRA/55-24853`, `chore/M3/cc/githooks/55-24853`.
+
+> **Drift note:** the canonical `.githooks/post-checkout` regex (`(/${SEG})?`) currently permits a scope-less form like `feat/M3/S5-INFRA/<id>`, but the spec at uber-m3.md:2531 only documents the scoped form. Use the scoped form. If the active local hook is the stale M1/M2 one (see "Hook drift" in pr-check Step 0), run `git config core.hooksPath .githooks` to install the canonical M3-aware hook.
 
 Commit subject: `<type>(<scope>): <imperative subject> (<studentID>)` — keep ≤72 chars, no trailing period. When implementing a numbered design pattern, **cite the DP ID in the subject**.
 

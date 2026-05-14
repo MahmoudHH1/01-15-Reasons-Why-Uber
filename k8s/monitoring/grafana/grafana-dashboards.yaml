@@ -4,6 +4,14 @@ metadata:
   name: grafana-dashboards
   namespace: monitoring
 data:
+  # Each <svc>-INFRA slice owner adds their dashboard JSON as a key here when their slice lands.
+  # Reference: spec §11.5 "Required Files & Directory Structure" + §13.4 Day-0 stub.
+  # Owners (per docs/M3_Parallelism_Analysis.xlsx):
+  #   user-dashboard.json     — S1-INFRA-final  (Seif Tarek Ahmed,    55-3258)
+  #   driver-dashboard.json   — S2-INFRA-final  (Ziad Raafat,         55-7978)
+  #   ride-dashboard.json     — S3-INFRA-final  (Youssef Mohamed Malek, 55-24816)
+  #   location-dashboard.json — S4-INFRA-final  (Youssef Maged,       55-2829)
+  #   payment-dashboard.json  — S5-INFRA-final  (Seif Tarek Mostafa,  55-24853)
   dashboards.yaml: |
     apiVersion: 1
     providers:
@@ -15,12 +23,221 @@ data:
         editable: true
         updateIntervalSeconds: 10
         options:
-          path: /var/lib/grafana/dashboards
-  # Each <svc>-INFRA slice owner adds their dashboard JSON as a key here when their slice lands.
-  # Reference: spec §11.5 "Required Files & Directory Structure" + §13.4 Day-0 stub.
-  # Owners (per docs/M3_Parallelism_Analysis.xlsx):
-  #   user-dashboard.json     — S1-INFRA-final  (Seif Tarek Ahmed,    55-3258)
-  #   driver-dashboard.json   — S2-INFRA-final  (Ziad Raafat,         55-7978)
-  #   ride-dashboard.json     — S3-INFRA-final  (Youssef Mohamed Malek, 55-24816)
-  #   location-dashboard.json — S4-INFRA-final  (Youssef Maged,       55-2829)
-  #   payment-dashboard.json  — S5-INFRA-final  (Seif Tarek Mostafa,  55-24853)
+          path: /tmp/dashboards
+  user-dashboard.json: |
+    {
+      "title": "User Service Dashboard",
+      "uid": "user-service",
+      "panels": [
+        {
+          "title": "Error Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"user-service\", level=\"ERROR\"} [1m]))",
+              "legendFormat": "Error rate"
+            }
+          ]
+        },
+        {
+          "title": "Feign Call Outcomes",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"user-service\"} |= \"Feign call\" [5m]))",
+              "legendFormat": "Feign calls"
+            }
+          ]
+        },
+        {
+          "title": "RabbitMQ Event Audit",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate({app=\"uber\", service=\"user-service\"} |= \"routingKey\" [5m]))",
+              "legendFormat": "Events"
+            }
+          ]
+        },
+        {
+          "title": "HTTP Request Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"user-service\"}[5m]))",
+              "legendFormat": "Requests/s"
+            }
+          ]
+        },
+        {
+          "title": "HTTP Latency P99",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])) by (le, uri))",
+              "legendFormat": "P99 {{uri}}"
+            }
+          ]
+        },
+        {
+          "title": "JVM Heap Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "jvm_memory_used_bytes{job=\"user-service\", area=\"heap\"}",
+              "legendFormat": "Heap used"
+            }
+          ]
+        }
+      ]
+    }
+  driver-dashboard.json: |
+    {
+      "__inputs": [],
+      "__requires": [
+        { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.4.2" },
+        { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+        { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" }
+      ],
+      "annotations": { "list": [] },
+      "description": "Driver Service — Milestone 3 observability dashboard (Prometheus + Loki)",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "id": 1,
+          "title": "HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Requests per second to driver-service — PromQL panel (owned by S2-EVENTS / Ahmed Gasser 55-25085)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "rate(http_server_requests_seconds_count{service=\"driver-service\"}[1m])",
+              "legendFormat": "{{method}} {{uri}} {{status}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "HTTP Error Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "4xx/5xx error rate (per-second) — PromQL panel (owned by S2-EVENTS / Ahmed Gasser 55-25085)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "rate(http_server_requests_seconds_count{service=\"driver-service\",status=~\"4..|5..\"}[1m])",
+              "legendFormat": "{{status}} {{uri}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "JVM Heap Usage",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "JVM heap memory — PromQL panel (owned by S2-EVENTS / Ahmed Gasser 55-25085)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "jvm_memory_used_bytes{service=\"driver-service\",area=\"heap\"}",
+              "legendFormat": "{{id}}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Driver Service Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "description": "Structured log stream — LogQL panel (owned by S2-READ-DB / Mahmoud Hebishy 55-18387)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "{service=\"driver-service\"}",
+              "legendFormat": ""
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Error Log Rate (per minute)",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "description": "ERROR-level log rate per minute — LogQL panel (owned by S2-READ-DB / Mahmoud Hebishy 55-18387)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "targets": [
+            {
+              "expr": "sum(rate({service=\"driver-service\", level=\"ERROR\"}[1m])) * 60",
+              "legendFormat": "errors/min"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "WARN Log Rate (per minute)",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "description": "WARN-level log rate per minute — LogQL panel (owned by S2-READ-DB / Mahmoud Hebishy 55-18387)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "targets": [
+            {
+              "expr": "sum(rate({service=\"driver-service\", level=\"WARN\"}[1m])) * 60",
+              "legendFormat": "warnings/min"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "tags": ["driver-service", "uber", "m3"],
+      "templating": {
+        "list": [
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_PROMETHEUS",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_LOKI",
+            "options": [],
+            "query": "loki",
+            "refresh": 1,
+            "type": "datasource"
+          }
+        ]
+      },
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Driver Service",
+      "uid": "driver-service-m3",
+      "version": 1
+    }
+  ride-dashboard.json: |
+    {
+      "title": "Ride Service Dashboard (STUB)",
+      "panels": []
+    }
+  location-dashboard.json: |
+    {
+      "title": "Location Service Dashboard (STUB)",
+      "panels": []
+    }
+  payment-dashboard.json: |
+    {
+      "title": "Payment Service Dashboard (STUB)",
+      "panels": []
+    }

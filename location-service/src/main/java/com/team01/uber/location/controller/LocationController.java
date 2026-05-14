@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
@@ -123,6 +124,11 @@ public class LocationController {
     @GetMapping("/driver/{driverId}/latest")
     public ResponseEntity<Location> getLatestByDriverId(@PathVariable Long driverId) throws ResponseStatusException {
         return ResponseEntity.ok(locationService.getLatestByDriverId(driverId));
+    }
+
+    @GetMapping("/driver/{driverId}/recent")
+    public ResponseEntity<LocationDTO> getRecentLocationForDriver(@PathVariable Long driverId) {
+        return ResponseEntity.ok(locationService.getRecentLocationForDriver(driverId));
     }
 
     @PostMapping("/driver/{driverId}")
