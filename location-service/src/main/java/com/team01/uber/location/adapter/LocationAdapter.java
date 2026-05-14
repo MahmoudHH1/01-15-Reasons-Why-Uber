@@ -1,13 +1,37 @@
 package com.team01.uber.location.adapter;
 
+import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.location.dto.LocationAnalyticsDTO;
 import com.team01.uber.location.dto.LocationTrackingDTO;
+import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationTrackingEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class LocationAdapter {
+
+    public LocationDTO adaptToLocationDTO(Location location) {
+        if (location == null) return null;
+        Double speed = null;
+        if (location.getMetadata() != null && location.getMetadata().containsKey("speed")) {
+            Object speedObj = location.getMetadata().get("speed");
+            if (speedObj instanceof Number) {
+                speed = ((Number) speedObj).doubleValue();
+            } else if (speedObj instanceof String) {
+                try {
+                    speed = Double.parseDouble((String) speedObj);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return new LocationDTO(
+                location.getDriverId(),
+                location.getLatitude(),
+                location.getLongitude(),
+                location.getTimestamp(),
+                speed
+        );
+    }
 
     public LocationTrackingDTO adaptToLocationTrackingDTO(LocationTrackingEvent event) {
         return new LocationTrackingDTO(

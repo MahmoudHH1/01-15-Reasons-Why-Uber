@@ -20,8 +20,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.team01.uber.contracts.dto.LocationDTO;
+import com.team01.uber.contracts.dto.DriverDTO;
 import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
+import com.team01.uber.location.client.DriverClient;
 import com.team01.uber.location.dto.BatchLocationRequest;
 import com.team01.uber.location.dto.BatchLocationResponse;
 import com.team01.uber.location.dto.DriverLocationCreateRequest;
@@ -50,16 +53,19 @@ public class LocationService {
     private final List<EntityObserver> initialObservers;
     private final LocationAdapter locationAdapter = new LocationAdapter();
     private final CassandraRowAdapter cassandraRowAdapter = new CassandraRowAdapter();
+    private final DriverClient driverClient;
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
                            LocationTrackingEventRepository trackingRepository,
                            RedisTemplate redisTemplate,
-                           List<EntityObserver> observers) {
+                           List<EntityObserver> observers,
+                           DriverClient driverClient) {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
         this.initialObservers = observers;
+        this.driverClient = driverClient;
     }
 
     @PostConstruct
@@ -104,9 +110,7 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
         }
 
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        // Driver existence check removed per M3 spec §6 (Page 25)
 
         Double latitude = request.getLatitude();
         Double longitude = request.getLongitude();
@@ -194,9 +198,7 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "locations must not be null or empty");
         }
 
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        // Driver existence check removed per M3 spec §6 (Page 25)
 
         LocalDateTime base = LocalDateTime.now();
         List<Location> toSave = new ArrayList<>();
@@ -272,12 +274,21 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F1", key = "#driverId")
     public Location getLatestByDriverId(Long driverId) {
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        // Driver existence check removed per M3 spec §6 (Page 25)
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
+    }
+
+    public LocationDTO getRecentLocationForDriver(Long driverId) {
+        Location latest = locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No location found for driver"));
+
+        if (latest.getTimestamp().isBefore(LocalDateTime.now().minusMinutes(5))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No recent location found for driver (older than 5 minutes)");
+        }
+
+        return locationAdapter.adaptToLocationDTO(latest);
     }
 
     @Cacheable(value = "location-service::S4-F6", key = "#startDate + ':' + #endDate + ':' + #driverId")
@@ -298,9 +309,7 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F8", key = "#driverId + ':' + #startDate + ':' + #endDate")
     public DriverMovementSummaryDTO getDriverMovementSummary(Long driverId, String startDate, String endDate) {
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        // Driver existence check removed per M3 spec §6 (Page 25)
 
         LocalDateTime start;
         LocalDateTime end;
@@ -337,35 +346,57 @@ public class LocationService {
     @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
-        List<Object[]> results = locationRepository.findStationaryDrivers(maxSpeed, since);
-        return results.stream().map(row -> StationaryDriverDTO.builder()
-                .driverId(((Number) row[0]).longValue())
-                .driverName((String) row[1])
-                .latitude((Double) row[2])
-                .longitude((Double) row[3])
-                .lastSpeed(row[4] != null ? ((Number) row[4]).doubleValue() : null)
-                .lastUpdated((LocalDateTime) row[5])
-                .build()).toList();
+        List<Object[]> results = locationRepository.findStationaryDriversLocal(maxSpeed, since);
+        
+        List<StationaryDriverDTO> stationaryDrivers = new ArrayList<>();
+        for (Object[] row : results) {
+            Long driverId = ((Number) row[0]).longValue();
+            try {
+                DriverDTO driver = driverClient.getDriver(driverId);
+                stationaryDrivers.add(StationaryDriverDTO.builder()
+                        .driverId(driverId)
+                        .driverName(driver.name())
+                        .latitude((Double) row[1])
+                        .longitude((Double) row[2])
+                        .lastSpeed(row[3] != null ? ((Number) row[3]).doubleValue() : null)
+                        .lastUpdated((LocalDateTime) row[4])
+                        .build());
+            } catch (Exception e) {
+                // Skip if driver details can't be fetched
+            }
+        }
+        return stationaryDrivers;
     }
 
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
-        List<Object[]> results = locationRepository.findNearbyAvailableDrivers(lat, lon, radiusKm);
-        return results.stream().map(row -> NearbyDriverDTO.builder()
-                .driverId(((Number) row[0]).longValue())
-                .driverName((String) row[1])
-                .latitude((Double) row[2])
-                .longitude((Double) row[3])
-                .distanceKm((Double) row[4])
-                .build()).toList();
+        List<Object[]> results = locationRepository.findNearbyDriversLocal(lat, lon, radiusKm);
+        
+        List<NearbyDriverDTO> nearbyDrivers = new ArrayList<>();
+        for (Object[] row : results) {
+            Long driverId = ((Number) row[0]).longValue();
+            try {
+                DriverDTO driver = driverClient.getDriver(driverId);
+                if ("AVAILABLE".equals(driver.status())) {
+                    nearbyDrivers.add(NearbyDriverDTO.builder()
+                            .driverId(driverId)
+                            .driverName(driver.name())
+                            .latitude((Double) row[1])
+                            .longitude((Double) row[2])
+                            .distanceKm((Double) row[3])
+                            .build());
+                }
+            } catch (Exception e) {
+                // Skip if driver details can't be fetched
+            }
+        }
+        return nearbyDrivers;
     }
 
     @Cacheable(value = "location-service::S4-F12",
                key = "#driverId + ':' + (#startTime == null ? '' : #startTime) + ':' + (#endTime == null ? '' : #endTime)")
     public List<LocationTrackingDTO> getTrackingTimeline(Long driverId, String startTime, String endTime) {
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        // Driver existence check removed per M3 spec §6 (Page 25)
 
         List<LocationTrackingEvent> events;
         // Guard: Skip filter if either param is null or blank (A6-F12 fix)
@@ -445,9 +476,9 @@ public class LocationService {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
         }
-        if (locationRepository.countDriverById(driverId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        }
+        
+        // Driver existence check removed per M3 spec §6 (Page 25)
+
         if (request.getLatitude() == null || request.getLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
         }
@@ -489,4 +520,3 @@ public class LocationService {
         return locationAdapter.adaptToLocationTrackingDTO(event);
     }
 }
-

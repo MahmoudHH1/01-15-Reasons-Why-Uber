@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service
+              uri: http://user-service:8080
+              predicates:
+                - Path=/api/users/**, /api/auth/**
+            - id: driver-service
+              uri: http://driver-service:8080
+              predicates:
+                - Path=/api/drivers/**
+            - id: ride-service
+              uri: http://ride-service:8080
+              predicates:
+                - Path=/api/rides/**
+            - id: location-service
+              uri: http://location-service:8080
+              predicates:
+                - Path=/api/locations/**
+            - id: payment-service
+              uri: http://payment-service:8080
+              predicates:
+                - Path=/api/payments/**
+
+jwt:
+  secret: ${JWT_SECRET}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus"
