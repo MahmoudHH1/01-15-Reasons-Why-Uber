@@ -1,4 +1,6 @@
 <configuration>
+    <springProperty scope="context" name="springAppName" source="spring.application.name" defaultValue="driver-service"/>
+
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
@@ -11,10 +13,10 @@
         </http>
         <format>
             <label>
-                <pattern>app=uber,service=${spring.application.name},level=%level,env=k8s</pattern>
+                <pattern>app=uber,service=${springAppName},level=%level,env=k8s</pattern>
             </label>
             <message>
-                <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${spring.application.name}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","driverId":"%X{driverId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
+                <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${springAppName}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","driverId":"%X{driverId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
             </message>
         </format>
     </appender>
