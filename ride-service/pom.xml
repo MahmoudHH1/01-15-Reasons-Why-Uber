@@ -158,7 +158,11 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.team01.uber</groupId>
+            <artifactId>contracts</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <!-- Loki4J (§11.1) — structured log shipping to Loki -->
         <dependency>
             <groupId>com.github.loki4j</groupId>
