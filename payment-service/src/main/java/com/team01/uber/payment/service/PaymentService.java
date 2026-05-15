@@ -1,5 +1,9 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.contracts.events.PaymentInitiatedEvent;
+import com.team01.uber.contracts.events.PaymentRefundedEvent;
+import com.team01.uber.contracts.events.RideCancelledEvent;
+import com.team01.uber.contracts.events.RideCompletedEvent;
 import com.team01.uber.payment.adapter.MongoDocumentAdapter;
 import com.team01.uber.payment.dto.AppliedCouponDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
@@ -17,6 +21,7 @@ import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundResult;
 import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import com.team01.uber.payment.messaging.PaymentEventPublisher;
 import org.bson.Document;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -52,6 +57,7 @@ public class PaymentService {
     private final CacheInvalidationService cacheInvalidationService;
     private final MongoTemplate mongoTemplate;
     private final MongoDocumentAdapter mongoDocumentAdapter;
+    private final PaymentEventPublisher paymentEventPublisher;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -59,12 +65,14 @@ public class PaymentService {
                           RefundStrategySelector strategySelector,
                           CacheInvalidationService cacheInvalidationService,
                           MongoTemplate mongoTemplate,
-                          MongoDocumentAdapter mongoDocumentAdapter) {
+                          MongoDocumentAdapter mongoDocumentAdapter,
+                          PaymentEventPublisher paymentEventPublisher) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
         this.mongoTemplate = mongoTemplate;
         this.mongoDocumentAdapter = mongoDocumentAdapter;
+        this.paymentEventPublisher = paymentEventPublisher;
     }
 
     public void register(EntityObserver observer) {
@@ -511,5 +519,108 @@ public class PaymentService {
         return results.getMappedResults().stream()
                 .map(mongoDocumentAdapter::adapt)
                 .toList();
+    }
+
+    @Transactional
+    public void processRideCompleted(RideCompletedEvent event) {
+        MDC.put("rideId", event.rideId().toString());
+        MDC.put("routingKey", "ride.completed");
+        try {
+            log.info("Consuming ride.completed for rideId={}", event.rideId());
+
+            boolean alreadyExists = paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.PENDING).isPresent()
+                    || paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.COMPLETED).isPresent();
+            if (alreadyExists) {
+                log.info("Payment already exists for rideId={}, skipping ride.completed", event.rideId());
+                return;
+            }
+
+            Payment payment = new Payment();
+            payment.setRideId(event.rideId());
+            payment.setUserId(event.userId());
+            payment.setAmount(event.fare() != null ? event.fare() : 0.0);
+            payment.setStatus(PaymentStatus.PENDING);
+            payment.setCreatedAt(LocalDateTime.now());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+            MDC.put("paymentId", saved.getId().toString());
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("paymentId", saved.getId());
+            payload.put("amount", saved.getAmount());
+            notifyObservers("CREATED", payload);
+
+            paymentEventPublisher.publishInitiated(
+                    new PaymentInitiatedEvent(saved.getId(), event.rideId(), saved.getAmount()));
+
+            log.info("Processed ride.completed for rideId={}, created paymentId={}", event.rideId(), saved.getId());
+        } finally {
+            MDC.remove("rideId");
+            MDC.remove("paymentId");
+            MDC.remove("routingKey");
+        }
+    }
+
+    @Transactional
+    public void processRideCancelled(RideCancelledEvent event) {
+        MDC.put("rideId", event.rideId().toString());
+        MDC.put("routingKey", "ride.cancelled");
+        try {
+            log.info("Consuming ride.cancelled for rideId={}", event.rideId());
+
+            if (paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.REFUNDED).isPresent()) {
+                log.info("Payment already refunded for rideId={}, skipping ride.cancelled", event.rideId());
+                return;
+            }
+
+            Payment payment = paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.PENDING)
+                    .or(() -> paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.FAILED))
+                    .orElse(null);
+
+            if (payment == null) {
+                log.info("No refundable payment for rideId={}, skipping ride.cancelled", event.rideId());
+                return;
+            }
+
+            MDC.put("paymentId", payment.getId().toString());
+
+            RefundSurgeRequest req = new RefundSurgeRequest();
+            req.setReason("ride_cancelled");
+            req.setRefundSurge(true);
+
+            RefundStrategy strategy = strategySelector.select(payment, req);
+            RefundResult result = strategy.calculateRefund(payment, req);
+            double refundAmount = result.getAmount() > 0 ? result.getAmount() : payment.getAmount();
+
+            payment.setStatus(PaymentStatus.REFUNDED);
+            if (payment.getTransactionDetails() == null) {
+                payment.setTransactionDetails(new HashMap<>());
+            }
+            payment.getTransactionDetails().put("refundAmount", refundAmount);
+            payment.getTransactionDetails().put("refundReason", req.getReason());
+            payment.getTransactionDetails().put("refundSurgeIncluded", req.isRefundSurge());
+            payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+            payment.getTransactionDetails().put("strategyName", strategy.getClass().getSimpleName());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+
+            Map<String, Object> notifyPayload = new HashMap<>();
+            notifyPayload.put("paymentId", saved.getId());
+            if (saved.getMethod() != null) notifyPayload.put("method", saved.getMethod().name());
+            notifyPayload.put("amount", saved.getAmount());
+            notifyObservers("REFUNDED", notifyPayload);
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+            paymentEventPublisher.publishRefunded(
+                    new PaymentRefundedEvent(saved.getId(), event.rideId(), refundAmount));
+
+            log.info("Processed ride.cancelled for rideId={}, refunded paymentId={}", event.rideId(), saved.getId());
+        } finally {
+            MDC.remove("rideId");
+            MDC.remove("paymentId");
+            MDC.remove("routingKey");
+        }
     }
 }
