@@ -47,6 +47,12 @@ public class User {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> preferences;
 
+    @Column(name = "total_rides")
+    private Long totalRides = 0L;
+
+    @Column(name = "total_spent")
+    private Double totalSpent = 0.0;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

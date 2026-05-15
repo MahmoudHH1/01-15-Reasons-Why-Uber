@@ -17,6 +17,22 @@ services:
       retries: 5
       start_period: 10s
 
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: uber-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5      
+
   driver-postgres:
     image: postgres:17
     container_name: uber-driver-db
@@ -92,20 +108,6 @@ services:
       - location-service
       - payment-service
 
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: uber-rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   ride-service:
     build:
@@ -147,6 +149,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_RABBITMQ_HOST: rabbitmq
     ports:
       - "8081:8080"
     depends_on:
@@ -154,6 +157,8 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
+      rabbitmq:                             
+        condition: service_healthy  
 
   driver-service:
     build:

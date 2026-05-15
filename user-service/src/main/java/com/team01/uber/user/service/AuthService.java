@@ -11,6 +11,7 @@ import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.observer.MongoEventLogger;
 import com.team01.uber.user.repository.AuthEventRepository;
 import com.team01.uber.user.repository.UserRepository;
+import com.team01.uber.user.messaging.publishers.UserEventPublisher;
 import com.team01.uber.user.security.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,18 +32,21 @@ public class AuthService implements Observable {
     private final PasswordEncoder passwordEncoder;
     private final MongoEventLogger mongoEventLogger;
     private final JwtService jwtService;
+    private final UserEventPublisher userEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public AuthService(UserRepository userRepository,
-                       AuthEventRepository authEventRepository,  // Add this parameter
+                       AuthEventRepository authEventRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       MongoEventLogger mongoEventLogger) {  // Add this parameter
+                       MongoEventLogger mongoEventLogger,
+                       UserEventPublisher userEventPublisher) {
         this.userRepository = userRepository;
         this.authEventRepository = authEventRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.mongoEventLogger = mongoEventLogger;  // Initialize the field
+        this.userEventPublisher = userEventPublisher;
         registerObserver(mongoEventLogger);
     }
     
@@ -83,6 +87,13 @@ public class AuthService implements Observable {
         user.setStatus(UserStatus.ACTIVE);
 
         user = userRepository.save(user);
+
+        // Publish user.registered event for other services to consume
+        try {
+            userEventPublisher.publishUserRegistered(user.getId(), user.getEmail(), user.getRole().name());
+        } catch (Exception e) {
+            log.warn("Failed to publish user.registered for userId={}: {}", user.getId(), e.getMessage());
+        }
 
         notifyObservers(AuthEvent.ACTION_REGISTERED, Map.of("userId", user.getId(), "email", user.getEmail()));
 
