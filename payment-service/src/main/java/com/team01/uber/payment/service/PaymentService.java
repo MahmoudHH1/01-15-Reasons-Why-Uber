@@ -1,9 +1,16 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.contracts.dto.RideDTO;
+import com.team01.uber.contracts.dto.UserDTO;
+import com.team01.uber.contracts.events.PaymentCompletedEvent;
+import com.team01.uber.contracts.events.PaymentFailedEvent;
 import com.team01.uber.contracts.events.PaymentInitiatedEvent;
 import com.team01.uber.contracts.events.PaymentRefundedEvent;
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.contracts.feign.UserServiceClient;
+import feign.FeignException;
 import com.team01.uber.payment.adapter.MongoDocumentAdapter;
 import com.team01.uber.payment.dto.AppliedCouponDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
@@ -58,6 +65,8 @@ public class PaymentService {
     private final MongoTemplate mongoTemplate;
     private final MongoDocumentAdapter mongoDocumentAdapter;
     private final PaymentEventPublisher paymentEventPublisher;
+    private final UserServiceClient userServiceClient;
+    private final RideServiceClient rideServiceClient;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -66,13 +75,17 @@ public class PaymentService {
                           CacheInvalidationService cacheInvalidationService,
                           MongoTemplate mongoTemplate,
                           MongoDocumentAdapter mongoDocumentAdapter,
-                          PaymentEventPublisher paymentEventPublisher) {
+                          PaymentEventPublisher paymentEventPublisher,
+                          UserServiceClient userServiceClient,
+                          RideServiceClient rideServiceClient) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
         this.mongoTemplate = mongoTemplate;
         this.mongoDocumentAdapter = mongoDocumentAdapter;
         this.paymentEventPublisher = paymentEventPublisher;
+        this.userServiceClient = userServiceClient;
+        this.rideServiceClient = rideServiceClient;
     }
 
     public void register(EntityObserver observer) {
@@ -93,8 +106,15 @@ public class PaymentService {
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
         MDC.put("userId", userId.toString());
         try {
-            if (paymentRepository.countUsersById(userId) == 0) {
+            try {
+                log.info("Calling UserServiceClient.getUser with args={}", userId);
+                userServiceClient.getUser(userId);
+                log.info("UserServiceClient.getUser returned successfully");
+            } catch (FeignException.NotFound e) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            } catch (FeignException e) {
+                log.warn("Feign call to user-service failed: {}", e.getMessage());
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service temporarily unavailable");
             }
 
             List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
@@ -246,26 +266,34 @@ public class PaymentService {
     @Transactional
     public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
         MDC.put("rideId", rideId.toString());
-        String rideStatus = paymentRepository.findRideStatusById(rideId);
-        if (rideStatus == null) {
+        RideDTO ride;
+        try {
+            log.info("Calling RideServiceClient.getRide with args={}", rideId);
+            ride = rideServiceClient.getRide(rideId);
+            log.info("RideServiceClient.getRide returned successfully");
+        } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        } catch (FeignException e) {
+            log.warn("Feign call to ride-service failed: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
-        if (!"COMPLETED".equals(rideStatus)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not COMPLETED");
+
+        if (!"PAYMENT_PENDING".equals(ride.status()) && !"COMPLETED".equals(ride.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in a payable status");
         }
 
         if (paymentRepository.existsByRideIdAndStatus(rideId, PaymentStatus.COMPLETED)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "already paid");
         }
 
+        final RideDTO finalRide = ride;
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
                 .or(() -> paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.FAILED))
                 .orElseGet(() -> {
                     Payment newPayment = new Payment();
                     newPayment.setRideId(rideId);
-                    newPayment.setUserId(paymentRepository.findRideUserIdById(rideId));
-                    Double fare = paymentRepository.findRideFareById(rideId);
-                    newPayment.setAmount(fare != null ? fare : 0.0);
+                    newPayment.setUserId(finalRide.userId());
+                    newPayment.setAmount(finalRide.fare() != null ? finalRide.fare() : 0.0);
                     newPayment.setCreatedAt(LocalDateTime.now());
                     return newPayment;
                 });
@@ -295,6 +323,8 @@ public class PaymentService {
                                 "rideId", rideId
                         )
                 ));
+                paymentEventPublisher.publishFailed(
+                        new PaymentFailedEvent(saved.getId(), rideId, "simulated gateway failure"));
                 return saved;
             }
 
@@ -332,6 +362,9 @@ public class PaymentService {
                     )
             ));
 
+            paymentEventPublisher.publishCompleted(
+                    new PaymentCompletedEvent(saved.getId(), rideId, saved.getAmount()));
+
             return saved;
         } finally {
             MDC.remove("paymentId");
@@ -340,15 +373,6 @@ public class PaymentService {
     }
 
     private double computeSurgeFee(Long rideId, double amount) {
-        try {
-            Double surgeMultiplier = paymentRepository.findRideSurgeMultiplierById(rideId);
-            if (surgeMultiplier != null && surgeMultiplier > 1.0) {
-                Double fare = paymentRepository.findRideFareById(rideId);
-                double baseFare = fare != null ? fare : amount;
-                return baseFare * (surgeMultiplier - 1.0);
-            }
-        } catch (Exception ignored) {
-        }
         return amount * 0.15;
     }
 

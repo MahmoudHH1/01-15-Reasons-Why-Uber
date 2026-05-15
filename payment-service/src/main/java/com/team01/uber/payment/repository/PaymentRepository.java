@@ -12,9 +12,6 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @Query(value = "SELECT COUNT(*) FROM users WHERE id = :userId", nativeQuery = true)
-    long countUsersById(@Param("userId") Long userId);
-
     @Query(value = "SELECT method::text, COUNT(*) AS cnt, SUM(amount) AS total " +
             "FROM payments " +
             "WHERE user_id = :userId AND status = 'COMPLETED' " +
@@ -44,18 +41,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             nativeQuery = true)
     List<Object[]> getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
                                             @Param("endDate") LocalDateTime endDate);
-
-    @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
-    String findRideStatusById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT fare FROM rides WHERE id = :rideId", nativeQuery = true)
-    Double findRideFareById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT user_id FROM rides WHERE id = :rideId", nativeQuery = true)
-    Long findRideUserIdById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT (metadata->>'surgeMultiplier')::numeric FROM rides WHERE id = :rideId", nativeQuery = true)
-    Double findRideSurgeMultiplierById(@Param("rideId") Long rideId);
 
     @Query(value = """
             SELECT
