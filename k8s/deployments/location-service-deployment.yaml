@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: location-service
-          image: location-service:latest
+          image: location-service:v4
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -31,14 +31,12 @@ spec:
                   name: jwt-secret
                   key: jwt-secret
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 60
             periodSeconds: 30

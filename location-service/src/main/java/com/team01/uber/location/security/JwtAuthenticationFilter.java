@@ -37,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        System.out.println("DEBUG: Filtering request: " + request.getServletPath());
         AuthContext ctx = new AuthContext(request, response);
 
         // Build the Chain of Responsibility
