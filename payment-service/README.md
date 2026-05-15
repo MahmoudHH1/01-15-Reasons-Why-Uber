@@ -17,10 +17,17 @@ All commands are written for **PowerShell 7+** on Windows. Prerequisites: Docker
 
 ```powershell
 payment-service\mvnw.cmd clean install -DskipTests
-payment-service\mvnw.cmd -pl payment-service -am test -Dtest=SagaEndToEndIT
+cd payment-service
+.\mvnw.cmd test -Dtest=SagaEndToEndIT
+cd ..
 ```
 
 **Pass:** `BUILD SUCCESS`, `Tests run: 6, Failures: 0`.
+
+> Run the test command from inside `payment-service/` (no `-pl ... -am`) so Maven doesn't visit `contracts/` — Surefire 3.2.5 fails the build by default when `-Dtest=Foo` matches zero tests in *any* visited module. `contracts:1.0-SNAPSHOT` is already in your local `~/.m2/` from the first `mvn install`, so Maven doesn't need to rebuild it.
+>
+> If you must run from the repo root, quote the surefire flag so PowerShell doesn't split it at the dot:
+> `payment-service\mvnw.cmd -pl payment-service -am test -Dtest=SagaEndToEndIT "-Dsurefire.failIfNoSpecifiedTests=false"`
 
 Inspect that the saga test exercises the real S5-F12 strategy classes:
 
@@ -155,44 +162,61 @@ kubectl apply -f k8s/services/elasticsearch-svc.yaml -n uber
 kubectl wait --for=condition=ready pod -l app=elasticsearch -n uber --timeout=300s
 ```
 
+### If ES is OOMKilled (common on Minikube)
+
+ES 8.19.12 loads 80+ modules at startup and can OOM under the spec's 768Mi cgroup cap when JVM heap = 512Mi (leaves only ~256Mi for native, JIT, off-heap). Symptom: pod stuck in `CrashLoopBackOff` with `OOMKilled` and exit code 137.
+
+Fix without changing the YAML on disk — shrink the JVM heap so more memory is left for native:
+
+```powershell
+kubectl set env statefulset/elasticsearch -n uber ES_JAVA_OPTS="-Xms256m -Xmx256m"
+kubectl delete pod elasticsearch-0 -n uber
+kubectl wait --for=condition=ready pod -l app=elasticsearch -n uber --timeout=300s
+```
+
+The cluster runs with 256Mi heap until you destroy the StatefulSet. Don't commit this change — the spec mandates 512Mi heap + 768Mi limit; the heap shrink is a local-Minikube fudge.
+
 ### Cluster health
 
 ```powershell
 $health = kubectl exec -n uber elasticsearch-0 -- curl -s localhost:9200/_cluster/health | ConvertFrom-Json
 "$($health.status) $($health.number_of_nodes)"
-# Expect: "yellow 1"   (yellow is correct for a single-node cluster)
+# Expect: "green 1" (no indices yet) or "yellow 1" (after creating drivers index with default replica=1)
 ```
 
 ### Index a sample driver document (what S2-F11 will do)
+
+Use `Invoke-RestMethod` — PowerShell-native, no JSON-quoting pitfalls. (Don't use `curl.exe` here: PowerShell strips the inner double-quotes before passing the argument, and ES rejects the unquoted JSON.)
 
 ```powershell
 Start-Process -NoNewWindow kubectl -ArgumentList "port-forward","-n","uber","svc/elasticsearch","9200:9200"
 Start-Sleep 3
 
+# Clean slate in case a previous failed request auto-created an empty `drivers` index:
+try { Invoke-RestMethod -Uri http://localhost:9200/drivers -Method Delete } catch {}
+
+# Create the index with explicit mappings:
 $mapping = @'
-{
-  "mappings": {
-    "properties": {
-      "id": {"type": "long"},
-      "name": {"type": "text"},
-      "status": {"type": "keyword"}
-    }
-  }
-}
+{"mappings":{"properties":{"id":{"type":"long"},"name":{"type":"text"},"status":{"type":"keyword"}}}}
 '@
-curl.exe -X PUT http://localhost:9200/drivers -H 'Content-Type: application/json' -d $mapping
+Invoke-RestMethod -Uri http://localhost:9200/drivers -Method Put -ContentType 'application/json' -Body $mapping
+# Expect: acknowledged=True, shards_acknowledged=True, index=drivers
 
+# Index the document:
 $doc = '{"id":1,"name":"Mahmoud Hebishy","status":"AVAILABLE"}'
-curl.exe -X POST http://localhost:9200/drivers/_doc/1 -H 'Content-Type: application/json' -d $doc
+Invoke-RestMethod -Uri http://localhost:9200/drivers/_doc/1 -Method Post -ContentType 'application/json' -Body $doc
+# Expect: result=created, _id=1, _version=1
 
-Start-Sleep 2
+# Force a refresh so the doc is searchable immediately (default refresh interval is 1s):
+Invoke-RestMethod -Uri http://localhost:9200/drivers/_refresh -Method Post
 
-curl.exe -s 'http://localhost:9200/drivers/_search?q=name:mahmoud' | python -m json.tool
+# Full-text search (what S2-F10 /search/full-text will do):
+Invoke-RestMethod -Uri 'http://localhost:9200/drivers/_search?q=name:mahmoud' | ConvertTo-Json -Depth 6
 
 Get-Process kubectl -ErrorAction SilentlyContinue | Stop-Process
 ```
 
-**Pass:** `hits.total.value` ≥ 1 and `_source.name` = `Mahmoud Hebishy`.
+**Pass:** the search response shows `hits.total.value = 1` and `_source.name = "Mahmoud Hebishy"`.
 
 ---
 
@@ -307,8 +331,11 @@ Hit those six and S5-INFRA is verified to the maximum extent possible without th
 ## PowerShell gotchas worth knowing
 
 - `curl` is aliased to `Invoke-WebRequest`. Always use `curl.exe` explicitly for real curl behavior.
+- **`curl.exe -d '$json'` strips inner double-quotes** when PowerShell parses the argument — ES will reject the malformed body. Use `Invoke-RestMethod -Body $json` for any JSON request body. Reserve `curl.exe` for header-only / query-string requests.
+- Maven on PowerShell: arguments with a `.` after `-D` may be split (`-Dsurefire.failIfNoSpecifiedTests=false` becomes a phase named `.failIfNoSpecifiedTests=false`). Quote the whole flag: `"-Dsurefire.failIfNoSpecifiedTests=false"`.
 - Backtick `` ` `` is the line-continuation character (NOT backslash).
 - Single-quoted strings (`'...'`) don't expand variables. Use double quotes (`"..."`) or here-strings (`@"..."@`) for `$var` interpolation.
 - Heredocs use `@'...'@` (literal) or `@"..."@` (expanding). The closing `'@` / `"@` **must be at column 0**.
 - `Start-Process` doesn't block — use it for `kubectl port-forward` backgrounding (`&` at end of line is bash, not PowerShell).
 - Wrap multi-token pipelines in `(...)` to keep `Select-Object -Last 1` on the same logical statement when split across lines.
+- Minikube K8s context: if `kubectl` fails with "connection refused" after a Minikube restart, the API server port has changed — run `minikube update-context` (or `minikube stop; minikube start` if that fails) to re-sync kubeconfig.
