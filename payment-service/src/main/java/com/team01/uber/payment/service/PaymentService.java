@@ -42,6 +42,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.slf4j.Logger;
@@ -106,6 +108,15 @@ public class PaymentService {
         for (EntityObserver observer : observers) {
             observer.onEvent(eventType, payload);
         }
+    }
+
+    private void publishAfterCommit(Runnable action) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
     @Cacheable(value = "payment-service::S5-F9", key = "#userId")
@@ -329,8 +340,9 @@ public class PaymentService {
                                 "rideId", rideId
                         )
                 ));
-                paymentEventPublisher.publishFailed(
-                        new PaymentFailedEvent(saved.getId(), rideId, "simulated gateway failure"));
+                final long failedPaymentId = saved.getId();
+                publishAfterCommit(() -> paymentEventPublisher.publishFailed(
+                        new PaymentFailedEvent(failedPaymentId, rideId, "simulated gateway failure")));
                 return saved;
             }
 
@@ -368,8 +380,10 @@ public class PaymentService {
                     )
             ));
 
-            paymentEventPublisher.publishCompleted(
-                    new PaymentCompletedEvent(saved.getId(), rideId, saved.getAmount()));
+            final long completedPaymentId = saved.getId();
+            final double completedAmount = saved.getAmount();
+            publishAfterCommit(() -> paymentEventPublisher.publishCompleted(
+                    new PaymentCompletedEvent(completedPaymentId, rideId, completedAmount)));
 
             return saved;
         } finally {
@@ -624,8 +638,11 @@ public class PaymentService {
             payload.put("amount", saved.getAmount());
             notifyObservers("CREATED", payload);
 
-            paymentEventPublisher.publishInitiated(
-                    new PaymentInitiatedEvent(saved.getId(), event.rideId(), saved.getAmount()));
+            final long initiatedPaymentId = saved.getId();
+            final double initiatedAmount = saved.getAmount();
+            final long initiatedRideId = event.rideId();
+            publishAfterCommit(() -> paymentEventPublisher.publishInitiated(
+                    new PaymentInitiatedEvent(initiatedPaymentId, initiatedRideId, initiatedAmount)));
 
             log.info("Processed ride.completed for rideId={}, created paymentId={}", event.rideId(), saved.getId());
         } finally {
@@ -686,8 +703,11 @@ public class PaymentService {
             notifyObservers("REFUNDED", notifyPayload);
             cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
 
-            paymentEventPublisher.publishRefunded(
-                    new PaymentRefundedEvent(saved.getId(), event.rideId(), refundAmount));
+            final long refundedPaymentId = saved.getId();
+            final long refundedRideId = event.rideId();
+            final double finalRefundAmount = refundAmount;
+            publishAfterCommit(() -> paymentEventPublisher.publishRefunded(
+                    new PaymentRefundedEvent(refundedPaymentId, refundedRideId, finalRefundAmount)));
 
             log.info("Processed ride.cancelled for rideId={}, refunded paymentId={}", event.rideId(), saved.getId());
         } finally {
