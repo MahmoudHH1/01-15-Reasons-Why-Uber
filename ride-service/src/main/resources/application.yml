@@ -34,10 +34,13 @@ spring:
     port: 5672
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    template:
+      observation-enabled: true
     listener:
       simple:
         acknowledge-mode: auto
         default-requeue-rejected: false
+        observation-enabled: true
         retry:
           enabled: true
           initial-interval: 1000
@@ -49,3 +52,13 @@ server:
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
