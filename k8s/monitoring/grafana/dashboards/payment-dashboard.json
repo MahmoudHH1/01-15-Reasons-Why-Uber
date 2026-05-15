@@ -47,6 +47,53 @@
           "legendFormat": "payment events/min"
         }
       ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(http_server_requests_seconds_count{job=\"payment-service\"}[5m])",
+          "legendFormat": "{{uri}} {{method}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP Latency P99 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (uri, le) (rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m]))) * 1000",
+          "legendFormat": "p99 {{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "JVM Heap Usage (bytes)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_memory_used_bytes{job=\"payment-service\", area=\"heap\"}",
+          "legendFormat": "heap used"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_memory_max_bytes{job=\"payment-service\", area=\"heap\"}",
+          "legendFormat": "heap max"
+        }
+      ]
     }
   ],
   "time": { "from": "now-1h", "to": "now" },
