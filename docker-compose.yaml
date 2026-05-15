@@ -32,6 +32,21 @@ services:
       timeout: 5s
       retries: 5
 
+  ride-postgres:
+    image: postgres:17
+    container_name: uber-ride-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-rides
+    volumes:
+      - ride-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-rides"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   location-postgres:
     image: postgres:17
     container_name: uber-location-db
@@ -73,6 +88,7 @@ services:
     depends_on:
       - postgres
       - driver-postgres
+      - ride-postgres
       - location-postgres
       - payment-postgres
 
@@ -113,7 +129,7 @@ services:
       dockerfile: ride-service/Dockerfile
     container_name: uber-ride-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ride-postgres:5432/uberdb-rides
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
@@ -127,7 +143,7 @@ services:
     ports:
       - "8083:8080"
     depends_on:
-      postgres:
+      ride-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -330,6 +346,7 @@ services:
 volumes:
   pgdata:
   driver-pgdata:
+  ride-pgdata:
   location-pgdata:
   payment-pgdata:
   mongo-data:
