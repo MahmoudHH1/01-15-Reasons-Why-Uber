@@ -11,17 +11,22 @@ EXCEPTION
 END $$^^
 
 CREATE TABLE IF NOT EXISTS drivers (
-    id              BIGSERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL,
-    email           VARCHAR(255) NOT NULL UNIQUE,
-    phone           VARCHAR(255) NOT NULL UNIQUE,
-    license_number  VARCHAR(255) NOT NULL UNIQUE,
-    status          driver_status NOT NULL,
-    rating          DOUBLE PRECISION DEFAULT 0.0,
-    total_ratings   INTEGER DEFAULT 0,
-    vehicle_details JSONB,
-    created_at      TIMESTAMP NOT NULL
+    id                      BIGSERIAL PRIMARY KEY,
+    name                    VARCHAR(255) NOT NULL,
+    email                   VARCHAR(255) NOT NULL UNIQUE,
+    phone                   VARCHAR(255) NOT NULL UNIQUE,
+    license_number          VARCHAR(255) NOT NULL UNIQUE,
+    status                  driver_status NOT NULL,
+    rating                  DOUBLE PRECISION DEFAULT 0.0,
+    total_ratings           INTEGER DEFAULT 0,
+    total_completed_rides   INTEGER NOT NULL DEFAULT 0,
+    total_earnings          DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    vehicle_details         JSONB,
+    created_at              TIMESTAMP NOT NULL
 )^^
+
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS total_completed_rides INTEGER NOT NULL DEFAULT 0^^
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS total_earnings DOUBLE PRECISION NOT NULL DEFAULT 0.0^^
 
 CREATE TABLE IF NOT EXISTS driver_documents (
     id              BIGSERIAL PRIMARY KEY,

@@ -327,6 +327,98 @@ public class DriverService {
         return saved;
     }
 
+    @Transactional
+    public void handleRidePlaced(Long driverId, Long rideId) {
+        if (driverId == null) {
+            log.info("Skipping ride.placed: null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.placed rideId={}", driverId, rideId);
+            return;
+        }
+        if (driver.getStatus() == DriverStatus.BUSY) {
+            log.warn("Driver {} already BUSY; skipping ride.placed for rideId={}", driverId, rideId);
+            return;
+        }
+        driver.setStatus(DriverStatus.BUSY);
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDriverFeatureCaches();
+        invalidateDriverCaches(driverId);
+        driverIndexerService.index(saved, "auto_crud_update");
+    }
+
+    @Transactional
+    public void handleRideCompleted(Long driverId, Long rideId, Double fare) {
+        if (driverId == null) {
+            log.info("Skipping ride.completed: null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.completed rideId={}", driverId, rideId);
+            return;
+        }
+        if (driver.getStatus() != DriverStatus.BUSY) {
+            log.info("Driver {} not BUSY (status={}); skipping ride.completed for rideId={} as duplicate/out-of-order",
+                    driverId, driver.getStatus(), rideId);
+            return;
+        }
+        driver.setStatus(DriverStatus.AVAILABLE);
+        driver.setTotalCompletedRides(driver.getTotalCompletedRides() + 1);
+        if (fare != null) {
+            driver.setTotalEarnings(driver.getTotalEarnings() + fare);
+        }
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDriverFeatureCaches();
+        invalidateDriverCaches(driverId);
+        driverIndexerService.index(saved, "auto_crud_update");
+    }
+
+    @Transactional
+    public void handleRideCancelled(Long driverId, Long rideId) {
+        if (driverId == null) {
+            log.info("Silently ignoring ride.cancelled with null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.cancelled rideId={}", driverId, rideId);
+            return;
+        }
+        DriverStatus statusBefore = driver.getStatus();
+        if (statusBefore == DriverStatus.BUSY) {
+            driver.setStatus(DriverStatus.AVAILABLE);
+            Driver saved = driverRepository.save(driver);
+            cacheInvalidator.deleteEntity("driver", driverId);
+            invalidateDriverFeatureCaches();
+            invalidateDriverCaches(driverId);
+            driverIndexerService.index(saved, "auto_crud_update");
+            return;
+        }
+        if (statusBefore == DriverStatus.AVAILABLE && driver.getTotalCompletedRides() > 0) {
+            Double fareToReverse = null;
+            try {
+                com.team01.uber.contracts.dto.RideDTO ride = rideServiceClient.getRide(rideId);
+                fareToReverse = ride.fare();
+            } catch (FeignException e) {
+                log.warn("ride-service unavailable for ride {} reversal: {}", rideId, e.getMessage());
+            }
+            driver.setTotalCompletedRides(Math.max(0, driver.getTotalCompletedRides() - 1));
+            if (fareToReverse != null) {
+                driver.setTotalEarnings(Math.max(0.0, driver.getTotalEarnings() - fareToReverse));
+            }
+            Driver saved = driverRepository.save(driver);
+            cacheInvalidator.deleteEntity("driver", driverId);
+            invalidateDriverFeatureCaches();
+            invalidateDriverCaches(driverId);
+            driverIndexerService.index(saved, "auto_crud_update");
+        }
+    }
+
     @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);

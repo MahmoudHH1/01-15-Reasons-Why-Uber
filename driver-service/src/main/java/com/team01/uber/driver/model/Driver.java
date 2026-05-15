@@ -48,6 +48,12 @@ public class Driver {
 
     private Integer totalRatings = 0;
 
+    @Column(name = "total_completed_rides", nullable = false)
+    private Integer totalCompletedRides = 0;
+
+    @Column(name = "total_earnings", nullable = false)
+    private Double totalEarnings = 0.0;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> vehicleDetails;
