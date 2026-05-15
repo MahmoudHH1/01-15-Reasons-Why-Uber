@@ -1,0 +1,83 @@
+# Reference application.yml for ride-service (M3).
+# Sources: docs/m3/uber-m3.md §1, §2, §11.
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ride-service
+
+  # M3: per-service PostgreSQL.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ride-postgres:5432/uberdb-rides}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      separator: "^^"
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:redis}
+      port: 6379
+      password: ${SPRING_REDIS_PASSWORD:redispass}
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin}
+
+    # Ride-service only: Neo4j (recommendation graph + S3-F11 idempotency marker).
+    neo4j:
+      uri: ${SPRING_NEO4J_URI:bolt://neo4j:7687}
+      username: ${SPRING_NEO4J_USERNAME:neo4j}
+      password: ${SPRING_NEO4J_PASSWORD:neo4jpass}
+
+  # M3: RabbitMQ — ride-service is the saga trigger and consumes payment events.
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
+# M3: ride-service calls all 4 other services (saga pre-checks + enrichment) — uber-m3.md:2554.
+feign:
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
+  driver-service:
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+  location-service:
+    url: ${FEIGN_LOCATION_SERVICE_URL:http://location-service:8080}
+  payment-service:
+    url: ${FEIGN_PAYMENT_SERVICE_URL:http://payment-service:8080}
+
+jwt:
+  secret: ${JWT_SECRET:bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u}
+  expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

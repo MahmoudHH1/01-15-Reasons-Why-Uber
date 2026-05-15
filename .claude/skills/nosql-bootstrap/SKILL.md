@@ -1,11 +1,11 @@
 ---
 name: nosql-bootstrap
-description: Wire (or verify) NoSQL clients per service — MongoDB everywhere, Elasticsearch in driver-service, Neo4j in ride-service, Cassandra in location-service, Redis everywhere. Has two modes — bootstrap (create wiring + skeletons) and verify (check existing wiring against the M2 spec).
+description: Wire (or verify) NoSQL clients per service — MongoDB everywhere, Elasticsearch in driver-service, Neo4j in ride-service, Cassandra in location-service, Redis everywhere. Carries over from M2 to M3 unchanged (uber-m3.md:41 — "All 6 M2 databases [...]"); NoSQL stores remain a shared instance per uber-m3.md §1.3 even though PostgreSQL is now per-service. Has two modes — bootstrap (create wiring + skeletons) and verify (check existing wiring).
 ---
 
 # NoSQL Bootstrap
 
-You are wiring (or auditing) NoSQL clients per `Uber_descriptionM2.pdf` §6 (Database Architecture) and §7 (New Entity Models). Each service uses a specific subset:
+You are wiring (or auditing) NoSQL clients. The set of stores and the per-service ownership carry over from M2 to M3 unchanged — `docs/m3/uber-m3.md:41` says "All 6 M2 databases (PostgreSQL + MongoDB + Redis + Elasticsearch + Neo4j + Cassandra)" carry over, and uber-m3.md §1.3 confirms NoSQL stores remain shared instances logically isolated by collection/keyspace.
 
 | Service | NoSQL clients required |
 |---|---|
@@ -15,30 +15,37 @@ You are wiring (or auditing) NoSQL clients per `Uber_descriptionM2.pdf` §6 (Dat
 | location-service | MongoDB, Redis, **Cassandra** |
 | payment-service | MongoDB, Redis |
 
+> **Important M3 distinction:** PostgreSQL is **not** in this skill's scope. Per-service PG datasource isolation is handled by `db-isolation-bootstrap`. This skill only wires the NoSQL stores above, which remain a single shared cluster.
+
 ## Sources of Truth (Read First)
 
-1. **`docs/m2/yaml-fragments/<service>.application.yml`** — copy-paste reference for the exact config block this service needs. Use it as the starting template in Step 4 below rather than retyping by hand.
-2. **`docs/m2/event-actions.md`** — canonical action vocabularies for the Mongo collection this service writes to (e.g., `auth_events` for user-service). The audit step (Step 8f) cross-checks against it.
-3. **`Uber_descriptionM2.pdf` §6, §7** — entity tables, image tags, memory caps. Use `pdf-clause-finder` for verbatim clauses.
+1. **`docs/m3/yaml-fragments/<service>.application.yml`** — copy-paste reference for the exact config block this service needs. Use it as the starting template in Step 4 below rather than retyping by hand. The PG datasource line in those fragments points at `<svc>-postgres:5432/uberdb-<svc>s` — leave that to `db-isolation-bootstrap`; this skill only touches the NoSQL blocks.
+2. **`docs/m3/event-actions.md`** — canonical Mongo action vocabularies + RabbitMQ routing keys. The audit step (Step 8f) cross-checks against the Mongo column.
+3. **`Uber_descriptionM2.pdf` §6, §7** — original entity tables, image tags, memory caps for the NoSQL stores. Use `spec-clause-finder --milestone m2` for verbatim clauses.
+4. **`docs/m3/uber-m3.md` §1.3, §10.8** — the M3-specific notes about shared NoSQL ownership and K8s memory caps.
 
 If the doc and this skill disagree, trust the doc and flag the drift.
+
+## Spec Lookup — Always Ask First
+
+Before dispatching `spec-clause-finder` for verbatim spec text mid-run, **always** use `AskUserQuestion` to offer the user the cheaper companion-doc path first. Companion-doc reads (`docs/m3/event-actions.md`, `docs/m3/yaml-fragments/<svc>.application.yml` here) are ~10× cheaper than spawning the agent. Escalate to `spec-clause-finder` only when (a) the relevant `docs/m3/*.md` looks ambiguous or contradicts the spec, (b) you need surrounding spec context the digest doesn't carry, or (c) the user explicitly asks for verbatim text. **Never silently escalate.** Full rule in `.claude/CLAUDE.md`.
 
 ## Step 1: Choose Mode
 
 Ask the user (use AskUserQuestion):
 
 1. **Bootstrap** — wire NoSQL clients into a service that doesn't have them yet (creates pom deps, application.yml fragments, document/entity/repository skeletons).
-2. **Verify** — audit an existing wiring against the M2 spec; produce a PASS/FAIL report and list specific gaps.
+2. **Verify** — audit an existing wiring against the spec; produce a PASS/FAIL report and list specific gaps.
 
 Then ask which service.
 
 ## Step 2 (Bootstrap mode): Identity + Branch
 
-Confirm developer name + ID. Create a branch:
+Confirm developer name + ID. Create a branch under the M3 §13.1 format:
 
 ```
 git checkout main && git pull origin main
-git checkout -b feat/cc/CC-5-nosql-<service>/<studentId>
+git checkout -b chore/M3/cc/nosql-<service>/<studentId>
 ```
 
 (Use `cc` scope because NoSQL wiring is a cross-cutting requirement.)
