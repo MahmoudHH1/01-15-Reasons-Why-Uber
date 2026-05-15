@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  namespace: uber
+  labels:
+    app: neo4j
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:latest
+          ports:
+            - name: bolt
+              containerPort: 7687
+            - name: http
+              containerPort: 7474
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/neo4jpass"
+            - name: NEO4J_server_memory_heap_max__size
+              value: "512m"
+            - name: NEO4J_server_memory_heap_initial__size
+              value: "256m"
+            - name: NEO4J_server_memory_pagecache_size
+              value: "64m"
+          resources:
+            limits:
+              memory: 1280Mi
+          readinessProbe:
+            tcpSocket:
+              port: 7687
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7687
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-pvc
