@@ -61,6 +61,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
@@ -108,14 +109,32 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-neo4j</artifactId>
         </dependency>
+
+        <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+
+        <!-- RabbitMQ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
+        <!-- Shared contracts (event records + Feign clients) -->
+        <dependency>
+            <groupId>com.team01.uber</groupId>
+            <artifactId>contracts</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- JJWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -133,20 +152,11 @@
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
         </dependency>
-
-        <!-- ── M3 Additions ──────────────────────────────────────────────── -->
-
         <!-- OpenFeign (§2.1) — brings @FeignClient, @EnableFeignClients,    -->
         <!-- Spring Cloud auto-config, and feign.RequestInterceptor           -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
-        </dependency>
-
-        <!-- RabbitMQ (§2.5) — required for publishers and consumers -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
         <!-- Actuator (§11) — /actuator/health for K8s probes,               -->
@@ -158,11 +168,6 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.team01.uber</groupId>
-            <artifactId>contracts</artifactId>
-            <version>1.0-SNAPSHOT</version>
         </dependency>
         <!-- Loki4J (§11.1) — structured log shipping to Loki -->
         <dependency>

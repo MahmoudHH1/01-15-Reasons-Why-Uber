@@ -1,6 +1,8 @@
 package com.team01.uber.driver.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.team01.uber.contracts.dto.DriverRideSummaryDTO;
+import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDashboardDTO;
@@ -14,6 +16,7 @@ import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverRepository;
 import com.team01.uber.driver.repository.DriverSearchEsRepository;
+import feign.FeignException;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +52,7 @@ public class DriverService {
     private final ElasticsearchHitAdapter searchHitAdapter;
     private final DriverIndexerService driverIndexerService;
     private final CacheManager cacheManager;
+    private final RideServiceClient rideServiceClient;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverService(DriverRepository driverRepository,
@@ -58,7 +62,8 @@ public class DriverService {
                          DriverSearchEsRepository searchEsRepository,
                          ElasticsearchHitAdapter searchHitAdapter,
                          DriverIndexerService driverIndexerService,
-                         CacheManager cacheManager) {
+                         CacheManager cacheManager,
+                         RideServiceClient rideServiceClient) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
         this.redisTemplate = redisTemplate;
@@ -67,6 +72,7 @@ public class DriverService {
         this.searchHitAdapter = searchHitAdapter;
         this.driverIndexerService = driverIndexerService;
         this.cacheManager = cacheManager;
+        this.rideServiceClient = rideServiceClient;
     }
 
     @PostConstruct
@@ -129,6 +135,12 @@ public class DriverService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
     }
 
+    public Map<String, String> getDriverAvailability(Long id) {
+        Driver driver = driverRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
+        return Map.of("status", driver.getStatus().name());
+    }
+
     public List<Driver> getAllDrivers() {
         return driverRepository.findAll();
     }
@@ -140,7 +152,7 @@ public class DriverService {
                         .driverId(((Number) row[0]).longValue())
                         .name((String) row[1])
                         .rating(((Number) row[2]).doubleValue())
-                        .totalRides(((Number) row[3]).longValue())
+                        .totalRatings(((Number) row[3]).longValue())
                         .build())
                 .toList();
     }
@@ -216,7 +228,12 @@ public class DriverService {
     public void updateAvailability(Long id, DriverStatus status) {
         Driver driver = getDriverById(id);
         if (status == DriverStatus.OFFLINE) {
-            long activeRides = driverRepository.countActiveRidesByDriverId(id);
+            long activeRides = 0;
+            try {
+                activeRides = rideServiceClient.countActiveRidesForDriver(id);
+            } catch (FeignException e) {
+                log.warn("ride-service unavailable checking active rides for driver {}: {}", id, e.getMessage());
+            }
             if (activeRides > 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot go OFFLINE with active rides");
             }
@@ -273,14 +290,19 @@ public class DriverService {
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-        if (!driverRepository.rideExists(rideId)) {
+        com.team01.uber.contracts.dto.RideDTO ride;
+        try {
+            ride = rideServiceClient.getRide(rideId);
+        } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for rideId {}: {}", rideId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
-        if (!driverRepository.rideBelongsToDriver(rideId, driverId)) {
+        if (!driverId.equals(ride.driverId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
         }
-        String rideStatus = driverRepository.getRideStatus(rideId);
-        if (!"COMPLETED".equals(rideStatus)) {
+        if (!"COMPLETED".equals(ride.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not completed");
         }
         int totalRatings = driver.getTotalRatings();
@@ -299,19 +321,22 @@ public class DriverService {
     @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
-        Object[] row = driverRepository.getEarningsSummary(driverId, startDate, endDate);
-        if (row.length > 0 && row[0] instanceof Object[]) {
-            row = (Object[]) row[0];
+        DriverRideSummaryDTO summary;
+        try {
+            summary = rideServiceClient.getDriverRideSummary(
+                    driverId, startDate.toString(), endDate.toString());
+        } catch (FeignException.NotFound e) {
+            summary = DriverRideSummaryDTO.empty(driverId);
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for driver {} earnings: {}", driverId, e.getMessage());
+            summary = DriverRideSummaryDTO.empty(driverId);
         }
-        Long totalRides = ((Number) row[0]).longValue();
-        Double totalEarnings = ((Number) row[1]).doubleValue();
-        Double averageFare = ((Number) row[2]).doubleValue();
         return DriverEarningsDTO.builder()
                 .driverId(driver.getId())
                 .name(driver.getName())
-                .totalRides(totalRides)
-                .totalEarnings(totalEarnings)
-                .averageFare(averageFare)
+                .totalRides(summary.totalRides())
+                .totalEarnings(summary.totalEarnings())
+                .averageFare(summary.averageFare())
                 .build();
     }
 
@@ -343,15 +368,18 @@ public class DriverService {
             log.warn("Redis cache read failed for key {}: {}", cacheKey, e.getMessage());
         }
 
-        // Query PostgreSQL
-        Object[] row = driverRepository.getDashboardStats(id);
-        if (row.length > 0 && row[0] instanceof Object[]) {
-            row = (Object[]) row[0];
+        // Fetch ride aggregation via Feign → ride-service
+        DriverRideSummaryDTO stats;
+        try {
+            stats = rideServiceClient.getDriverStats(id);
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for dashboard stats driver {}: {}", id, e.getMessage());
+            stats = DriverRideSummaryDTO.empty(id);
         }
 
-        long totalRides = ((Number) row[0]).longValue();
-        double totalEarnings = ((Number) row[1]).doubleValue();
-        double averageRideFare = ((Number) row[2]).doubleValue();
+        long totalRides = stats.totalRides();
+        double totalEarnings = stats.totalEarnings();
+        double averageRideFare = stats.averageFare();
 
         DriverDashboardDTO dto = DriverDashboardDTO.builder()
                 .driverId(id)

@@ -1,11 +1,6 @@
 spring:
   application:
     name: ride-service
-
-  # ── PostgreSQL (M3: ride-service owns its own instance) ─────────────────────
-  # M1/M2 pointed at postgres:5432/uberdb (shared).
-  # M3 §1.1 requires each service to connect to its own PostgreSQL instance.
-  # K8s StatefulSet headless service name: ride-postgres
   datasource:
     url: jdbc:postgresql://ride-postgres:5432/uberdb-rides
     username: ${POSTGRES_USER:postgres}
@@ -18,10 +13,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
   sql:
     init:
-      mode: never
+      mode: always
       schema-locations: classpath:schema.sql
       separator: ^^
   mongodb:
@@ -35,14 +29,11 @@ spring:
       uri: bolt://neo4j:7687
       username: neo4j
       password: neo4jpass
-
-  # ── RabbitMQ (§2.6) ──────────────────────────────────────────────────────────
-  # Added in M3. ride-service publishes ride.events and consumes payment.events.
   rabbitmq:
-    host: rabbitmq
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
     port: 5672
-    username: guest
-    password: guest
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
     listener:
       simple:
         acknowledge-mode: auto
@@ -58,9 +49,6 @@ jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
 
-# ── OpenFeign URLs (§2.2) ────────────────────────────────────────────────────
-# S3-READ-DB requires calls to driver-service, user-service, location-service.
-# K8s ClusterIP service names match the deployment names in k8s/services/.
 feign:
   driver-service:
     url: http://driver-service:8080
@@ -71,9 +59,6 @@ feign:
   payment-service:
     url: http://payment-service:8080
 
-# ── Actuator (§11 Observability — required for Prometheus scraping) ──────────
-# Exposes /actuator/prometheus for the Prometheus scrape job in S3-INFRA.
-# Exposes /actuator/health for K8s readiness/liveness probes (§10.5).
 management:
   endpoints:
     web:

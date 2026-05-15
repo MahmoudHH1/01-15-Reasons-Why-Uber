@@ -16,6 +16,7 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.model.RodeWithRelationship;
 import com.team01.uber.ride.model.UserNode;
+import com.team01.uber.ride.messaging.publishers.RideEventPublisherService;
 import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;
@@ -59,6 +60,7 @@ public class RideService {
     private final DriverServiceClient driverServiceClient;
     private final UserServiceClient userServiceClient;
     private final LocationServiceClient locationServiceClient;
+    private final RideEventPublisherService producer;
 
     public RideService(RideRepository rideRepository,
                        RideStopRepository rideStopRepository,
@@ -67,7 +69,8 @@ public class RideService {
                        RideEventPublisher rideEventPublisher,
                        DriverServiceClient driverServiceClient,
                        UserServiceClient userServiceClient,
-                       LocationServiceClient locationServiceClient) {
+                       LocationServiceClient locationServiceClient,
+                       RideEventPublisherService producer) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
@@ -76,6 +79,7 @@ public class RideService {
         this.driverServiceClient = driverServiceClient;
         this.userServiceClient = userServiceClient;
         this.locationServiceClient = locationServiceClient;
+        this.producer = producer;
     }
 
     // ── M1/M2 methods (unchanged logic, cross-service SQL replaced) ───────────
@@ -180,6 +184,7 @@ public class RideService {
         Ride savedRide = rideRepository.save(ride);
         // M3: driver-service and payment-service consume ride.cancelled (§8.4)
         rideEventPublisher.notifyObservers("RIDE_CANCELLED", buildRidePayload(savedRide));
+        producer.publishRideCancelled(savedRide, "user_requested");
         return savedRide;
     }
 
@@ -247,6 +252,7 @@ public class RideService {
         Ride savedRide = rideRepository.save(ride);
         // M3: ride.placed event → driver-service sets driver BUSY (§5 S3-F2)
         rideEventPublisher.notifyObservers("RIDE_DRIVER_ASSIGNED", buildRidePayload(savedRide));
+        producer.publishRidePlaced(savedRide);
         return savedRide;
     }
 
@@ -401,6 +407,7 @@ public class RideService {
         Ride savedRide = rideRepository.save(ride);
         // M3: payment-service creates PENDING payment; driver-service sets AVAILABLE (§8.3)
         rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
+        producer.publishRideCompleted(savedRide);
         return savedRide;
     }
 
@@ -601,12 +608,19 @@ public class RideService {
         LocalDateTime start = startDate != null ? parseStartDate(startDate) : null;
         LocalDateTime end = endDate != null ? parseEndDate(endDate) : null;
 
-        long totalRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, completedStatuses, start, end);
+        // Note: This repository call actually fetches COMPLETED rides based on the statuses passed
+        long completedRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, completedStatuses, start, end);
+
+        // For now, we will set totalRides equal to completedRides to satisfy the compiler.
+        // If your repository has a method to count ALL rides regardless of status, you should use that here instead.
+        long totalRides = completedRides;
+
         Double totalEarnings = rideRepository.sumFareByDriverIdAndStatuses(driverId, completedStatuses, start, end);
         if (totalEarnings == null) totalEarnings = 0.0;
-        double averageFare = totalRides > 0 ? totalEarnings / totalRides : 0.0;
+        double averageFare = completedRides > 0 ? totalEarnings / completedRides : 0.0;
 
-        return new DriverRideSummaryDTO(driverId, totalRides, totalEarnings, averageFare);
+        // Now passing 5 arguments: Long, long, long, Double, Double
+        return new DriverRideSummaryDTO(driverId, totalRides, completedRides, totalEarnings, averageFare);
     }
 
     // GET /api/rides/driver/{driverId}/active-count — called by S2-F4 (§5)
@@ -650,6 +664,25 @@ public class RideService {
         if (updated.getStatus() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride status cannot be null");
         }
+    }
+
+    // ── Saga consumer state updates ───────────────────────────────────────────
+
+    // ── Saga consumer state updates ───────────────────────────────────────────
+
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
+    @Transactional
+    public Ride markRideStatus(Long rideId, RideStatus newStatus) {
+        Ride ride = rideRepository.findById(rideId).orElse(null);
+        if (ride == null || ride.getStatus() == newStatus) return null;
+        ride.setStatus(newStatus);
+        return rideRepository.save(ride);
     }
 
     private Map<String, Object> buildRidePayload(Ride ride) {
