@@ -4,7 +4,7 @@ metadata:
   name: ride-postgres
   namespace: uber
 spec:
-  serviceName: ride-postgres-hl
+  serviceName: ride-postgres
   replicas: 1
   selector:
     matchLabels:
