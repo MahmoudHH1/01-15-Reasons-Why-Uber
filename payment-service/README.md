@@ -256,23 +256,27 @@ docker run --rm -d --name graf-test -p 3000:3000 `
 
 Start-Sleep 10
 
-curl.exe -s http://localhost:3000/api/health | ConvertFrom-Json
-# Expect: database=ok
+# Health:
+Invoke-RestMethod -Uri http://localhost:3000/api/health
+# Expect: database=ok, version=10.4.x
 
-$dashboard = Get-Content k8s/monitoring/grafana/dashboards/payment-dashboard.json -Raw
-$body = '{"dashboard":' + $dashboard + ',"overwrite":true}'
-$body | Out-File -Encoding utf8 grafana-import.json
+# Build import body in-memory (no temp file = no UTF-8 BOM):
+$dashboard = Get-Content k8s/monitoring/grafana/dashboards/payment-dashboard.json -Raw | ConvertFrom-Json
+$payload = @{ dashboard = $dashboard; overwrite = $true } | ConvertTo-Json -Depth 20
 
-curl.exe -s -X POST "http://admin:admin@localhost:3000/api/dashboards/db" `
-    -H "Content-Type: application/json" `
-    --data "@grafana-import.json" | ConvertFrom-Json
-# Expect: status=success, url=/d/payment-service/...
+Invoke-RestMethod -Uri "http://admin:admin@localhost:3000/api/dashboards/db" `
+    -Method Post -ContentType 'application/json' -Body $payload
+# Expect: status=success, uid=payment-service, url=/d/payment-service/...
+
+# > Don't use `Out-File -Encoding utf8 | curl.exe --data @file.json` here — Windows PowerShell
+# > prepends a UTF-8 BOM, and Grafana's JSON parser rejects it with the unhelpful error
+# > `bad request data`. The `ConvertFrom-Json | ConvertTo-Json` round-trip + `Invoke-RestMethod`
+# > sends pure UTF-8 directly.
 
 Start-Process "http://localhost:3000/d/payment-service/payment-service"
-# Login: admin / admin
+# Login: admin / admin (skip the password change prompt with "Skip")
 
 docker stop graf-test
-Remove-Item grafana-import.json
 ```
 
 **Pass:** all 6 panels render. Each says "No data" (no datasources wired) — that's expected. Edit each panel and confirm the LogQL/PromQL queries reference `service="payment-service"`.
@@ -332,6 +336,7 @@ Hit those six and S5-INFRA is verified to the maximum extent possible without th
 
 - `curl` is aliased to `Invoke-WebRequest`. Always use `curl.exe` explicitly for real curl behavior.
 - **`curl.exe -d '$json'` strips inner double-quotes** when PowerShell parses the argument — ES will reject the malformed body. Use `Invoke-RestMethod -Body $json` for any JSON request body. Reserve `curl.exe` for header-only / query-string requests.
+- **`Out-File -Encoding utf8` writes a UTF-8 BOM in Windows PowerShell** — many strict JSON parsers (Grafana included) reject the BOM with `bad request data` or similar. Either use `-Encoding utf8NoBOM` (PS 7+), use `[System.IO.File]::WriteAllText($path, $content)`, or skip the temp file entirely with `Invoke-RestMethod -Body $obj`.
 - Maven on PowerShell: arguments with a `.` after `-D` may be split (`-Dsurefire.failIfNoSpecifiedTests=false` becomes a phase named `.failIfNoSpecifiedTests=false`). Quote the whole flag: `"-Dsurefire.failIfNoSpecifiedTests=false"`.
 - Backtick `` ` `` is the line-continuation character (NOT backslash).
 - Single-quoted strings (`'...'`) don't expand variables. Use double quotes (`"..."`) or here-strings (`@"..."@`) for `$var` interpolation.
