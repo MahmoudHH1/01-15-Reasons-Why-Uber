@@ -1,19 +1,30 @@
-# Payment Service — S5-INFRA Testing Guide
+# S5-INFRA — Test Walkthrough
 
-Deep test procedure for the **M3 deliverable #15 — S5-INFRA** slice (owner: Seif Tarek Mostafa, 55-24853). Covers everything this slice ships:
+End-to-end verification of **M3 deliverable #15 (S5-INFRA)** per `docs/m3/uber-m3.md` §13.2 line 15 (owner: Seif Tarek Mostafa, 55-24853). Every step below maps directly to a spec clause and demonstrates the deliverable is real on a live Minikube cluster — not just a YAML in the repo.
 
-- RabbitMQ K8s StatefulSet + Service + PVC
-- Elasticsearch K8s StatefulSet + Service + PVC
-- payment-service entry in `api-gateway/application.yml`
-- payment-service entry in `k8s/monitoring/prometheus/prometheus-configmap.yaml`
-- `k8s/monitoring/grafana/dashboards/payment-dashboard.json` (3 LogQL + 3 PromQL panels)
-- `payment-service/src/test/java/.../saga/SagaEndToEndIT.java` (§8.6 scenarios A/B/C)
+## What this slice ships (per §13.2 row 15 + §10.8 + §11.2 + §8.6)
+
+| Artifact in PR | Spec mandate | This walkthrough |
+|---|---|---|
+| `k8s/statefulsets/rabbitmq-statefulset.yaml` + `services/rabbitmq-svc.yaml` (5672 + 15672) + `pvcs/rabbitmq-pvc.yaml` | §10.8 `resources.limits.memory: 512Mi` + `rabbitmq-diagnostics -q ping` probe (initialDelaySeconds=30, periodSeconds=30); §13.2 row 15 "RabbitMQ K8s StatefulSet + Service exposing 5672 + 15672" | Step 2 |
+| `k8s/statefulsets/elasticsearch-statefulset.yaml` + `services/elasticsearch-svc.yaml` + `pvcs/elasticsearch-pvc.yaml` | §10.8 `resources.limits.memory: 768Mi` + `httpGet /_cluster/health?wait_for_status=yellow` probe (initialDelaySeconds=60); §13.2 row 15 "Elasticsearch K8s StatefulSet + Service" | Step 3 |
+| payment-service route block in `api-gateway/src/main/resources/application.yml` | §9.2 reactive routing (`spring.cloud.gateway.server.webflux.routes`) + `Path=/api/payments/**` predicate | Step 1 (YAML parse) |
+| payment-service scrape job in `k8s/monitoring/prometheus/prometheus-configmap.yaml` | §11.5 5-job scrape config at 15s interval against `<svc>.uber.svc.cluster.local:8080/actuator/prometheus` | Step 4 |
+| `k8s/monitoring/grafana/dashboards/payment-dashboard.json` | §11.2 ≥3 LogQL + ≥3 PromQL panels per service (we ship 3 + 3 = 6) | Step 1 (JSON parse) + Step 5 (render) |
+| `payment-service/src/test/java/.../saga/SagaEndToEndIT.java` | §13.2 row 15 "saga end-to-end test scenarios A/B/C from §8.6 implemented as JUnit integration tests"; §8.6 scenarios A (happy path), B (5-hop compensation cascade via S5-F12 Strategy), C (pre-check failure aborts before publish) | Step 0 |
+
+**Final integration role (§13.4 line 3 / §13.2 §5 "Deploy-time independence"):** once all 15 slices are merged, the S5-INFRA owner re-runs the §8.6 scenarios on the live cluster and signs off. This walkthrough is the slice-isolated proof; the live-cluster run waits for Wave 4.
 
 All commands are written for **PowerShell 7+** on Windows. Prerequisites: Docker Desktop with Kubernetes enabled (or `minikube start --memory 6144 --cpus 4`), `kubectl` on PATH, `python` on PATH, `curl.exe` available.
 
 ---
 
-## 0. Baseline — Maven + saga JUnit (sanity)
+## 0. Baseline — Maven build + saga JUnit (§8.6 + §13.2 row 15)
+
+Proves the §13.2-mandated saga JUnit tests exist, compile, and pass. Each test maps to §8.6:
+- **Scenario A** — happy path: PENDING → COMPLETED, `payment.completed` payload carries `paymentId / rideId / amount` (§8.6 step 7 + §2.8 record `PaymentCompletedEvent`).
+- **Scenario B** — payment failure compensation: drives the real S5-F12 `RefundStrategySelector` and all three concrete strategies (`FullRefundWithSurgeStrategy`, `BaseFareOnlyRefundStrategy`, `NoRefundStrategy`/`DeniedRefundResult`). This is the **only** place §13.2 row 15 mandates direct exercise of S5-F12 from the saga path.
+- **Scenario C** — pre-check failure: no PENDING payment created when `location-service` returns 404 stale (§8.6 step 4 "no `ride.completed` event"); ride.cancelled with no pre-existing payment is a state-based-idempotency no-op (§16 critical rule 11).
 
 ```powershell
 payment-service\mvnw.cmd clean install -DskipTests
@@ -40,9 +51,9 @@ Expect hits inside Scenario B's three cases.
 
 ---
 
-## 1. K8s manifests — dry-run validation
+## 1. K8s manifests — dry-run validation (§10.1 directory structure + §10.8 specs)
 
-Catches typos and bad fields without spinning up the cluster:
+Confirms every manifest this slice ships parses against the live Kubernetes API schema. Covers the `k8s/{pvcs,statefulsets,services,monitoring}/` paths from §10.1.
 
 ```powershell
 $manifests = @(
@@ -76,7 +87,9 @@ python -c "import yaml; y=yaml.safe_load(open('api-gateway/src/main/resources/ap
 
 ---
 
-## 2. RabbitMQ — deploy + functional test
+## 2. RabbitMQ — deploy + functional test (§10.8 + §2.6 + §2.7 + §2.9)
+
+Proves the RabbitMQ infra owned by S5-INFRA actually moves messages. §10.8 mandates `resources.limits.memory: 512Mi` and a `rabbitmq-diagnostics -q ping` exec probe. §2.6 mandates the connection config (`spring.rabbitmq.host=rabbitmq`, port 5672, guest/guest, `acknowledge-mode: auto`, `default-requeue-rejected: false`, `max-attempts: 3`). The publish/consume round-trip uses `payment.events` (the §2.7 producer-owned TopicExchange) with routing key `payment.completed` (§2.9 row "payment-service / payment.events / payment.completed / PaymentCompletedEvent").
 
 ```powershell
 kubectl create namespace uber
@@ -151,7 +164,9 @@ Get-Process kubectl -ErrorAction SilentlyContinue | Stop-Process
 
 ---
 
-## 3. Elasticsearch — deploy + index a document
+## 3. Elasticsearch — deploy + index a document (§10.8 + §1.3 driver index)
+
+Proves the ES infra owned by S5-INFRA accepts index creation + writes + searches — exactly what S2-F10 (full-text driver search) and S2-F11 (driver auto-index on CRUD) will do once those slices land. §10.8 mandates image `elasticsearch:8.19.12`, `resources.limits.memory: 768Mi`, `ES_JAVA_OPTS=-Xms512m -Xmx512m`, and `httpGet /_cluster/health?wait_for_status=yellow` probe at `initialDelaySeconds: 60`. §1.3 mandates the `drivers` index lives in driver-service's namespace ownership.
 
 ```powershell
 kubectl apply -f k8s/pvcs/elasticsearch-pvc.yaml -n uber
@@ -220,7 +235,9 @@ Get-Process kubectl -ErrorAction SilentlyContinue | Stop-Process
 
 ---
 
-## 4. Prometheus scrape config — validate with standalone Prometheus
+## 4. Prometheus scrape config — validate with standalone Prometheus (§11.5)
+
+Proves my payment-service entry in the shared `prometheus-configmap.yaml` is part of a well-formed §11.5 scrape config. The spec mandates 5 jobs, one per service, each at 15s interval against `<svc>.uber.svc.cluster.local:8080/actuator/prometheus`. We boot a standalone Prometheus pointed at the ConfigMap's `prometheus.yml` content and confirm all 5 jobs register.
 
 ```powershell
 python -c @'
@@ -247,7 +264,9 @@ Remove-Item prometheus-test.yml
 
 ---
 
-## 5. Grafana dashboard — load the JSON, verify panels render
+## 5. Grafana dashboard — load the JSON, verify panels render (§11.2 + §11.3 + §11.4)
+
+Proves `payment-dashboard.json` is a valid Grafana dashboard. §11.2 mandates **≥3 LogQL + ≥3 PromQL panels per service**; we ship 6 panels split 3+3 from the §11.3 / §11.4 options. The standalone Grafana proves the JSON loads, the panels render in the correct layout, and each panel's query filters on `service="payment-service"`.
 
 ```powershell
 docker run --rm -d --name graf-test -p 3000:3000 `
@@ -297,9 +316,9 @@ docker ps --filter "name=prom-test" --filter "name=graf-test" -q | ForEach-Objec
 
 ---
 
-## 7. What's still untestable on this branch
+## 7. What's still untestable on this branch (§14.2 + §13.4 Final integration)
 
-The full §14.2 demo (`PUT /api/rides/10/complete` → events ripple through all 5 services → ride status = PAID) requires S3-EVENTS and S5-EVENTS merged. Partial simulation of transport only:
+The full §14.2 demo (`PUT /api/rides/10/complete` via gateway NodePort 30080 → events ripple through all 5 services → ride status = PAID) requires S3-EVENTS and S5-EVENTS merged. Per §13.4: *"Once all 15 slices are merged, S5-INFRA owner runs the saga end-to-end test scenarios A/B/C (§8.6) and signs off."* That live-cluster run is the deliverable's final acceptance — not done on this branch. Partial simulation of transport only:
 
 ```powershell
 # After step 2, also bind payment.saga-listener to ride.events.ride.completed:
@@ -322,18 +341,18 @@ That proves the **transport** works. The **business logic** in payment-service (
 
 ---
 
-## Pass criteria summary
+## Pass criteria summary (mapped to spec)
 
-| Step | Pass when |
-|---|---|
-| 0. Saga JUnit | `Tests run: 6, Failures: 0` |
-| 1. Manifest dry-run | every file → `created (dry run)` |
-| 2. RabbitMQ in-cluster | pod Ready, `Limits: memory: 512Mi`, `ping` succeeds, publish→get round-trips JSON |
-| 3. Elasticsearch in-cluster | pod Ready, cluster yellow, indexed doc returned by `_search` |
-| 4. Prometheus config | standalone Prometheus parses config, 5 active targets |
-| 5. Grafana dashboard | 6 panels render with valid LogQL/PromQL queries |
+| Step | Pass when | Spec clause |
+|---|---|---|
+| 0. Saga JUnit | `Tests run: 6, Failures: 0`; all 3 S5-F12 strategy classes exercised in Scenario B | §8.6 A/B/C; §13.2 row 15 |
+| 1. Manifest dry-run | every file → `created (dry run)`; dashboard JSON has 6 panels; gateway YAML parses | §10.1 layout; §11.2 ≥3+3 panels |
+| 2. RabbitMQ in-cluster | pod Ready; `Limits: memory: 512Mi`; `rabbitmq-diagnostics ping` succeeds; publish→get round-trips JSON via `payment.events` exchange + `payment.#` binding | §10.8; §2.7; §2.9 |
+| 3. Elasticsearch in-cluster | pod Ready; cluster green/yellow on `_cluster/health`; PUT + POST + refresh + search round-trips a document | §10.8; §1.3 driver index |
+| 4. Prometheus config | standalone Prometheus parses ConfigMap content; 5 active targets register | §11.5 scrape config |
+| 5. Grafana dashboard | 6 panels (3 LogQL + 3 PromQL) render in correct layout; each query filters `service="payment-service"` | §11.2; §11.3; §11.4 |
 
-Hit those six and S5-INFRA is verified to the maximum extent possible without the other 14 slices.
+Hit those six and S5-INFRA is verified to the maximum extent possible without the other 14 slices. Final acceptance is the §13.4 Wave-4 live-cluster run.
 
 ---
 
