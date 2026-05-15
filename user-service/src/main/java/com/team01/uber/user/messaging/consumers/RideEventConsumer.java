@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import org.slf4j.MDC;
 
 /**
  * Phase 4: RideEventConsumer
@@ -47,9 +48,13 @@ public class RideEventConsumer {
         Long rideId = ((Number) event.get("rideId")).longValue();
         Double fare = ((Number) event.get("fare")).doubleValue();
 
-        log.info("Consuming ride.completed for userId={}, rideId={}", userId, rideId);
+        // ADD MDC HERE
+        MDC.put("userId", userId.toString());
+        MDC.put("routingKey", routingKey);
 
         try {
+            log.info("Consuming ride.completed for userId={}, rideId={}", userId, rideId);
+
             User user = userRepository.findById(userId).orElse(null);
             if (user == null) {
                 log.warn("User {} not found for ride.completed, skipping", userId);
@@ -66,6 +71,10 @@ public class RideEventConsumer {
         } catch (Exception e) {
             log.error("Failed to process ride.completed for userId={}: {}", userId, e.getMessage());
             throw e; // Propagate → retry → DLQ
+        } finally {
+            // ADD MDC CLEANUP HERE
+            MDC.remove("userId");
+            MDC.remove("routingKey");
         }
     }
 
@@ -84,9 +93,13 @@ public class RideEventConsumer {
         Long rideId = ((Number) event.get("rideId")).longValue();
         Double fare = event.containsKey("fare") ? ((Number) event.get("fare")).doubleValue() : 0.0;
 
-        log.info("Consuming ride.cancelled for userId={}, rideId={}", userId, rideId);
+        // ADD MDC HERE
+        MDC.put("userId", userId.toString());
+        MDC.put("routingKey", routingKey);
 
         try {
+            log.info("Consuming ride.cancelled for userId={}, rideId={}", userId, rideId);
+
             User user = userRepository.findById(userId).orElse(null);
             if (user == null) {
                 log.warn("User {} not found for ride.cancelled, skipping", userId);
@@ -105,6 +118,10 @@ public class RideEventConsumer {
         } catch (Exception e) {
             log.error("Failed to process ride.cancelled for userId={}: {}", userId, e.getMessage());
             throw e; // Propagate → retry → DLQ
+        } finally {
+            // ADD MDC CLEANUP HERE
+            MDC.remove("userId");
+            MDC.remove("routingKey");
         }
     }
 }
