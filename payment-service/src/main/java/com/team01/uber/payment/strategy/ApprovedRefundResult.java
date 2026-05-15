@@ -3,12 +3,16 @@ package com.team01.uber.payment.strategy;
 import com.team01.uber.payment.dto.RefundSurgeRequest;
 import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.model.PaymentStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ApprovedRefundResult extends RefundResult {
+
+    private static final Logger log = LoggerFactory.getLogger(ApprovedRefundResult.class);
 
     private final boolean surgeIncluded;
 
@@ -33,6 +37,7 @@ public class ApprovedRefundResult extends RefundResult {
         payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
 
         Payment saved = ctx.repository.save(payment);
+        log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
 
         ctx.notifier.notify("REFUNDED", Map.of(
                 "paymentId", saved.getId(),

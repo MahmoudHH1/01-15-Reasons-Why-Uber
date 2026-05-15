@@ -1,0 +1,170 @@
+{
+  "title": "Driver Service Dashboard",
+  "uid": "driver-service-dashboard",
+  "version": 1,
+  "schemaVersion": 36,
+  "tags": ["driver-service", "uber"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_LOKI",
+        "options": [],
+        "query": "loki",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Error Rate (driver-service)",
+      "type": "timeseries",
+      "description": "Count of ERROR-level logs per minute — spike detection for driver-service failures",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\", level=\"ERROR\"}[1m]))",
+          "legendFormat": "errors/min",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "Feign Call Outcomes (driver-service)",
+      "type": "timeseries",
+      "description": "Successful Feign responses vs FeignException catches — detect ride-service or user-service degradation",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"FeignException\" [5m]))",
+          "legendFormat": "feign errors/5m",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"ride-service unavailable\" [5m]))",
+          "legendFormat": "ride-service unavailable/5m",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "title": "Correlation ID Trace (driver-service)",
+      "type": "logs",
+      "description": "Filter all log lines by a specific X-Correlation-ID to trace a single request through driver-service",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "expr": "{app=\"uber\", service=\"driver-service\"} | json | correlationId=~\".+\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "showTime": true,
+        "wrapLogMessage": false
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "title": "Driver Availability Updates (driver-service)",
+      "type": "stat",
+      "description": "Count of AVAILABILITY_UPDATED events logged — shows how often drivers change status",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"AVAILABILITY_UPDATED\" [1h]))",
+          "legendFormat": "availability changes/hr",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 }
+    },
+    {
+      "id": 5,
+      "title": "Driver Rating Events (driver-service)",
+      "type": "stat",
+      "description": "Count of RATING_RECORDED events — shows driver rating activity",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"RATING_RECORDED\" [1h]))",
+          "legendFormat": "ratings/hr",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 }
+    },
+    {
+      "id": 6,
+      "title": "HTTP Request Rate (driver-service)",
+      "type": "timeseries",
+      "description": "Prometheus — HTTP request rate per minute for driver-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{job=\"driver-service\"}[1m])",
+          "legendFormat": "{{method}} {{uri}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 }
+    },
+    {
+      "id": 7,
+      "title": "HTTP Latency p95 (driver-service)",
+      "type": "timeseries",
+      "description": "Prometheus — 95th percentile HTTP request latency for driver-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"driver-service\"}[5m])) by (le, uri))",
+          "legendFormat": "p95 {{uri}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 }
+    },
+    {
+      "id": 8,
+      "title": "JVM Heap Usage (driver-service)",
+      "type": "timeseries",
+      "description": "Prometheus — JVM heap memory used vs committed for driver-service",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{job=\"driver-service\", area=\"heap\"}",
+          "legendFormat": "heap used",
+          "refId": "A"
+        },
+        {
+          "expr": "jvm_memory_committed_bytes{job=\"driver-service\", area=\"heap\"}",
+          "legendFormat": "heap committed",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s"
+}
