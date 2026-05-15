@@ -21,12 +21,14 @@ CREATE TABLE IF NOT EXISTS drivers (
     total_ratings           INTEGER DEFAULT 0,
     total_completed_rides   INTEGER NOT NULL DEFAULT 0,
     total_earnings          DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    reversed_ride_ids       JSONB DEFAULT '[]'::jsonb,
     vehicle_details         JSONB,
     created_at              TIMESTAMP NOT NULL
 )^^
 
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS total_completed_rides INTEGER NOT NULL DEFAULT 0^^
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS total_earnings DOUBLE PRECISION NOT NULL DEFAULT 0.0^^
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS reversed_ride_ids JSONB DEFAULT '[]'::jsonb^^
 
 CREATE TABLE IF NOT EXISTS driver_documents (
     id              BIGSERIAL PRIMARY KEY,

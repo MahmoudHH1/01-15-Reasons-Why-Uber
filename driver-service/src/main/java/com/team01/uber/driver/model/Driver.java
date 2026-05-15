@@ -9,6 +9,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -53,6 +54,10 @@ public class Driver {
 
     @Column(name = "total_earnings", nullable = false)
     private Double totalEarnings = 0.0;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "reversed_ride_ids", columnDefinition = "jsonb")
+    private List<Long> reversedRideIds = new ArrayList<>();
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")

@@ -400,6 +400,11 @@ public class DriverService {
             return;
         }
         if (statusBefore == DriverStatus.AVAILABLE && driver.getTotalCompletedRides() > 0) {
+            List<Long> reversed = driver.getReversedRideIds();
+            if (reversed != null && reversed.contains(rideId)) {
+                log.info("Driver {} already reversed rideId={}, skipping duplicate ride.cancelled", driverId, rideId);
+                return;
+            }
             Double fareToReverse = null;
             try {
                 com.team01.uber.contracts.dto.RideDTO ride = rideServiceClient.getRide(rideId);
@@ -411,6 +416,11 @@ public class DriverService {
             if (fareToReverse != null) {
                 driver.setTotalEarnings(Math.max(0.0, driver.getTotalEarnings() - fareToReverse));
             }
+            if (reversed == null) {
+                reversed = new java.util.ArrayList<>();
+            }
+            reversed.add(rideId);
+            driver.setReversedRideIds(reversed);
             Driver saved = driverRepository.save(driver);
             cacheInvalidator.deleteEntity("driver", driverId);
             invalidateDriverFeatureCaches();
