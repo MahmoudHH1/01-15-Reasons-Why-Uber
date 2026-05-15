@@ -12,6 +12,8 @@ import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
 import com.team01.uber.payment.service.PaymentService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
 
     private final PaymentService paymentService;
     private final CouponService couponService;
@@ -52,7 +56,10 @@ public class PaymentController {
 
     @GetMapping("/user/{userId}/summary")
     public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
-        return paymentService.getUserPaymentSummary(userId);
+        log.info("Received GET /api/payments/user/{}/summary", userId);
+        UserPaymentSummaryDTO result = paymentService.getUserPaymentSummary(userId);
+        log.info("Returning 200 for GET /api/payments/user/{}/summary", userId);
+        return result;
     }
 
     @GetMapping("/user/{userId}/total")
@@ -60,7 +67,10 @@ public class PaymentController {
             @PathVariable Long userId,
             @RequestParam String startDate,
             @RequestParam String endDate) {
-        return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, parseStartDate(startDate), parseEndDate(endDate)));
+        log.info("Received GET /api/payments/user/{}/total", userId);
+        ResponseEntity<BigDecimal> response = ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, parseStartDate(startDate), parseEndDate(endDate)));
+        log.info("Returning 200 for GET /api/payments/user/{}/total", userId);
+        return response;
     }
 
     @PutMapping("/{id}/refund")
@@ -76,27 +86,41 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<Payment> createPayment(@RequestBody Payment payment) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
+        log.info("Received POST /api/payments");
+        ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
+        log.info("Returning 201 for POST /api/payments");
+        return response;
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Payment> getPaymentById(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.getPaymentById(id));
+        log.info("Received GET /api/payments/{}", id);
+        ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.getPaymentById(id));
+        log.info("Returning 200 for GET /api/payments/{}", id);
+        return response;
     }
 
     @GetMapping
     public ResponseEntity<List<Payment>> getAllPayments() {
-        return ResponseEntity.ok(paymentService.getAllPayments());
+        log.info("Received GET /api/payments");
+        ResponseEntity<List<Payment>> response = ResponseEntity.ok(paymentService.getAllPayments());
+        log.info("Returning 200 for GET /api/payments");
+        return response;
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment) {
-        return ResponseEntity.ok(paymentService.updatePayment(id, payment));
+        log.info("Received PUT /api/payments/{}", id);
+        ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.updatePayment(id, payment));
+        log.info("Returning 200 for PUT /api/payments/{}", id);
+        return response;
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
+        log.info("Received DELETE /api/payments/{}", id);
         paymentService.deletePayment(id);
+        log.info("Returning 204 for DELETE /api/payments/{}", id);
         return ResponseEntity.noContent().build();
     }
 
@@ -167,8 +191,11 @@ public class PaymentController {
             @PathVariable Long rideId,
             @Valid @RequestBody ProcessPaymentRequest request,
             @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
-        return ResponseEntity.status(HttpStatus.CREATED)
+        log.info("Received POST /api/payments/ride/{}", rideId);
+        ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
+        log.info("Returning 201 for POST /api/payments/ride/{}", rideId);
+        return response;
     }
 
     @GetMapping("/analytics/methods")

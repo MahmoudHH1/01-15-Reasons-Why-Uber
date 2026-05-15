@@ -31,6 +31,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +44,8 @@ import java.util.Map;
 
 @Service
 public class PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
     private final RefundStrategySelector strategySelector;
@@ -77,32 +83,37 @@ public class PaymentService {
 
     @Cacheable(value = "payment-service::S5-F9", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
-        if (paymentRepository.countUsersById(userId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        MDC.put("userId", userId.toString());
+        try {
+            if (paymentRepository.countUsersById(userId) == 0) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            }
+
+            List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
+
+            Map<String, Double> methodBreakdown = new HashMap<>();
+            long totalPayments = 0;
+            double totalAmount = 0.0;
+
+            for (Object[] row : rows) {
+                String method = (String) row[0];
+                long count = ((Number) row[1]).longValue();
+                double amount = ((Number) row[2]).doubleValue();
+
+                methodBreakdown.put(method, amount);
+                totalPayments += count;
+                totalAmount += amount;
+            }
+
+            return UserPaymentSummaryDTO.builder()
+                    .userId(userId)
+                    .totalPayments(totalPayments)
+                    .totalAmount(totalAmount)
+                    .methodBreakdown(methodBreakdown)
+                    .build();
+        } finally {
+            MDC.remove("userId");
         }
-
-        List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
-
-        Map<String, Double> methodBreakdown = new HashMap<>();
-        long totalPayments = 0;
-        double totalAmount = 0.0;
-
-        for (Object[] row : rows) {
-            String method = (String) row[0];
-            long count = ((Number) row[1]).longValue();
-            double amount = ((Number) row[2]).doubleValue();
-
-            methodBreakdown.put(method, amount);
-            totalPayments += count;
-            totalAmount += amount;
-        }
-
-        return UserPaymentSummaryDTO.builder()
-                .userId(userId)
-                .totalPayments(totalPayments)
-                .totalAmount(totalAmount)
-                .methodBreakdown(methodBreakdown)
-                .build();
     }
 
     public Payment createPayment(Payment payment) {
@@ -111,6 +122,7 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.PENDING);
         }
         Payment saved = paymentRepository.save(payment);
+        log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
         cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
         Map<String, Object> payload = new HashMap<>();
         payload.put("paymentId", saved.getId());
@@ -122,33 +134,39 @@ public class PaymentService {
 
     @Transactional
     public Payment processRefund(Long id, String reason) {
-        Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        MDC.put("paymentId", id.toString());
+        try {
+            Payment payment = paymentRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
 
-        if (payment.getStatus() != PaymentStatus.COMPLETED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Only COMPLETED payments can be refunded");
+            if (payment.getStatus() != PaymentStatus.COMPLETED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Only COMPLETED payments can be refunded");
+            }
+
+            payment.setStatus(PaymentStatus.REFUNDED);
+
+            if (payment.getTransactionDetails() == null) {
+                payment.setTransactionDetails(new HashMap<>());
+            }
+            payment.getTransactionDetails().put("refundReason", reason);
+            payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+
+            notifyObservers("REFUNDED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of("reason", reason)
+            ));
+
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+            return saved;
+        } finally {
+            MDC.remove("paymentId");
         }
-
-        payment.setStatus(PaymentStatus.REFUNDED);
-
-        if (payment.getTransactionDetails() == null) {
-            payment.setTransactionDetails(new HashMap<>());
-        }
-        payment.getTransactionDetails().put("refundReason", reason);
-        payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
-
-        Payment saved = paymentRepository.save(payment);
-
-        notifyObservers("REFUNDED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of("reason", reason)
-        ));
-
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
-        return saved;
     }
 
     @Transactional
@@ -169,8 +187,13 @@ public class PaymentService {
 
     @Cacheable(value = "payment-service::payment", key = "#id")
     public Payment getPaymentById(Long id) {
-        return paymentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        MDC.put("paymentId", id.toString());
+        try {
+            return paymentRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        } finally {
+            MDC.remove("paymentId");
+        }
     }
 
     public List<Payment> getAllPayments() {
@@ -178,21 +201,27 @@ public class PaymentService {
     }
 
     public Payment updatePayment(Long id, Payment payment) {
-        Payment existing = getPaymentById(id);
-        existing.setRideId(payment.getRideId());
-        existing.setUserId(payment.getUserId());
-        existing.setAmount(payment.getAmount());
-        existing.setMethod(payment.getMethod());
-        existing.setStatus(payment.getStatus());
-        existing.setTransactionDetails(payment.getTransactionDetails());
-        Payment saved = paymentRepository.save(existing);
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("paymentId", saved.getId());
-        if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
-        updatePayload.put("amount", saved.getAmount());
-        notifyObservers("PAYMENT_UPDATED", updatePayload);
-        return saved;
+        MDC.put("paymentId", id.toString());
+        try {
+            Payment existing = getPaymentById(id);
+            existing.setRideId(payment.getRideId());
+            existing.setUserId(payment.getUserId());
+            existing.setAmount(payment.getAmount());
+            existing.setMethod(payment.getMethod());
+            existing.setStatus(payment.getStatus());
+            existing.setTransactionDetails(payment.getTransactionDetails());
+            Payment saved = paymentRepository.save(existing);
+            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+            Map<String, Object> updatePayload = new HashMap<>();
+            updatePayload.put("paymentId", saved.getId());
+            if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
+            updatePayload.put("amount", saved.getAmount());
+            notifyObservers("PAYMENT_UPDATED", updatePayload);
+            return saved;
+        } finally {
+            MDC.remove("paymentId");
+        }
     }
 
     public void deletePayment(Long id) {
@@ -208,6 +237,7 @@ public class PaymentService {
 
     @Transactional
     public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
+        MDC.put("rideId", rideId.toString());
         String rideStatus = paymentRepository.findRideStatusById(rideId);
         if (rideStatus == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
@@ -238,58 +268,67 @@ public class PaymentService {
                 ? payment.getTransactionDetails()
                 : new HashMap<>();
 
-        if (simulateFailure) {
-            payment.setStatus(PaymentStatus.FAILED);
-            details.put("gatewayResponse", "declined");
-            details.put("failureReason", "simulated gateway failure");
+        try {
+            if (simulateFailure) {
+                payment.setStatus(PaymentStatus.FAILED);
+                details.put("gatewayResponse", "declined");
+                details.put("failureReason", "simulated gateway failure");
+                payment.setTransactionDetails(details);
+
+                Payment saved = paymentRepository.save(payment);
+                log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+                MDC.put("paymentId", saved.getId().toString());
+                notifyObservers("FAILED", Map.of(
+                        "paymentId", saved.getId(),
+                        "method", saved.getMethod().name(),
+                        "amount", saved.getAmount(),
+                        "details", Map.of(
+                                "failureReason", "simulated gateway failure",
+                                "rideId", rideId
+                        )
+                ));
+                return saved;
+            }
+
+            payment.setStatus(PaymentStatus.COMPLETED);
+            details.put("gatewayResponse", "approved");
+            if (request.getCardLastFour() != null) {
+                details.put("cardLastFour", request.getCardLastFour());
+            }
+
+            double surgeFee = computeSurgeFee(rideId, payment.getAmount());
+            details.put("surgeFee", surgeFee);
+
             payment.setTransactionDetails(details);
 
             Payment saved = paymentRepository.save(payment);
-            notifyObservers("FAILED", Map.of(
+            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+            MDC.put("paymentId", saved.getId().toString());
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+            notifyObservers("CREATED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of("rideId", rideId)
+            ));
+
+            notifyObservers("COMPLETED", Map.of(
                     "paymentId", saved.getId(),
                     "method", saved.getMethod().name(),
                     "amount", saved.getAmount(),
                     "details", Map.of(
-                            "failureReason", "simulated gateway failure",
-                            "rideId", rideId
+                            "gatewayResponse", "approved",
+                            "rideId", rideId,
+                            "surgeFee", surgeFee
                     )
             ));
+
             return saved;
+        } finally {
+            MDC.remove("paymentId");
+            MDC.remove("rideId");
         }
-
-        payment.setStatus(PaymentStatus.COMPLETED);
-        details.put("gatewayResponse", "approved");
-        if (request.getCardLastFour() != null) {
-            details.put("cardLastFour", request.getCardLastFour());
-        }
-
-        double surgeFee = computeSurgeFee(rideId, payment.getAmount());
-        details.put("surgeFee", surgeFee);
-
-        payment.setTransactionDetails(details);
-
-        Payment saved = paymentRepository.save(payment);
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
-
-        notifyObservers("CREATED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of("rideId", rideId)
-        ));
-
-        notifyObservers("COMPLETED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of(
-                        "gatewayResponse", "approved",
-                        "rideId", rideId,
-                        "surgeFee", surgeFee
-                )
-        ));
-
-        return saved;
     }
 
     private double computeSurgeFee(Long rideId, double amount) {
@@ -430,7 +469,12 @@ public class PaymentService {
     }
 
     public BigDecimal getUserPaymentTotal(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
-        return paymentRepository.getUserPaymentTotal(userId, startDate, endDate);
+        MDC.put("userId", userId.toString());
+        try {
+            return paymentRepository.getUserPaymentTotal(userId, startDate, endDate);
+        } finally {
+            MDC.remove("userId");
+        }
     }
 
     public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
