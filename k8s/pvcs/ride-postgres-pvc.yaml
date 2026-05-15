@@ -1,11 +1,2 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ride-postgres-pvc
-  namespace: uber
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+# Removed unused standalone PVC.
+# PostgreSQL storage is provisioned by the StatefulSet via volumeClaimTemplates.
