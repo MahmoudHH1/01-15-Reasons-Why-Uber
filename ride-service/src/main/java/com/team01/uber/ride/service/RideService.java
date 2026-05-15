@@ -591,8 +591,7 @@ public class RideService {
     public int getActiveRideCountForUser(Long userId) {
         List<RideStatus> activeStatuses = List.of(
                 RideStatus.REQUESTED, RideStatus.ACCEPTED,
-                RideStatus.IN_PROGRESS, RideStatus.COMPLETED,
-                RideStatus.PAYMENT_PENDING);
+                RideStatus.IN_PROGRESS, RideStatus.PAYMENT_PENDING);
         return rideRepository.countActiveRidesByUserId(userId, activeStatuses);
     }
 
@@ -623,7 +622,7 @@ public class RideService {
     public int getActiveRideCountForDriver(Long driverId) {
         List<RideStatus> activeStatuses = List.of(
                 RideStatus.ACCEPTED, RideStatus.IN_PROGRESS,
-                RideStatus.COMPLETED, RideStatus.PAYMENT_PENDING);
+                RideStatus.PAYMENT_PENDING);
         return rideRepository.countActiveRidesByDriverId(driverId, activeStatuses);
     }
 
