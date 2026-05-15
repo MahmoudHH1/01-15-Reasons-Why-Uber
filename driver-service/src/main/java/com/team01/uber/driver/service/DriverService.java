@@ -9,6 +9,7 @@ import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
+import com.team01.uber.driver.messaging.DriverEventPublisher;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.model.DriverStatus;
@@ -53,6 +54,7 @@ public class DriverService {
     private final DriverIndexerService driverIndexerService;
     private final CacheManager cacheManager;
     private final RideServiceClient rideServiceClient;
+    private final DriverEventPublisher driverEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverService(DriverRepository driverRepository,
@@ -63,7 +65,8 @@ public class DriverService {
                          ElasticsearchHitAdapter searchHitAdapter,
                          DriverIndexerService driverIndexerService,
                          CacheManager cacheManager,
-                         RideServiceClient rideServiceClient) {
+                         RideServiceClient rideServiceClient,
+                         DriverEventPublisher driverEventPublisher) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
         this.redisTemplate = redisTemplate;
@@ -73,6 +76,7 @@ public class DriverService {
         this.driverIndexerService = driverIndexerService;
         this.cacheManager = cacheManager;
         this.rideServiceClient = rideServiceClient;
+        this.driverEventPublisher = driverEventPublisher;
     }
 
     @PostConstruct
@@ -238,6 +242,7 @@ public class DriverService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot go OFFLINE with active rides");
             }
         }
+        DriverStatus oldStatus = driver.getStatus();
         driver.setStatus(status);
         Driver saved = driverRepository.save(driver);
         notifyObservers("AVAILABILITY_UPDATED", Map.of("driverId", id));
@@ -245,6 +250,9 @@ public class DriverService {
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
         driverIndexerService.index(saved, "auto_crud_update");
+        driverEventPublisher.publishStatusChanged(id,
+                oldStatus == null ? null : oldStatus.name(),
+                status.name());
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -285,7 +293,7 @@ public class DriverService {
     }
 
     @Transactional
-    public Driver rateDriver(Long driverId, Long rideId, Integer rating) {
+    public Driver rateDriver(Long driverId, Long rideId, Integer rating, Long userId) {
         Driver driver = getDriverById(driverId);
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
@@ -315,6 +323,7 @@ public class DriverService {
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(driverId);
         driverIndexerService.index(saved, "auto_crud_update");
+        driverEventPublisher.publishRated(driverId, rideId, (double) rating, userId);
         return saved;
     }
 
