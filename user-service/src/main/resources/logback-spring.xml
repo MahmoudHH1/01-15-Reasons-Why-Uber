@@ -19,14 +19,15 @@
             <message>
                 <pattern>
                     {
-                    "timestamp": "%d{ISO8601}",
-                    "level": "%level",
-                    "service": "${spring.application.name}",
-                    "thread": "%thread",
-                    "logger": "%logger{36}",
-                    "correlationId": "%X{correlationId:-}",
-                    "userId": "%X{userId:-}",
-                    "message": "%msg"
+                        "timestamp": "%d{ISO8601}",
+                        "level": "%level",
+                        "service": "${spring.application.name}",
+                        "thread": "%thread",
+                        "logger": "%logger{36}",
+                        "correlationId": "%X{correlationId:-}",
+                        "userId": "%X{userId:-}",
+                        "routingKey": "%X{routingKey:-}",
+                        "message": "%msg"
                     }
                 </pattern>
             </message>
@@ -36,6 +37,7 @@
     <!-- FIX: console is mandatory -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI"/>
     </root>
 
 </configuration>
