@@ -94,6 +94,6 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
     private boolean isPublicPath(String path) {
         return path.startsWith("/api/auth/register")
                 || path.startsWith("/api/auth/login")
-                || path.startsWith("/actuator/health");
+                || path.startsWith("/actuator/**");
     }
 }
