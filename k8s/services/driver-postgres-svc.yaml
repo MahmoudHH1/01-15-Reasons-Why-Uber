@@ -1,0 +1,27 @@
+---
+# Headless service for StatefulSet DNS resolution
+apiVersion: v1
+kind: Service
+metadata:
+  name: driver-postgres
+  namespace: uber
+spec:
+  clusterIP: None
+  selector:
+    app: driver-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# ClusterIP service for regular access
+apiVersion: v1
+kind: Service
+metadata:
+  name: driver-postgres-svc
+  namespace: uber
+spec:
+  selector:
+    app: driver-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

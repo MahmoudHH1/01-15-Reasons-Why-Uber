@@ -9,13 +9,58 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  driver-postgres:
+    image: postgres:17
+    container_name: uber-driver-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-drivers
+    volumes:
+      - driver-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-drivers"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  location-postgres:
+    image: postgres:17
+    container_name: uber-location-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-locations
+    volumes:
+      - location-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-locations"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payment-postgres:
+    image: postgres:17
+    container_name: uber-payment-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-payments
+    volumes:
+      - payment-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-payments"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -27,11 +72,45 @@ services:
       - "5050:80"
     depends_on:
       - postgres
+      - driver-postgres
+      - location-postgres
+      - payment-postgres
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: uber-api-gateway
+    environment:
+      JWT_SECRET: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - driver-service
+      - ride-service
+      - location-service
+      - payment-service
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: uber-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ride-service:
     build:
-      context: ./ride-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ride-service/Dockerfile
     container_name: uber-ride-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
@@ -44,6 +123,7 @@ services:
       SPRING_NEO4J_URI: bolt://neo4j:7687
       SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
       SPRING_NEO4J_AUTHENTICATION_PASSWORD: neo4jpass
+      SPRING_RABBITMQ_HOST: rabbitmq
     ports:
       - "8083:8080"
     depends_on:
@@ -55,11 +135,13 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: uber-user-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
@@ -75,11 +157,11 @@ services:
 
   driver-service:
     build:
-      context: ./driver-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: driver-service/Dockerfile
     container_name: uber-driver-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://driver-postgres:5432/uberdb-drivers
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
@@ -96,7 +178,7 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      postgres:
+      driver-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -107,11 +189,11 @@ services:
 
   location-service:
     build:
-      context: ./location-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: location-service/Dockerfile
     container_name: uber-location-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_CASSANDRA_CONTACT_POINTS: cassandra
@@ -125,7 +207,7 @@ services:
     ports:
       - "8084:8080"
     depends_on:
-      postgres:
+      location-postgres:
         condition: service_healthy
       cassandra:
         condition: service_healthy
@@ -136,11 +218,11 @@ services:
 
   payment-service:
     build:
-      context: ./payment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: payment-service/Dockerfile
     container_name: uber-payment-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-postgres:5432/uberdb-payments
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
@@ -153,7 +235,7 @@ services:
     ports:
       - "8085:8080"
     depends_on:
-      postgres:
+      payment-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -247,6 +329,9 @@ services:
 
 volumes:
   pgdata:
+  driver-pgdata:
+  location-pgdata:
+  payment-pgdata:
   mongo-data:
   es-data:
   neo4j-data:

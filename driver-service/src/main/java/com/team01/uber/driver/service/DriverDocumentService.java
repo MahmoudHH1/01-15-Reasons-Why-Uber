@@ -1,5 +1,7 @@
 package com.team01.uber.driver.service;
 
+import com.team01.uber.contracts.dto.UserDTO;
+import com.team01.uber.contracts.feign.UserServiceClient;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.model.Driver;
@@ -7,8 +9,10 @@ import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.observer.EntityObserver;
 import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverDocumentRepository;
-
+import feign.FeignException;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,20 +31,25 @@ import java.util.stream.Collectors;
 @Service
 public class DriverDocumentService {
 
+    private static final Logger log = LoggerFactory.getLogger(DriverDocumentService.class);
+
     private final DriverDocumentRepository driverDocumentRepository;
     private final DriverService driverService;
     private final CacheInvalidator cacheInvalidator;
     private final MongoEventLogger mongoEventLogger;
+    private final UserServiceClient userServiceClient;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
                                  DriverService driverService,
                                  CacheInvalidator cacheInvalidator,
-                                 MongoEventLogger mongoEventLogger) {
+                                 MongoEventLogger mongoEventLogger,
+                                 UserServiceClient userServiceClient) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
         this.cacheInvalidator = cacheInvalidator;
         this.mongoEventLogger = mongoEventLogger;
+        this.userServiceClient = userServiceClient;
     }
 
     @PostConstruct
@@ -128,8 +137,16 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is expired");
         }
 
-        if (!driverDocumentRepository.isAdminUser(verifiedBy)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
+        try {
+            UserDTO verifier = userServiceClient.getUser(verifiedBy);
+            if (!"ADMIN".equals(verifier.role())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
+            }
+        } catch (FeignException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user not found");
+        } catch (FeignException e) {
+            log.warn("user-service unavailable for admin check userId {}: {}", verifiedBy, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service temporarily unavailable");
         }
 
         document.setVerified(true);
