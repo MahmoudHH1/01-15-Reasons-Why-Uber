@@ -13,6 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -138,17 +139,20 @@ public class RideController {
     }
 
     @GetMapping("/user/{userId}/summary")
-    public ResponseEntity<RideSummaryDTO> getUserRideSummary(@PathVariable Long userId) {
+    public ResponseEntity<RideSummaryDTO> getUserRideSummary(@PathVariable Long userId, HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(userId, request, "user");
         return ResponseEntity.ok(rideService.getUserRideSummary(userId));
     }
 
     @GetMapping("/user/{userId}/active-count")
-    public ResponseEntity<Integer> getActiveRideCountForUser(@PathVariable Long userId) {
+    public ResponseEntity<Integer> getActiveRideCountForUser(@PathVariable Long userId, HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(userId, request, "user");
         return ResponseEntity.ok(rideService.getActiveRideCountForUser(userId));
     }
 
     @GetMapping("/user/{userId}/completed-count")
-    public ResponseEntity<Long> getCompletedRideCountForUser(@PathVariable Long userId) {
+    public ResponseEntity<Long> getCompletedRideCountForUser(@PathVariable Long userId, HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(userId, request, "user");
         return ResponseEntity.ok(rideService.getCompletedRideCountForUser(userId));
     }
 
@@ -156,17 +160,34 @@ public class RideController {
     public ResponseEntity<DriverRideSummaryDTO> getDriverRideSummary(
             @PathVariable Long driverId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(driverId, request, "driver");
         return ResponseEntity.ok(rideService.getDriverRideSummary(driverId, startDate, endDate));
     }
 
     @GetMapping("/driver/{driverId}/active-count")
-    public ResponseEntity<Integer> getActiveRideCountForDriver(@PathVariable Long driverId) {
+    public ResponseEntity<Integer> getActiveRideCountForDriver(@PathVariable Long driverId, HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(driverId, request, "driver");
         return ResponseEntity.ok(rideService.getActiveRideCountForDriver(driverId));
     }
 
     @GetMapping("/driver/{driverId}/completed-count")
-    public ResponseEntity<Long> getCompletedRideCountForDriver(@PathVariable Long driverId) {
+    public ResponseEntity<Long> getCompletedRideCountForDriver(@PathVariable Long driverId, HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(driverId, request, "driver");
         return ResponseEntity.ok(rideService.getCompletedRideCountForDriver(driverId));
+    }
+
+    private void ensureCallerIsTargetOrAdmin(Long targetId, HttpServletRequest request, String targetType) {
+        AuthContext ctx = (AuthContext) request.getAttribute("authContext");
+        if (ctx == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authentication context");
+        }
+
+        boolean isAdmin = "ADMIN".equals(ctx.getRole());
+        if (!isAdmin && !targetId.equals(ctx.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Caller is not the target " + targetType + " or an ADMIN");
+        }
     }
 }
