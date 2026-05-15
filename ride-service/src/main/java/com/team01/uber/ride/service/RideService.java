@@ -1,6 +1,5 @@
 package com.team01.uber.ride.service;
 
-import com.team01.uber.contracts.feign.DriverServiceClient;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
@@ -15,7 +14,6 @@ import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;
 import com.team01.uber.ride.repository.RideStopRepository;
 import com.team01.uber.ride.repository.UserNodeRepository;
-import feign.FeignException;
 import jakarta.transaction.Transactional;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
@@ -48,22 +46,19 @@ public class RideService {
     private final DriverNodeRepository driverNodeRepository;
     private final RideEventPublisher rideEventPublisher;
     private final RideEventPublisherService producer;
-    private final DriverServiceClient driverServiceClient;
 
     public RideService(RideRepository rideRepository,
                        RideStopRepository rideStopRepository,
                        UserNodeRepository userNodeRepository,
                        DriverNodeRepository driverNodeRepository,
                        RideEventPublisher rideEventPublisher,
-                       RideEventPublisherService producer,
-                       DriverServiceClient driverServiceClient) {
+                       RideEventPublisherService producer) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
         this.driverNodeRepository = driverNodeRepository;
         this.rideEventPublisher = rideEventPublisher;
         this.producer = producer;
-        this.driverServiceClient = driverServiceClient;
     }
 
     @Caching(evict = {
@@ -226,13 +221,11 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only rides with status REQUESTED can be assigned a driver");
         }
 
-        try {
-            driverServiceClient.getDriver(driverId);
-        } catch (FeignException.NotFound e) {
+        if (!rideRepository.driverExists(driverId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         }
 
-        if (!driverServiceClient.getDriverAvailability(driverId)) {
+        if (!rideRepository.isDriverAvailable(driverId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
         }
 
