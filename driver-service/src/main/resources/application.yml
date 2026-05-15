@@ -51,6 +51,22 @@ spring:
           max-attempts: 3
 
 server:
+
+    rabbitmq:
+      host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+      port: 5672
+      username: ${SPRING_RABBITMQ_USERNAME:guest}
+      password: ${SPRING_RABBITMQ_PASSWORD:guest}
+      listener:
+        simple:
+          acknowledge-mode: auto
+          default-requeue-rejected: false
+          retry:
+            enabled: true
+            initial-interval: 1000
+            max-attempts: 3
+
+  server:
   port: 8080
 
 feign:

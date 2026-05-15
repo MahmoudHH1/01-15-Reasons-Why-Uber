@@ -122,7 +122,7 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.PENDING);
         }
         Payment saved = paymentRepository.save(payment);
-        log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+        log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
         cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
         Map<String, Object> payload = new HashMap<>();
         payload.put("paymentId", saved.getId());
@@ -153,7 +153,7 @@ public class PaymentService {
             payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
 
             Payment saved = paymentRepository.save(payment);
-            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
 
             notifyObservers("REFUNDED", Map.of(
                     "paymentId", saved.getId(),
@@ -211,7 +211,7 @@ public class PaymentService {
             existing.setStatus(payment.getStatus());
             existing.setTransactionDetails(payment.getTransactionDetails());
             Payment saved = paymentRepository.save(existing);
-            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
             cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
             Map<String, Object> updatePayload = new HashMap<>();
             updatePayload.put("paymentId", saved.getId());
@@ -276,7 +276,7 @@ public class PaymentService {
                 payment.setTransactionDetails(details);
 
                 Payment saved = paymentRepository.save(payment);
-                log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+                log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
                 MDC.put("paymentId", saved.getId().toString());
                 notifyObservers("FAILED", Map.of(
                         "paymentId", saved.getId(),
@@ -302,7 +302,7 @@ public class PaymentService {
             payment.setTransactionDetails(details);
 
             Payment saved = paymentRepository.save(payment);
-            log.info("Payment {} saved with status={}", saved.getId(), saved.getStatus());
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
             MDC.put("paymentId", saved.getId().toString());
             cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
 
@@ -367,6 +367,7 @@ public class PaymentService {
         details.put("gatewayResponse", "approved");
 
         Payment saved = paymentRepository.save(payment);
+        log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
         Map<String, Object> retryPayload = new HashMap<>();
         retryPayload.put("paymentId", saved.getId());

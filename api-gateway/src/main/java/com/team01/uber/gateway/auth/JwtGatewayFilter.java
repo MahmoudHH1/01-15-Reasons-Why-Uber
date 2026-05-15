@@ -92,8 +92,7 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
 
     // Paths that do not require a JWT token
     private boolean isPublicPath(String path) {
-        return path.startsWith("/api/auth/register")
-                || path.startsWith("/api/auth/login")
+        return path.startsWith("/api/auth/")
                 || path.startsWith("/actuator/health");
     }
 }
