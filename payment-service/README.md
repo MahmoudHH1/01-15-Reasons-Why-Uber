@@ -264,8 +264,13 @@ Invoke-RestMethod -Uri http://localhost:3000/api/health
 $dashboard = Get-Content k8s/monitoring/grafana/dashboards/payment-dashboard.json -Raw | ConvertFrom-Json
 $payload = @{ dashboard = $dashboard; overwrite = $true } | ConvertTo-Json -Depth 20
 
-Invoke-RestMethod -Uri "http://admin:admin@localhost:3000/api/dashboards/db" `
-    -Method Post -ContentType 'application/json' -Body $payload
+# Send Basic auth as an explicit header — Invoke-RestMethod doesn't reliably honor
+# the `http://user:pass@host` URL form (returns 401):
+$auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("admin:admin"))
+$headers = @{ Authorization = "Basic $auth" }
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/dashboards/db" `
+    -Method Post -ContentType 'application/json' -Body $payload -Headers $headers
 # Expect: status=success, uid=payment-service, url=/d/payment-service/...
 
 # > Don't use `Out-File -Encoding utf8 | curl.exe --data @file.json` here — Windows PowerShell
@@ -337,6 +342,7 @@ Hit those six and S5-INFRA is verified to the maximum extent possible without th
 - `curl` is aliased to `Invoke-WebRequest`. Always use `curl.exe` explicitly for real curl behavior.
 - **`curl.exe -d '$json'` strips inner double-quotes** when PowerShell parses the argument — ES will reject the malformed body. Use `Invoke-RestMethod -Body $json` for any JSON request body. Reserve `curl.exe` for header-only / query-string requests.
 - **`Out-File -Encoding utf8` writes a UTF-8 BOM in Windows PowerShell** — many strict JSON parsers (Grafana included) reject the BOM with `bad request data` or similar. Either use `-Encoding utf8NoBOM` (PS 7+), use `[System.IO.File]::WriteAllText($path, $content)`, or skip the temp file entirely with `Invoke-RestMethod -Body $obj`.
+- **`Invoke-RestMethod` doesn't reliably honor `http://user:pass@host` URLs** — they often return 401. Send Basic auth as an explicit `Authorization` header: `$h = @{Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('user:pass')))"}`.
 - Maven on PowerShell: arguments with a `.` after `-D` may be split (`-Dsurefire.failIfNoSpecifiedTests=false` becomes a phase named `.failIfNoSpecifiedTests=false`). Quote the whole flag: `"-Dsurefire.failIfNoSpecifiedTests=false"`.
 - Backtick `` ` `` is the line-continuation character (NOT backslash).
 - Single-quoted strings (`'...'`) don't expand variables. Use double quotes (`"..."`) or here-strings (`@"..."@`) for `$var` interpolation.
