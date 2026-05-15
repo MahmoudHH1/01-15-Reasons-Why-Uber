@@ -151,14 +151,14 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
-        <!-- Loki4J for log aggregation (Phase 5) -->
+        <!-- Loki4J for log aggregation  -->
         <dependency>
             <groupId>com.github.loki4j</groupId>
             <artifactId>loki-logback-appender</artifactId>
             <version>1.5.1</version>
         </dependency>
 
-        <!-- OpenFeign for inter-service communication (Phase 3) -->
+        <!-- OpenFeign for inter-service communication -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>

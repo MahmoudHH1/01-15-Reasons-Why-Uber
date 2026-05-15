@@ -8,7 +8,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @EnableRabbit
 @EnableCaching
-@EnableFeignClients(basePackages = "com.team01.uber.user.client")
+@EnableFeignClients(basePackages = "com.team01.uber.contracts.feign")
 @SpringBootApplication
 public class UserServiceApplication {
     public static void main(String[] args) {
