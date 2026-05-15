@@ -12,7 +12,7 @@ public class TopDriverDTO {
     private Long driverId;
     private String name;
     private Double rating;
-    private Long totalRides;
+    private Long totalRatings;
 
     public static Builder builder() {
         return new Builder();
@@ -22,15 +22,15 @@ public class TopDriverDTO {
         private Long driverId;
         private String name;
         private Double rating;
-        private Long totalRides;
+        private Long totalRatings;
 
         public Builder driverId(Long driverId) { this.driverId = driverId; return this; }
         public Builder name(String name) { this.name = name; return this; }
         public Builder rating(Double rating) { this.rating = rating; return this; }
-        public Builder totalRides(Long totalRides) { this.totalRides = totalRides; return this; }
+        public Builder totalRatings(Long totalRatings) { this.totalRatings = totalRatings; return this; }
 
         public TopDriverDTO build() {
-            return new TopDriverDTO(driverId, name, rating, totalRides);
+            return new TopDriverDTO(driverId, name, rating, totalRatings);
         }
     }
 }

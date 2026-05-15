@@ -91,6 +91,11 @@ public class DriverController {
         return driverService.updateDriver(id, driver);
     }
 
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<Map<String, String>> getDriverAvailability(@PathVariable Long id) {
+        return ResponseEntity.ok(driverService.getDriverAvailability(id));
+    }
+
     @PutMapping("/{id}/availability")
     public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
                                                    @RequestBody Map<String, String> body) {

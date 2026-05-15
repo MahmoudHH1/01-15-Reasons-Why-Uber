@@ -7,7 +7,7 @@ spring:
       load-on-startup: 1
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/uberdb
+    url: jdbc:postgresql://driver-postgres:5432/uberdb-drivers
     username: postgres
     password: postgres
 
@@ -36,6 +36,20 @@ spring:
   elasticsearch:
     uris: http://elasticsearch:9200
 
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
 server:
 
     rabbitmq:
@@ -55,13 +69,22 @@ server:
   server:
   port: 8080
 
+feign:
+  ride-service:
+    url: http://ride-service:8080
+  user-service:
+    url: http://user-service:8080
+
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
-feign:
-  user-service:
-    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
-  location-service:
-    url: ${FEIGN_LOCATION_SERVICE_URL:http://location-service:8080}
-  ride-service:
-    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

@@ -80,4 +80,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
 
     boolean existsByRideIdAndStatus(Long rideId, PaymentStatus status);
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM payments " +
+            "WHERE user_id = :userId AND status::text = 'COMPLETED' " +
+            "AND created_at >= :startDate AND created_at <= :endDate",
+            nativeQuery = true)
+    java.math.BigDecimal getUserPaymentTotal(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }

@@ -29,6 +29,7 @@ public class SecurityConfig {
                 // public endpoints
                 .requestMatchers(HttpMethod.GET, "/api/locations/health").permitAll()
                 .requestMatchers("/error").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
                 // everything else requires a valid JWT
                 .anyRequest().authenticated()
             )

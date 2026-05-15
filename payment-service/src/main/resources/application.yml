@@ -3,7 +3,7 @@ spring:
     name: payment-service
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/uberdb
+    url: jdbc:postgresql://payment-postgres:5432/uberdb-payments
     username: postgres
     password: postgres
 
@@ -30,6 +30,14 @@ spring:
       port: 6379
       password: redispass
 
+feign:
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
+  ride-service:
+    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
+  driver-service:
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+
 server:
   port: 8080
   error:
@@ -40,8 +48,13 @@ spring.mvc.problemdetails.enabled: true
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
-feign:
-  user-service:
-    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
-  ride-service:
-    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
