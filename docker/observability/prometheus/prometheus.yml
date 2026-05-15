@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: ride-service
+    static_configs:
+      - targets: ['ride-service:8080']
+    metrics_path: /actuator/prometheus

@@ -5,5 +5,9 @@ public enum RideStatus {
     ACCEPTED,
     IN_PROGRESS,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    PAYMENT_PENDING,
+    PAID,
+    PAYMENT_FAILED,
+    REFUNDED
 }
