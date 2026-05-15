@@ -52,9 +52,18 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml" />
     <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
 
-    <root level="INFO">
-        <!-- <appender-ref ref="LOKI" /> -->
-        <!-- Switch between CONSOLE (plain text) and CONSOLE_JSON (for testing Loki format) -->
-        <appender-ref ref="CONSOLE_JSON"/>
-    </root>
+    <springProfile name="k8s">
+        <root level="INFO">
+            <appender-ref ref="LOKI" />
+            <!-- Switch between CONSOLE (plain text) and CONSOLE_JSON (for testing Loki format) -->
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!k8s">
+        <root level="INFO">
+            <!-- Switch between CONSOLE (plain text) and CONSOLE_JSON (for testing Loki format) -->
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+    </springProfile>
 </configuration>
