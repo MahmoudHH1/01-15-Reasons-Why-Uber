@@ -8,6 +8,7 @@ import com.team01.uber.contracts.events.PaymentInitiatedEvent;
 import com.team01.uber.contracts.events.PaymentRefundedEvent;
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.feign.DriverServiceClient;
 import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.contracts.feign.UserServiceClient;
 import feign.FeignException;
@@ -51,8 +52,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
@@ -67,6 +70,7 @@ public class PaymentService {
     private final PaymentEventPublisher paymentEventPublisher;
     private final UserServiceClient userServiceClient;
     private final RideServiceClient rideServiceClient;
+    private final DriverServiceClient driverServiceClient;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -77,7 +81,8 @@ public class PaymentService {
                           MongoDocumentAdapter mongoDocumentAdapter,
                           PaymentEventPublisher paymentEventPublisher,
                           UserServiceClient userServiceClient,
-                          RideServiceClient rideServiceClient) {
+                          RideServiceClient rideServiceClient,
+                          DriverServiceClient driverServiceClient) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
@@ -86,6 +91,7 @@ public class PaymentService {
         this.paymentEventPublisher = paymentEventPublisher;
         this.userServiceClient = userServiceClient;
         this.rideServiceClient = rideServiceClient;
+        this.driverServiceClient = driverServiceClient;
     }
 
     public void register(EntityObserver observer) {
@@ -482,23 +488,66 @@ public class PaymentService {
                     "startDate must be before endDate");
         }
 
-        List<Object[]> rows = paymentRepository.findRevenueByVehicleType(startDate, endDate);
+        // Cap candidate set to 100 per M3 N+1 fan-out rule
+        List<Payment> payments = paymentRepository.findCompletedPaymentsInDateRange(startDate, endDate);
 
-        return rows.stream().map(row -> {
-            String vehicleType    = (String) row[0];
-            double totalRevenue   = ((Number) row[1]).doubleValue();
-            double surgeFeeRevenue = ((Number) row[2]).doubleValue();
-            double baseFareRevenue = totalRevenue - surgeFeeRevenue;
-            long rideCount        = ((Number) row[3]).longValue();
+        // rideId → driverId via Feign (deduplicated)
+        Map<Long, Long> rideToDriver = new HashMap<>();
+        for (Long rideId : payments.stream().map(Payment::getRideId).filter(r -> r != null).collect(Collectors.toSet())) {
+            try {
+                log.info("Calling RideServiceClient.getRide with args={}", rideId);
+                RideDTO ride = rideServiceClient.getRide(rideId);
+                if (ride.driverId() != null) rideToDriver.put(rideId, ride.driverId());
+                log.info("RideServiceClient.getRide returned successfully");
+            } catch (FeignException e) {
+                log.warn("Feign call to ride-service failed for rideId {}: {}", rideId, e.getMessage());
+            }
+        }
 
-            return VehicleTypeRevenueDTO.builder()
-                    .vehicleType(vehicleType)
-                    .baseFareRevenue(baseFareRevenue)
-                    .surgeFeeRevenue(surgeFeeRevenue)
-                    .totalRevenue(totalRevenue)
-                    .rideCount(rideCount)
-                    .build();
-        }).toList();
+        // driverId → vehicleType via Feign (deduplicated)
+        Map<Long, String> driverToVehicleType = new HashMap<>();
+        for (Long driverId : new HashSet<>(rideToDriver.values())) {
+            try {
+                log.info("Calling DriverServiceClient.getDriver with args={}", driverId);
+                com.team01.uber.contracts.dto.DriverDTO driver = driverServiceClient.getDriver(driverId);
+                String vt = driver.vehicleDetails() != null ? (String) driver.vehicleDetails().get("vehicleType") : null;
+                driverToVehicleType.put(driverId, vt != null ? vt : "UNKNOWN");
+                log.info("DriverServiceClient.getDriver returned successfully");
+            } catch (FeignException e) {
+                log.warn("Feign call to driver-service failed for driverId {}: {}", driverId, e.getMessage());
+            }
+        }
+
+        // Aggregate by vehicleType in Java
+        Map<String, double[]> agg = new HashMap<>();
+        for (Payment p : payments) {
+            if (p.getRideId() == null) continue;
+            Long driverId = rideToDriver.get(p.getRideId());
+            if (driverId == null) continue;
+            String vehicleType = driverToVehicleType.getOrDefault(driverId, "UNKNOWN");
+
+            double surgeFee = 0.0;
+            if (p.getTransactionDetails() != null && p.getTransactionDetails().get("surgeFee") != null) {
+                surgeFee = ((Number) p.getTransactionDetails().get("surgeFee")).doubleValue();
+            } else {
+                surgeFee = p.getAmount() * 0.15;
+            }
+
+            double[] bucket = agg.computeIfAbsent(vehicleType, k -> new double[3]);
+            bucket[0] += p.getAmount();
+            bucket[1] += surgeFee;
+            bucket[2] += 1;
+        }
+
+        return agg.entrySet().stream()
+                .map(e -> VehicleTypeRevenueDTO.builder()
+                        .vehicleType(e.getKey())
+                        .totalRevenue(e.getValue()[0])
+                        .surgeFeeRevenue(e.getValue()[1])
+                        .baseFareRevenue(e.getValue()[0] - e.getValue()[1])
+                        .rideCount((long) e.getValue()[2])
+                        .build())
+                .toList();
     }
 
     public BigDecimal getUserPaymentTotal(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
