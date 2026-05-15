@@ -377,7 +377,7 @@ public class LocationService {
                         .lastUpdated((LocalDateTime) row[4])
                         .build());
             } catch (Exception e) {
-                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage(), e);
             } finally {
                 MDC.remove("driverId");
             }
@@ -405,7 +405,7 @@ public class LocationService {
                             .build());
                 }
             } catch (Exception e) {
-                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage(), e);
             } finally {
                 MDC.remove("driverId");
             }
@@ -440,6 +440,13 @@ public class LocationService {
     }
 
     public void handleRidePlaced(RidePlacedEvent event) {
+        String idempotencyKey = "idempotency:location-service:ride.placed:" + event.rideId();
+        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(idempotencyKey, "PROCESSED", java.time.Duration.ofHours(24));
+        if (Boolean.FALSE.equals(isNew)) {
+            log.info("ride.placed idempotency: rideId={} already processed, skipping", event.rideId());
+            return;
+        }
+
         MDC.put("driverId", String.valueOf(event.driverId()));
         MDC.put("rideId",   String.valueOf(event.rideId()));
         try {
@@ -456,14 +463,15 @@ public class LocationService {
         }
     }
 
+    @CacheEvict(value = "location-service::S4-F12", allEntries = true)
     public void handleRideCompleted(RideCompletedEvent event) {
         MDC.put("driverId", String.valueOf(event.driverId()));
         MDC.put("rideId",   String.valueOf(event.rideId()));
         try {
             log.info("Consuming ride.completed for driverId={}", event.driverId());
-            List<LocationTrackingEvent> events = trackingRepository.findByDriverId(event.driverId());
-            if (!events.isEmpty()) {
-                LocationTrackingEvent latest = events.get(0);
+            java.util.Optional<LocationTrackingEvent> latestOpt = trackingRepository.findTopByDriverId(event.driverId());
+            if (latestOpt.isPresent()) {
+                LocationTrackingEvent latest = latestOpt.get();
                 if (event.rideId().equals(latest.getRideId())) {
                     log.info("ride.completed idempotency: rideId={} already marked on latest ping, skipping", event.rideId());
                     return;
@@ -484,6 +492,13 @@ public class LocationService {
     }
 
     public void handleRideCancelled(RideCancelledEvent event) {
+        String idempotencyKey = "idempotency:location-service:ride.cancelled:" + event.rideId();
+        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(idempotencyKey, "PROCESSED", java.time.Duration.ofHours(24));
+        if (Boolean.FALSE.equals(isNew)) {
+            log.info("ride.cancelled idempotency: rideId={} already processed, skipping", event.rideId());
+            return;
+        }
+
         MDC.put("driverId", String.valueOf(event.driverId()));
         MDC.put("rideId",   String.valueOf(event.rideId()));
         try {
@@ -612,7 +627,7 @@ public class LocationService {
             );
             log.info("Published {} for driverId={}", LocationEventConfig.ROUTING_KEY_TRACKED, driverId);
         } catch (Exception e) {
-            log.warn("Failed to publish {}: {}", LocationEventConfig.ROUTING_KEY_TRACKED, e.getMessage());
+            log.warn("Failed to publish {}: {}", LocationEventConfig.ROUTING_KEY_TRACKED, e.getMessage(), e);
         } finally {
             MDC.remove("routingKey");
         }

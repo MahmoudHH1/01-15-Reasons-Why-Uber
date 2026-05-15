@@ -39,12 +39,15 @@ spring:
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:rabbitmq}
     port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
     listener:
       simple:
         acknowledge-mode: auto
         default-requeue-rejected: false
         retry:
           enabled: true
+          initial-interval: 1000
           max-attempts: 3
 
 feign:
@@ -67,14 +70,4 @@ server:
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "prometheus,health,info"
-  metrics:
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
 

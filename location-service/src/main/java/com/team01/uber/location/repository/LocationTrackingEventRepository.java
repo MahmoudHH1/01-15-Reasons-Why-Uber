@@ -7,11 +7,14 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface LocationTrackingEventRepository extends CassandraRepository<LocationTrackingEvent, Long> {
 
     List<LocationTrackingEvent> findByDriverId(Long driverId);
+
+    Optional<LocationTrackingEvent> findTopByDriverId(Long driverId);
 
     @Query("SELECT * FROM location_tracking_events WHERE driver_id = ?0 AND timestamp >= ?1 AND timestamp <= ?2")
     List<LocationTrackingEvent> findByDriverIdAndTimestampBetween(Long driverId, Instant startTime, Instant endTime);

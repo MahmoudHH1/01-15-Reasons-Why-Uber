@@ -50,7 +50,7 @@ public class LocationRideSagaConsumer {
                 default -> log.warn("Unhandled routing key: {}", routingKey);
             }
         } catch (Exception e) {
-            log.error("Failed to process {}: {}", routingKey, e.getMessage());
+            log.error("Failed to process {}: {}", routingKey, e.getMessage(), e);
             throw new RuntimeException("Consumer error for " + routingKey, e);
         } finally {
             MDC.remove("routingKey");

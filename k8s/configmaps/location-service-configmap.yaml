@@ -7,4 +7,6 @@ data:
   SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
   SPRING_DATASOURCE_USERNAME: postgres
   SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_USERNAME: guest
+  SPRING_RABBITMQ_PASSWORD: guest
   FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080
