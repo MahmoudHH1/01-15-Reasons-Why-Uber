@@ -605,21 +605,17 @@ public class RideService {
     // GET /api/rides/driver/{driverId}/summary — called by S2-F3, S2-F12 (§5)
     public DriverRideSummaryDTO getDriverRideSummary(Long driverId, String startDate, String endDate) {
         List<RideStatus> completedStatuses = List.of(RideStatus.COMPLETED, RideStatus.PAID);
+        List<RideStatus> allStatuses = new ArrayList<>(EnumSet.allOf(RideStatus.class));
         LocalDateTime start = startDate != null ? parseStartDate(startDate) : null;
         LocalDateTime end = endDate != null ? parseEndDate(endDate) : null;
 
-        // Note: This repository call actually fetches COMPLETED rides based on the statuses passed
         long completedRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, completedStatuses, start, end);
-
-        // For now, we will set totalRides equal to completedRides to satisfy the compiler.
-        // If your repository has a method to count ALL rides regardless of status, you should use that here instead.
-        long totalRides = completedRides;
+        long totalRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, allStatuses, start, end);
 
         Double totalEarnings = rideRepository.sumFareByDriverIdAndStatuses(driverId, completedStatuses, start, end);
         if (totalEarnings == null) totalEarnings = 0.0;
         double averageFare = completedRides > 0 ? totalEarnings / completedRides : 0.0;
 
-        // Now passing 5 arguments: Long, long, long, Double, Double
         return new DriverRideSummaryDTO(driverId, totalRides, completedRides, totalEarnings, averageFare);
     }
 
