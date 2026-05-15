@@ -8,6 +8,7 @@ import com.team01.uber.ride.model.Ride;
 import com.team01.uber.ride.model.RideStop;
 import com.team01.uber.ride.model.RodeWithRelationship;
 import com.team01.uber.ride.model.UserNode;
+import com.team01.uber.ride.messaging.publishers.RideEventPublisherService;
 import com.team01.uber.ride.observer.RideEventPublisher;
 import com.team01.uber.ride.repository.DriverNodeRepository;
 import com.team01.uber.ride.repository.RideRepository;
@@ -44,17 +45,20 @@ public class RideService {
     private final UserNodeRepository userNodeRepository;
     private final DriverNodeRepository driverNodeRepository;
     private final RideEventPublisher rideEventPublisher;
+    private final RideEventPublisherService producer;
 
     public RideService(RideRepository rideRepository,
                        RideStopRepository rideStopRepository,
                        UserNodeRepository userNodeRepository,
                        DriverNodeRepository driverNodeRepository,
-                       RideEventPublisher rideEventPublisher) {
+                       RideEventPublisher rideEventPublisher,
+                       RideEventPublisherService producer) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
         this.driverNodeRepository = driverNodeRepository;
         this.rideEventPublisher = rideEventPublisher;
+        this.producer = producer;
     }
 
     @Caching(evict = {
@@ -172,6 +176,7 @@ public class RideService {
         ride.setStatus(RideStatus.CANCELLED);
         Ride savedRide = rideRepository.save(ride);
         rideEventPublisher.notifyObservers("RIDE_CANCELLED", buildRidePayload(savedRide));
+        producer.publishRideCancelled(savedRide, "user_requested");
         return savedRide;
     }
 
@@ -233,6 +238,7 @@ public class RideService {
         }
 
         rideEventPublisher.notifyObservers("RIDE_DRIVER_ASSIGNED", buildRidePayload(savedRide));
+        producer.publishRidePlaced(savedRide);
         return savedRide;
     }
 
@@ -410,8 +416,8 @@ public class RideService {
         // Save ride and return the updated entity
         Ride savedRide = rideRepository.save(ride);
         rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
+        producer.publishRideCompleted(savedRide);
         return savedRide;
-
     }
 
     // S3-F10
@@ -567,6 +573,25 @@ public class RideService {
         return "Interaction recorded successfully";
     }
     
+    // ── Saga consumer state updates ───────────────────────────────────────────
+
+    // ── Saga consumer state updates ───────────────────────────────────────────
+
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
+    @Transactional
+    public Ride markRideStatus(Long rideId, RideStatus newStatus) {
+        Ride ride = rideRepository.findById(rideId).orElse(null);
+        if (ride == null || ride.getStatus() == newStatus) return null;
+        ride.setStatus(newStatus);
+        return rideRepository.save(ride);
+    }
+
     private Map<String, Object> buildRidePayload(Ride ride) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("rideId", ride.getId());
