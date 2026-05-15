@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        return path.equals("/api/locations/health");
+        return path.equals("/api/locations/health") || path.startsWith("/actuator");
     }
 
     @Override
@@ -63,8 +63,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (authenticated) {
-            filterChain.doFilter(request, response);
-        }
+        filterChain.doFilter(request, response);
     }
 }

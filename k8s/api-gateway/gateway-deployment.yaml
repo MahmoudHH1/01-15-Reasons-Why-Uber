@@ -16,7 +16,7 @@ spec:
       containers:
         - name: api-gateway
           image: api-gateway:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:
@@ -27,4 +27,5 @@ spec:
                   key: jwt-secret
           resources:
             limits:
-              memory: "768Mi"
+              memory: 768Mi
+

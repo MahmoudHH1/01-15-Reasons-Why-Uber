@@ -30,6 +30,8 @@ spec:
               name: thrift
           resources:
             limits:
+              memory: 1Gi
+            requests:
               memory: 768Mi
           env:
             - name: MAX_HEAP_SIZE

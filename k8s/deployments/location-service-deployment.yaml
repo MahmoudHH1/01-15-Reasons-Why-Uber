@@ -16,14 +16,32 @@ spec:
       containers:
         - name: location-service
           image: location-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: location-service-configmap
+            - secretRef:
+                name: location-postgres-secret
           env:
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://location-postgres:5432/uberdb-locations"
-            - name: SPRING_DATA_CASSANDRA_CONTACT_POINTS
-              value: "cassandra"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
           resources:
             limits:
               memory: "768Mi"

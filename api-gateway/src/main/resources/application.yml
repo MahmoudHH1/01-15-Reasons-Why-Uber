@@ -19,7 +19,7 @@ spring:
               predicates:
                 - Path=/api/rides/**
             - id: location-service
-              uri: http://location-service.uber.svc.cluster.local:8080
+              uri: http://location-service:8080
               predicates:
                 - Path=/api/locations/**
             - id: payment-service
