@@ -26,7 +26,12 @@ services:
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest      
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5      
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -101,7 +106,7 @@ services:
       mongo:
         condition: service_healthy
       rabbitmq:                             
-        condition: service_started  
+        condition: service_healthy  
 
   driver-service:
     build:
