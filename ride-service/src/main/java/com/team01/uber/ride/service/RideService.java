@@ -1,9 +1,6 @@
 package com.team01.uber.ride.service;
 
-import com.team01.uber.contracts.dto.DriverDTO;
-import com.team01.uber.contracts.dto.UserDTO;
 import com.team01.uber.contracts.feign.DriverServiceClient;
-import com.team01.uber.contracts.feign.UserServiceClient;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
@@ -52,7 +49,6 @@ public class RideService {
     private final RideEventPublisher rideEventPublisher;
     private final RideEventPublisherService producer;
     private final DriverServiceClient driverServiceClient;
-    private final UserServiceClient userServiceClient;
 
     public RideService(RideRepository rideRepository,
                        RideStopRepository rideStopRepository,
@@ -60,8 +56,7 @@ public class RideService {
                        DriverNodeRepository driverNodeRepository,
                        RideEventPublisher rideEventPublisher,
                        RideEventPublisherService producer,
-                       DriverServiceClient driverServiceClient,
-                       UserServiceClient userServiceClient) {
+                       DriverServiceClient driverServiceClient) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
@@ -69,7 +64,6 @@ public class RideService {
         this.rideEventPublisher = rideEventPublisher;
         this.producer = producer;
         this.driverServiceClient = driverServiceClient;
-        this.userServiceClient = userServiceClient;
     }
 
     @Caching(evict = {
@@ -532,11 +526,10 @@ public class RideService {
             }
         }
 
-        UserDTO user = userServiceClient.getUser(userId);
-        DriverDTO driver = driverServiceClient.getDriver(driverId);
-        String userName = user.name();
-        String driverName = driver.name();
-        String vehicleType = (String) driver.vehicleDetails().getOrDefault("vehicleType", "");
+        // Cross-service SQL lookups for user/driver names (shared PG, no HTTP calls)
+        String userName = rideRepository.findUserNameById(userId);
+        String driverName = rideRepository.findDriverNameById(driverId);
+        String vehicleType = rideRepository.findDriverVehicleTypeById(driverId);
 
         // Find or create UserNode and DriverNode in Neo4j
         UserNode userNode = userNodeRepository.findById(userId)
