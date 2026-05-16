@@ -33,6 +33,21 @@ services:
       timeout: 5s
       retries: 5      
 
+  user-postgres:
+    image: postgres:17
+    container_name: uber-user-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-users
+    volumes:
+      - user-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d uberdb-users"]
+      interval: 10s
+      timeout: 5s
+    retries: 5      
+
   driver-postgres:
     image: postgres:17
     container_name: uber-driver-db
@@ -145,11 +160,11 @@ services:
       context: .
       dockerfile: user-service/Dockerfile
     container_name: uber-user-service
-  environment:
-    SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/uberdb-users
-    SPRING_DATASOURCE_USERNAME: postgres
-    SPRING_DATASOURCE_PASSWORD: postgres
-    SPRING_RABBITMQ_HOST: rabbitmq
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/uberdb-users
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_RABBITMQ_HOST: rabbitmq
     ports:
       - "8081:8080"
     depends_on:
