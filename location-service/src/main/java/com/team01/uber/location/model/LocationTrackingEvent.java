@@ -4,10 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.data.cassandra.core.cql.Ordering;
-import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
-import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.Table;
 
 import java.time.Instant;
@@ -19,11 +17,8 @@ import java.time.Instant;
 @AllArgsConstructor
 public class LocationTrackingEvent {
 
-    @PrimaryKeyColumn(name = "driver_id", type = PrimaryKeyType.PARTITIONED)
-    private Long driverId;
-
-    @PrimaryKeyColumn(name = "timestamp", type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
-    private Instant timestamp;
+    @PrimaryKey
+    private LocationTrackingEventKey key;
 
     @Column("latitude")
     private Double latitude;
@@ -45,4 +40,22 @@ public class LocationTrackingEvent {
 
     @Column("notes")
     private String notes;
+
+    public Long getDriverId() {
+        return key != null ? key.getDriverId() : null;
+    }
+
+    public void setDriverId(Long driverId) {
+        if (key == null) key = new LocationTrackingEventKey();
+        key.setDriverId(driverId);
+    }
+
+    public Instant getTimestamp() {
+        return key != null ? key.getTimestamp() : null;
+    }
+
+    public void setTimestamp(Instant timestamp) {
+        if (key == null) key = new LocationTrackingEventKey();
+        key.setTimestamp(timestamp);
+    }
 }

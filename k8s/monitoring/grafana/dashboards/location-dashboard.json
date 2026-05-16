@@ -235,6 +235,69 @@
       ],
       "title": "RabbitMQ Event Audit Panel (last hour)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"location-service\"}[5m]))",
+          "legendFormat": "Requests/s"
+        }
+      ],
+      "title": "HTTP Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m])) by (le, uri))",
+          "legendFormat": "P99 {{uri}}"
+        }
+      ],
+      "title": "HTTP Latency P99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{job=\"location-service\", area=\"heap\"}",
+          "legendFormat": "Heap used"
+        }
+      ],
+      "title": "JVM Heap Usage",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 38,
