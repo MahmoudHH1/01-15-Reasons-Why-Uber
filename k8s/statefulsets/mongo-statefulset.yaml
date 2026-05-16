@@ -36,19 +36,33 @@ spec:
             exec:
               command:
                 - mongosh
+                - --username
+                - root
+                - --password
+                - rootpass
+                - --authenticationDatabase
+                - admin
                 - --quiet
                 - --eval
                 - "db.adminCommand('ping').ok"
             initialDelaySeconds: 20
+            timeoutSeconds: 10
             periodSeconds: 10
           livenessProbe:
             exec:
               command:
                 - mongosh
+                - --username
+                - root
+                - --password
+                - rootpass
+                - --authenticationDatabase
+                - admin
                 - --quiet
                 - --eval
                 - "db.adminCommand('ping').ok"
             initialDelaySeconds: 20
+            timeoutSeconds: 10
             periodSeconds: 10
   volumeClaimTemplates:
     - metadata:
