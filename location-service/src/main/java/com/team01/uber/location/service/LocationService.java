@@ -45,6 +45,7 @@ import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.TrackingRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationTrackingEvent;
+import com.team01.uber.location.model.LocationTrackingEventKey;
 import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationRepository;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
@@ -431,7 +432,7 @@ public class LocationService {
             }
         } else {
             // Default to all events for the driver if range is incomplete
-            events = trackingRepository.findByDriverId(driverId);
+            events = trackingRepository.findByKeyDriverId(driverId);
         }
 
         return events.stream()
@@ -469,7 +470,7 @@ public class LocationService {
         MDC.put("rideId",   String.valueOf(event.rideId()));
         try {
             log.info("Consuming ride.completed for driverId={}", event.driverId());
-            java.util.Optional<LocationTrackingEvent> latestOpt = trackingRepository.findTopByDriverId(event.driverId());
+            java.util.Optional<LocationTrackingEvent> latestOpt = trackingRepository.findTopByKeyDriverId(event.driverId());
             if (latestOpt.isPresent()) {
                 LocationTrackingEvent latest = latestOpt.get();
                 if (event.rideId().equals(latest.getRideId())) {
