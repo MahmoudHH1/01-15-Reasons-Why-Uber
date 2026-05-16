@@ -145,11 +145,11 @@ services:
       context: .
       dockerfile: user-service/Dockerfile
     container_name: uber-user-service
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      SPRING_RABBITMQ_HOST: rabbitmq
+  environment:
+    SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/uberdb-users
+    SPRING_DATASOURCE_USERNAME: postgres
+    SPRING_DATASOURCE_PASSWORD: postgres
+    SPRING_RABBITMQ_HOST: rabbitmq
     ports:
       - "8081:8080"
     depends_on:
