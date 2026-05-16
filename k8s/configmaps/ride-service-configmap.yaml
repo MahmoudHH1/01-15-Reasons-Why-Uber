@@ -18,3 +18,4 @@ data:
   FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080
   FEIGN_LOCATION_SERVICE_URL: http://location-service:8080
   FEIGN_PAYMENT_SERVICE_URL: http://payment-service:8080
+  SPRING_PROFILES_ACTIVE: k8s
