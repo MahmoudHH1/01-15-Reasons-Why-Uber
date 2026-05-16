@@ -636,7 +636,13 @@ public class RideService {
             totalEarnings = 0.0;
         double averageFare = completedRides > 0 ? totalEarnings / completedRides : 0.0;
 
-        return new DriverRideSummaryDTO(driverId, totalRides, totalEarnings, averageFare);
+        return new DriverRideSummaryDTO(
+                driverId,
+                totalRides,
+                completedRides,
+                totalEarnings,
+                averageFare
+        );
     }
 
     // GET /api/rides/driver/{driverId}/active-count — called by S2-F4 (§5)
