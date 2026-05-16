@@ -448,6 +448,45 @@ data:
               "refId": "C"
             }
           ]
+        },
+        {
+          "id": 8,
+          "title": "HTTP Request Rate (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 42 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"location-service\"}[5m]))",
+              "legendFormat": "Requests/s"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "title": "HTTP Latency P99 (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 42 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m])) by (le, uri))",
+              "legendFormat": "P99 {{uri}}"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "title": "JVM Heap Usage (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 42 },
+          "targets": [
+            {
+              "expr": "jvm_memory_used_bytes{job=\"location-service\", area=\"heap\"}",
+              "legendFormat": "Heap used"
+            }
+          ]
         }
       ],
       "time": { "from": "now-1h", "to": "now" },
