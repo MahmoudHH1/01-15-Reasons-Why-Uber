@@ -9,6 +9,7 @@ import com.team01.uber.driver.dto.DriverDashboardDTO;
 import com.team01.uber.driver.dto.DriverEarningsDTO;
 import com.team01.uber.driver.dto.DriverSearchResultDTO;
 import com.team01.uber.driver.dto.TopDriverDTO;
+import com.team01.uber.driver.messaging.DriverEventPublisher;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverSearchDocument;
 import com.team01.uber.driver.model.DriverStatus;
@@ -53,6 +54,7 @@ public class DriverService {
     private final DriverIndexerService driverIndexerService;
     private final CacheManager cacheManager;
     private final RideServiceClient rideServiceClient;
+    private final DriverEventPublisher driverEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverService(DriverRepository driverRepository,
@@ -63,7 +65,8 @@ public class DriverService {
                          ElasticsearchHitAdapter searchHitAdapter,
                          DriverIndexerService driverIndexerService,
                          CacheManager cacheManager,
-                         RideServiceClient rideServiceClient) {
+                         RideServiceClient rideServiceClient,
+                         DriverEventPublisher driverEventPublisher) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
         this.redisTemplate = redisTemplate;
@@ -73,6 +76,7 @@ public class DriverService {
         this.driverIndexerService = driverIndexerService;
         this.cacheManager = cacheManager;
         this.rideServiceClient = rideServiceClient;
+        this.driverEventPublisher = driverEventPublisher;
     }
 
     @PostConstruct
@@ -238,6 +242,7 @@ public class DriverService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot go OFFLINE with active rides");
             }
         }
+        DriverStatus oldStatus = driver.getStatus();
         driver.setStatus(status);
         Driver saved = driverRepository.save(driver);
         notifyObservers("AVAILABILITY_UPDATED", Map.of("driverId", id));
@@ -245,6 +250,9 @@ public class DriverService {
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(id);
         driverIndexerService.index(saved, "auto_crud_update");
+        driverEventPublisher.publishStatusChanged(id,
+                oldStatus == null ? null : oldStatus.name(),
+                status.name());
     }
 
     public Driver updateVehicleDetails(Long id, Map<String, Object> updates) {
@@ -285,7 +293,7 @@ public class DriverService {
     }
 
     @Transactional
-    public Driver rateDriver(Long driverId, Long rideId, Integer rating) {
+    public Driver rateDriver(Long driverId, Long rideId, Integer rating, Long userId) {
         Driver driver = getDriverById(driverId);
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
@@ -315,7 +323,110 @@ public class DriverService {
         invalidateDriverFeatureCaches();
         invalidateDriverCaches(driverId);
         driverIndexerService.index(saved, "auto_crud_update");
+        driverEventPublisher.publishRated(driverId, rideId, (double) rating, userId);
         return saved;
+    }
+
+    @Transactional
+    public void handleRidePlaced(Long driverId, Long rideId) {
+        if (driverId == null) {
+            log.info("Skipping ride.placed: null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.placed rideId={}", driverId, rideId);
+            return;
+        }
+        if (driver.getStatus() == DriverStatus.BUSY) {
+            log.warn("Driver {} already BUSY; skipping ride.placed for rideId={}", driverId, rideId);
+            return;
+        }
+        driver.setStatus(DriverStatus.BUSY);
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDriverFeatureCaches();
+        invalidateDriverCaches(driverId);
+        driverIndexerService.index(saved, "auto_crud_update");
+    }
+
+    @Transactional
+    public void handleRideCompleted(Long driverId, Long rideId, Double fare) {
+        if (driverId == null) {
+            log.info("Skipping ride.completed: null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.completed rideId={}", driverId, rideId);
+            return;
+        }
+        if (driver.getStatus() != DriverStatus.BUSY) {
+            log.info("Driver {} not BUSY (status={}); skipping ride.completed for rideId={} as duplicate/out-of-order",
+                    driverId, driver.getStatus(), rideId);
+            return;
+        }
+        driver.setStatus(DriverStatus.AVAILABLE);
+        driver.setTotalCompletedRides(driver.getTotalCompletedRides() + 1);
+        if (fare != null) {
+            driver.setTotalEarnings(driver.getTotalEarnings() + fare);
+        }
+        Driver saved = driverRepository.save(driver);
+        cacheInvalidator.deleteEntity("driver", driverId);
+        invalidateDriverFeatureCaches();
+        invalidateDriverCaches(driverId);
+        driverIndexerService.index(saved, "auto_crud_update");
+    }
+
+    @Transactional
+    public void handleRideCancelled(Long driverId, Long rideId) {
+        if (driverId == null) {
+            log.info("Silently ignoring ride.cancelled with null driverId for rideId={}", rideId);
+            return;
+        }
+        Driver driver = driverRepository.findById(driverId).orElse(null);
+        if (driver == null) {
+            log.warn("Driver {} not found for ride.cancelled rideId={}", driverId, rideId);
+            return;
+        }
+        DriverStatus statusBefore = driver.getStatus();
+        if (statusBefore == DriverStatus.BUSY) {
+            driver.setStatus(DriverStatus.AVAILABLE);
+            Driver saved = driverRepository.save(driver);
+            cacheInvalidator.deleteEntity("driver", driverId);
+            invalidateDriverFeatureCaches();
+            invalidateDriverCaches(driverId);
+            driverIndexerService.index(saved, "auto_crud_update");
+            return;
+        }
+        if (statusBefore == DriverStatus.AVAILABLE && driver.getTotalCompletedRides() > 0) {
+            List<Long> reversed = driver.getReversedRideIds();
+            if (reversed != null && reversed.contains(rideId)) {
+                log.info("Driver {} already reversed rideId={}, skipping duplicate ride.cancelled", driverId, rideId);
+                return;
+            }
+            Double fareToReverse = null;
+            try {
+                com.team01.uber.contracts.dto.RideDTO ride = rideServiceClient.getRide(rideId);
+                fareToReverse = ride.fare();
+            } catch (FeignException e) {
+                log.warn("ride-service unavailable for ride {} reversal: {}", rideId, e.getMessage());
+            }
+            driver.setTotalCompletedRides(Math.max(0, driver.getTotalCompletedRides() - 1));
+            if (fareToReverse != null) {
+                driver.setTotalEarnings(Math.max(0.0, driver.getTotalEarnings() - fareToReverse));
+            }
+            if (reversed == null) {
+                reversed = new java.util.ArrayList<>();
+            }
+            reversed.add(rideId);
+            driver.setReversedRideIds(reversed);
+            Driver saved = driverRepository.save(driver);
+            cacheInvalidator.deleteEntity("driver", driverId);
+            invalidateDriverFeatureCaches();
+            invalidateDriverCaches(driverId);
+            driverIndexerService.index(saved, "auto_crud_update");
+        }
     }
 
     @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")

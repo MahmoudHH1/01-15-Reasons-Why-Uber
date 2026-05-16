@@ -38,12 +38,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         AuthHandler tokenExtractor = new TokenExtractionHandler();
         AuthHandler signatureValidator = new SignatureValidationHandler(jwtService);
-        AuthHandler userLoader = new UserLoaderHandler(jdbcTemplate);
         AuthHandler roleAuthorizer = new RoleAuthorizationHandler("USER");
 
         tokenExtractor.setNext(signatureValidator);
-        signatureValidator.setNext(userLoader);
-        userLoader.setNext(roleAuthorizer);
+        signatureValidator.setNext(roleAuthorizer);
 
         AuthContext ctx = new AuthContext(request);
         tokenExtractor.handle(ctx);
