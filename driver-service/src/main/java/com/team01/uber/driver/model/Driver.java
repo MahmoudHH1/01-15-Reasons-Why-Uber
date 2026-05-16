@@ -1,5 +1,6 @@
 package com.team01.uber.driver.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -68,5 +69,6 @@ public class Driver {
 
     // Driver is the inverse side; DriverDocument is the owning side (holds the FK)
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<DriverDocument> driverDocuments;
 }
