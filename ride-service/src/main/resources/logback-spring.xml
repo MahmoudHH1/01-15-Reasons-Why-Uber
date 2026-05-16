@@ -1,18 +1,20 @@
 <configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="ride-service"/>
+
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <url>${LOKI_URL:-http://localhost:3100/loki/api/v1/push}</url>
+            <url>${LOKI_URL:-http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push}</url>
         </http>
         <format>
             <label>
-                <pattern>app=uber,service=${spring.application.name},level=%level,env=k8s</pattern>
+                <pattern>app=uber,service=${appName},level=%level,env=k8s</pattern>
             </label>
             <message>
                 <pattern>
                     {
                     "timestamp": "%d{ISO8601}",
                     "level": "%level",
-                    "service": "${spring.application.name}",
+                    "service": "${appName}",
                     "thread": "%thread",
                     "logger": "%logger{36}",
                     "correlationId": "%X{correlationId:-}",
@@ -34,7 +36,7 @@
                 {
                 "timestamp": "%d{ISO8601}",
                 "level": "%level",
-                "service": "${spring.application.name:-ride-service}",
+                "service": "${appName}",
                 "thread": "%thread",
                 "logger": "%logger{36}",
                 "correlationId": "%X{correlationId:-}",
