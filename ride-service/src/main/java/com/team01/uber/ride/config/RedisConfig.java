@@ -128,6 +128,7 @@ public class RedisConfig implements CachingConfigurer {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(Duration.ofMinutes(15)))
                 .withInitialCacheConfigurations(cacheConfigs)
+                .enableStatistics()
                 .build();
     }
 }

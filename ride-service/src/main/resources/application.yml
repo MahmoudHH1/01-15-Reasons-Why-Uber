@@ -34,10 +34,13 @@ spring:
     port: 5672
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    template:
+      observation-enabled: true
     listener:
       simple:
         acknowledge-mode: auto
         default-requeue-rejected: false
+        observation-enabled: true
         retry:
           enabled: true
           initial-interval: 1000
