@@ -153,7 +153,7 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      postgres:
+      user-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -341,3 +341,5 @@ volumes:
   es-data:
   neo4j-data:
   cassandra-data:
+  user-pgdata:
+
