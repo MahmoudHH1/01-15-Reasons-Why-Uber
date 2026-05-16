@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.time.LocalDate;
 import java.util.Optional;
 
 public interface DriverRepository extends JpaRepository<Driver, Long> {
@@ -18,54 +17,22 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     Optional<Driver> findByLicenseNumber(String licenseNumber);
 
-    @Query(value = "SELECT COUNT(*) > 0 FROM rides WHERE id = :rideId", nativeQuery = true)
-    boolean rideExists(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT COUNT(*) > 0 FROM rides WHERE id = :rideId AND driver_id = :driverId", nativeQuery = true)
-    boolean rideBelongsToDriver(@Param("rideId") Long rideId, @Param("driverId") Long driverId);
-
-    @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
-    String getRideStatus(@Param("rideId") Long rideId);
     @Query(value = """
-            SELECT d.id, d.name, d.rating, COUNT(r.id) AS total_rides
+            SELECT d.id, d.name, d.rating, d.total_ratings
             FROM drivers d
-            LEFT JOIN rides r ON r.driver_id = d.id AND r.status = 'COMPLETED'
-            GROUP BY d.id, d.name, d.rating
             ORDER BY d.rating DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findTopRatedDrivers(@Param("limit") int limit);
+
     @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'vehicleType' = :type", nativeQuery = true)
     List<Driver> findByVehicleType(@Param("type") String type);
 
     @Query(value = "SELECT * FROM drivers WHERE vehicle_details->>'vehicleType' = :type AND status = CAST(:status AS driver_status)", nativeQuery = true)
     List<Driver> findByVehicleTypeAndStatus(@Param("type") String type, @Param("status") String status);
+
     List<Driver> findByRatingBetweenOrderByRatingDesc(Double minRating, Double maxRating);
 
     List<Driver> findByStatusAndRatingBetweenOrderByRatingDesc(DriverStatus status, Double minRating, Double maxRating);
-    @Query(value = "SELECT COUNT(*) FROM rides WHERE driver_id = :driverId " +
-                   "AND status::text IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')",
-           nativeQuery = true)
-    long countActiveRidesByDriverId(@Param("driverId") Long driverId);
-
-    @Query(value = "SELECT COUNT(*), COALESCE(SUM(fare), 0), COALESCE(AVG(fare), 0) " +
-                   "FROM rides WHERE driver_id = :driverId " +
-                   "AND status::text = 'COMPLETED' " +
-                   "AND CAST(requested_at AS date) BETWEEN :startDate AND :endDate",
-           nativeQuery = true)
-    Object[] getEarningsSummary(@Param("driverId") Long driverId,
-                                @Param("startDate") LocalDate startDate,
-                                @Param("endDate") LocalDate endDate);
-
-    @Query(value = """
-            SELECT COUNT(r.id),
-                   COALESCE(SUM(p.amount), 0),
-                   COALESCE(AVG(p.amount), 0)
-            FROM rides r
-            LEFT JOIN payments p ON p.ride_id = r.id
-            WHERE r.driver_id = :driverId AND r.status = 'COMPLETED'
-            """, nativeQuery = true)
-    Object[] getDashboardStats(@Param("driverId") Long driverId);
-
 }
 

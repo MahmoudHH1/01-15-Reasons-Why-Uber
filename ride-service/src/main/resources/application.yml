@@ -2,9 +2,9 @@ spring:
   application:
     name: ride-service
   datasource:
-    url: jdbc:postgresql://postgres:5432/uberdb
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://ride-postgres:5432/uberdb-rides
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -29,8 +29,48 @@ spring:
       uri: bolt://neo4j:7687
       username: neo4j
       password: neo4jpass
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
 server:
   port: 8080
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
+
+feign:
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
+  driver-service:
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+  ride-service:
+    url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
+  location-service:
+    url: ${FEIGN_LOCATION_SERVICE_URL:http://location-service:8080}
+  payment-service:
+    url: ${FEIGN_PAYMENT_SERVICE_URL:http://payment-service:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

@@ -91,6 +91,11 @@ public class DriverController {
         return driverService.updateDriver(id, driver);
     }
 
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<Map<String, String>> getDriverAvailability(@PathVariable Long id) {
+        return ResponseEntity.ok(driverService.getDriverAvailability(id));
+    }
+
     @PutMapping("/{id}/availability")
     public ResponseEntity<Void> updateAvailability(@PathVariable Long id,
                                                    @RequestBody Map<String, String> body) {
@@ -130,10 +135,11 @@ public class DriverController {
     }
     @PostMapping("/{id}/rate")
     public ResponseEntity<Driver> rateDriver(@PathVariable Long id,
-                                             @Valid @RequestBody RateDriverRequest request) {
-        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
+                                             @Valid @RequestBody RateDriverRequest request,
+                                             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating(), userId);
         return ResponseEntity.ok(updated);
-                                             }
+    }
     @GetMapping("/{id}/earnings")
     public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
                                                 @RequestParam LocalDate startDate,
