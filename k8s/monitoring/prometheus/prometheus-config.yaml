@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'user-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['user-service:8080']
+      - job_name: 'driver-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['driver-service:8080']
+      - job_name: 'ride-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['ride-service:8080']
+      - job_name: 'location-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['location-service.uber.svc.cluster.local:8080']
+      - job_name: 'payment-service'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['payment-service:8080']
