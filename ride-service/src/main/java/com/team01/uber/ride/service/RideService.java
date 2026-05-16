@@ -63,14 +63,14 @@ public class RideService {
     private final RideEventPublisherService producer;
 
     public RideService(RideRepository rideRepository,
-                       RideStopRepository rideStopRepository,
-                       UserNodeRepository userNodeRepository,
-                       DriverNodeRepository driverNodeRepository,
-                       RideEventPublisher rideEventPublisher,
-                       DriverServiceClient driverServiceClient,
-                       UserServiceClient userServiceClient,
-                       LocationServiceClient locationServiceClient,
-                       RideEventPublisherService producer) {
+            RideStopRepository rideStopRepository,
+            UserNodeRepository userNodeRepository,
+            DriverNodeRepository driverNodeRepository,
+            RideEventPublisher rideEventPublisher,
+            DriverServiceClient driverServiceClient,
+            UserServiceClient userServiceClient,
+            LocationServiceClient locationServiceClient,
+            RideEventPublisherService producer) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
@@ -189,8 +189,7 @@ public class RideService {
     }
 
     // S3-F1
-    @Cacheable(value = "ride-service::S3-F1",
-            key = "T(java.util.Objects).toString(#status, '') + '-' + T(java.util.Objects).toString(#startDate, '') + '-' + T(java.util.Objects).toString(#endDate, '') + '-' + T(java.util.Objects).toString(#userId, '')")
+    @Cacheable(value = "ride-service::S3-F1", key = "T(java.util.Objects).toString(#status, '') + '-' + T(java.util.Objects).toString(#startDate, '') + '-' + T(java.util.Objects).toString(#endDate, '') + '-' + T(java.util.Objects).toString(#userId, '')")
     public List<Ride> searchRides(RideStatus status, LocalDate startDate, LocalDate endDate, Long userId) {
         LocalDateTime start = startDate == null ? null : startDate.atStartOfDay();
         LocalDateTime end = endDate == null ? null : endDate.plusDays(1).atStartOfDay();
@@ -212,7 +211,8 @@ public class RideService {
         rideEventPublisher.notifyObservers("RIDE_DELETED", buildRidePayload(ride));
     }
 
-    // S3-F2 — M3: Feign replaces cross-service SQL; publishes ride.placed (§5 S3-F2)
+    // S3-F2 — M3: Feign replaces cross-service SQL; publishes ride.placed (§5
+    // S3-F2)
     @Caching(evict = {
             @CacheEvict(value = "ride-service::ride", key = "#rideId"),
             @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
@@ -257,8 +257,7 @@ public class RideService {
     }
 
     // S3-F3
-    @Cacheable(value = "ride-service::S3-F3",
-            key = "#request.pickupLatitude + '-' + #request.pickupLongitude + '-' + #request.dropoffLatitude + '-' + #request.dropoffLongitude")
+    @Cacheable(value = "ride-service::S3-F3", key = "#request.pickupLatitude + '-' + #request.pickupLongitude + '-' + #request.dropoffLatitude + '-' + #request.dropoffLongitude")
     public FareEstimateDTO estimateFare(FareEstimateRequestDTO request) {
         if (request.pickupLatitude() == null || request.pickupLongitude() == null ||
                 request.dropoffLatitude() == null || request.dropoffLongitude() == null) {
@@ -274,9 +273,12 @@ public class RideService {
                 request.pickupLatitude(), request.pickupLongitude());
 
         double surgeMultiplier;
-        if (activeRides > 20) surgeMultiplier = 2.0;
-        else if (activeRides > 10) surgeMultiplier = 1.5;
-        else surgeMultiplier = 1.0;
+        if (activeRides > 20)
+            surgeMultiplier = 2.0;
+        else if (activeRides > 10)
+            surgeMultiplier = 1.5;
+        else
+            surgeMultiplier = 1.0;
 
         double fare = 15.0 * distance * surgeMultiplier;
 
@@ -405,15 +407,16 @@ public class RideService {
         ride.setStatus(RideStatus.COMPLETED);
         ride.setCompletedAt(LocalDateTime.now());
         Ride savedRide = rideRepository.save(ride);
-        // M3: payment-service creates PENDING payment; driver-service sets AVAILABLE (§8.3)
+        // M3: payment-service creates PENDING payment; driver-service sets AVAILABLE
+        // (§8.3)
         rideEventPublisher.notifyObservers("RIDE_COMPLETED", buildRidePayload(savedRide));
         producer.publishRideCompleted(savedRide);
         return savedRide;
     }
 
-    // S3-F10 — M3: local rides.fare replaces cross-service payments JOIN (§5 S3-F10)
-    @Cacheable(value = "ride-service::S3-F10",
-            key = "#startDate.toString() + '-' + #endDate.toString()")
+    // S3-F10 — M3: local rides.fare replaces cross-service payments JOIN (§5
+    // S3-F10)
+    @Cacheable(value = "ride-service::S3-F10", key = "#startDate.toString() + '-' + #endDate.toString()")
     public RideAnalyticsDashboardDTO getRideAnalyticsDashboard(LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -506,7 +509,8 @@ public class RideService {
             userName = "Unknown";
         }
 
-        // M3: Feign → driver-service replaces findDriverNameById() + findDriverVehicleTypeById()
+        // M3: Feign → driver-service replaces findDriverNameById() +
+        // findDriverVehicleTypeById()
         log.info("Calling driverServiceClient.getDriver with args={}", driverId);
         String driverName;
         String vehicleType;
@@ -581,7 +585,8 @@ public class RideService {
         long completedRides = rideRepository.countRidesByUserIdAndStatuses(userId, completedStatuses);
         long cancelledRides = rideRepository.countRidesByUserIdAndStatuses(userId, cancelledStatuses);
         Double totalSpent = rideRepository.sumFareByUserIdAndStatuses(userId, completedStatuses);
-        if (totalSpent == null) totalSpent = 0.0;
+        if (totalSpent == null)
+            totalSpent = 0.0;
         double averageFare = completedRides > 0 ? totalSpent / completedRides : 0.0;
 
         return new RideSummaryDTO(userId, totalRides, completedRides, cancelledRides, totalSpent, averageFare);
@@ -605,17 +610,33 @@ public class RideService {
     public DriverRideSummaryDTO getDriverRideSummary(Long driverId, String startDate, String endDate) {
         List<RideStatus> completedStatuses = List.of(RideStatus.COMPLETED, RideStatus.PAID);
         List<RideStatus> allStatuses = new ArrayList<>(EnumSet.allOf(RideStatus.class));
-        LocalDateTime start = startDate != null ? parseStartDate(startDate) : null;
-        LocalDateTime end = endDate != null ? parseEndDate(endDate) : null;
 
-        long completedRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, completedStatuses, start, end);
-        long totalRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, allStatuses, start, end);
+        long totalRides;
+        long completedRides;
+        Double totalEarnings;
 
-        Double totalEarnings = rideRepository.sumFareByDriverIdAndStatuses(driverId, completedStatuses, start, end);
-        if (totalEarnings == null) totalEarnings = 0.0;
+        if (startDate != null && !startDate.isBlank()
+                && endDate != null && !endDate.isBlank()) {
+            // WITH date range — use dedicated query (no null parameter issue)
+            LocalDateTime start = parseStartDate(startDate);
+            LocalDateTime end = parseEndDate(endDate);
+            totalRides = rideRepository.countRidesByDriverIdAndStatusesAndDateRange(driverId, allStatuses, start, end);
+            completedRides = rideRepository.countRidesByDriverIdAndStatusesAndDateRange(driverId, completedStatuses,
+                    start, end);
+            totalEarnings = rideRepository.sumFareByDriverIdAndStatusesAndDateRange(driverId, completedStatuses, start,
+                    end);
+        } else {
+            // NO date range — use simple query
+            totalRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, allStatuses);
+            completedRides = rideRepository.countRidesByDriverIdAndStatuses(driverId, completedStatuses);
+            totalEarnings = rideRepository.sumFareByDriverIdAndStatuses(driverId, completedStatuses);
+        }
+
+        if (totalEarnings == null)
+            totalEarnings = 0.0;
         double averageFare = completedRides > 0 ? totalEarnings / completedRides : 0.0;
 
-        return new DriverRideSummaryDTO(driverId, totalRides, completedRides, totalEarnings, averageFare);
+        return new DriverRideSummaryDTO(driverId, totalRides, totalEarnings, averageFare);
     }
 
     // GET /api/rides/driver/{driverId}/active-count — called by S2-F4 (§5)
@@ -675,7 +696,8 @@ public class RideService {
     @Transactional
     public Ride markRideStatus(Long rideId, RideStatus newStatus) {
         Ride ride = rideRepository.findById(rideId).orElse(null);
-        if (ride == null || ride.getStatus() == newStatus) return null;
+        if (ride == null || ride.getStatus() == newStatus)
+            return null;
         ride.setStatus(newStatus);
         return rideRepository.save(ride);
     }
