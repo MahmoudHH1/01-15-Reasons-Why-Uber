@@ -163,6 +163,66 @@
         }
       ],
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+    },
+    {
+      "id": 9,
+      "title": "RabbitMQ Publish Rate (driver-service)",
+      "type": "timeseries",
+      "description": "Prometheus — driver-service AMQP publish rate by exchange (driver.events publishers: driver.status-changed, driver.rated, driver.document.verified)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (exchange) (rate(rabbitmq_acknowledged_published_total{job=\"driver-service\"}[5m]))",
+          "legendFormat": "{{exchange}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (exchange) (rate(rabbitmq_failed_to_publish_total{job=\"driver-service\"}[5m]))",
+          "legendFormat": "{{exchange}} failed",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 }
+    },
+    {
+      "id": 10,
+      "title": "RabbitMQ Consumer Throughput — driver.ride.saga-listener",
+      "type": "timeseries",
+      "description": "Prometheus — ride-event consumer rate on driver.ride.saga-listener queue (ride.placed / ride.completed / ride.cancelled handlers)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (queue) (rate(rabbitmq_consumed_total{job=\"driver-service\"}[5m]))",
+          "legendFormat": "consumed {{queue}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (queue) (rate(rabbitmq_acknowledged_total{job=\"driver-service\"}[5m]))",
+          "legendFormat": "acked {{queue}}",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 }
+    },
+    {
+      "id": 11,
+      "title": "RabbitMQ Listener Failures → DLQ (driver-service)",
+      "type": "timeseries",
+      "description": "Prometheus — Spring listener invocations that threw, rate by queue. After max-attempts: 3 the broker routes to driver.ride.saga-listener.dlq via x-dead-letter-exchange.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (queue, exception) (rate(rabbitmq_listener_seconds_count{job=\"driver-service\", result=\"failure\"}[5m]))",
+          "legendFormat": "{{queue}} ({{exception}})",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (queue) (rate(rabbitmq_rejected_total{job=\"driver-service\"}[5m]))",
+          "legendFormat": "rejected {{queue}}",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 }
     }
   ],
   "time": { "from": "now-1h", "to": "now" },

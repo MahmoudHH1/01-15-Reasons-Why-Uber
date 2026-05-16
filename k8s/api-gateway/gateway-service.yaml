@@ -4,10 +4,10 @@ metadata:
   name: api-gateway
   namespace: uber
 spec:
-  type: NodePort        # Only NodePort in the entire cluster — all others are ClusterIP
+  type: NodePort
   selector:
     app: api-gateway
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 30080   # Access from outside: http://$(minikube ip):30080
+      nodePort: 30080
