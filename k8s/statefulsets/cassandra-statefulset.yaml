@@ -46,6 +46,7 @@ spec:
                 - "cqlsh -e 'DESCRIBE KEYSPACES'"
             initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 30
           livenessProbe:
             exec:
               command:
@@ -54,6 +55,7 @@ spec:
                 - "cqlsh -e 'DESCRIBE KEYSPACES'"
             initialDelaySeconds: 120
             periodSeconds: 30
+            timeoutSeconds: 30
           volumeMounts:
             - name: cassandra-data
               mountPath: /var/lib/cassandra

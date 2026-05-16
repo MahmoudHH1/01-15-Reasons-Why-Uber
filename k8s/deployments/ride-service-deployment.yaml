@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: ride-service
-          image: ride-service:latest
-          imagePullPolicy: Never
+          image: ride-service:fixed-v1
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           envFrom:
@@ -31,19 +31,21 @@ spec:
                   name: jwt-secret
                   key: jwt-secret
           resources:
+            requests:
+              memory: 384Mi
             limits:
               memory: 768Mi
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 300
             periodSeconds: 30
             timeoutSeconds: 5

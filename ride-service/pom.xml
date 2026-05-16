@@ -169,23 +169,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
-        <!-- Actuator (§11) — /actuator/health for K8s probes,               -->
-        <!-- /actuator/prometheus for Prometheus scraping                     -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
         <!-- Loki4J (§11.1) — structured log shipping to Loki -->
         <dependency>
             <groupId>com.github.loki4j</groupId>
             <artifactId>loki-logback-appender</artifactId>
-            <version>1.5.1</version>
+            <version>2.0.0</version>
         </dependency>
-
     </dependencies>
 
     <build>
