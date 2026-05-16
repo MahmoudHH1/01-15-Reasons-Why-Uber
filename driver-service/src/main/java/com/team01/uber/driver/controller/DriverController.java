@@ -135,10 +135,11 @@ public class DriverController {
     }
     @PostMapping("/{id}/rate")
     public ResponseEntity<Driver> rateDriver(@PathVariable Long id,
-                                             @Valid @RequestBody RateDriverRequest request) {
-        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating());
+                                             @Valid @RequestBody RateDriverRequest request,
+                                             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        Driver updated = driverService.rateDriver(id, request.getRideId(), request.getRating(), userId);
         return ResponseEntity.ok(updated);
-                                             }
+    }
     @GetMapping("/{id}/earnings")
     public DriverEarningsDTO getEarningsSummary(@PathVariable Long id,
                                                 @RequestParam LocalDate startDate,
