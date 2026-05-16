@@ -164,6 +164,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/uberdb-users
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: redispass
       SPRING_RABBITMQ_HOST: rabbitmq
     ports:
       - "8081:8080"
@@ -172,9 +176,10 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-      rabbitmq:                             
-        condition: service_healthy  
-
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
   driver-service:
     build:
       context: .
