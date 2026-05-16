@@ -29,6 +29,9 @@ public class PaymentEventConsumer {
     public void handle(Message message) {
         String routingKey = message.getMessageProperties().getReceivedRoutingKey();
         String body = new String(message.getBody());
+        Object correlationIdHeader = message.getMessageProperties().getHeaders().get("correlationId");
+        String correlationId = correlationIdHeader != null ? correlationIdHeader.toString() : "";
+        MDC.put("correlationId", correlationId);
         MDC.put("routingKey", routingKey);
         try {
             if (PaymentEventConfig.ROUTING_RIDE_COMPLETED.equals(routingKey)) {
@@ -44,6 +47,7 @@ public class PaymentEventConsumer {
             log.error("Failed to process {}: {}", routingKey, e.getMessage());
             throw new RuntimeException(e);
         } finally {
+            MDC.remove("correlationId");
             MDC.remove("routingKey");
         }
     }

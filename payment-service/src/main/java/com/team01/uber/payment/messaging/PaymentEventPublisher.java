@@ -8,6 +8,7 @@ import com.team01.uber.payment.config.PaymentEventConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -22,13 +23,24 @@ public class PaymentEventPublisher {
         this.rabbitTemplate = rabbitTemplate;
     }
 
+    private MessagePostProcessor correlationIdPostProcessor() {
+        String correlationId = MDC.get("correlationId");
+        return msg -> {
+            if (correlationId != null) {
+                msg.getMessageProperties().getHeaders().put("correlationId", correlationId);
+            }
+            return msg;
+        };
+    }
+
     public void publishInitiated(PaymentInitiatedEvent event) {
         MDC.put("routingKey", PaymentEventConfig.ROUTING_PAYMENT_INITIATED);
         try {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
                     PaymentEventConfig.ROUTING_PAYMENT_INITIATED,
-                    event);
+                    event,
+                    correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_INITIATED, event.paymentId());
         } finally {
             MDC.remove("routingKey");
@@ -41,7 +53,8 @@ public class PaymentEventPublisher {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
                     PaymentEventConfig.ROUTING_PAYMENT_COMPLETED,
-                    event);
+                    event,
+                    correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_COMPLETED, event.paymentId());
         } finally {
             MDC.remove("routingKey");
@@ -54,7 +67,8 @@ public class PaymentEventPublisher {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
                     PaymentEventConfig.ROUTING_PAYMENT_FAILED,
-                    event);
+                    event,
+                    correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_FAILED, event.paymentId());
         } finally {
             MDC.remove("routingKey");
@@ -67,7 +81,8 @@ public class PaymentEventPublisher {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
                     PaymentEventConfig.ROUTING_PAYMENT_REFUNDED,
-                    event);
+                    event,
+                    correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_REFUNDED, event.paymentId());
         } finally {
             MDC.remove("routingKey");
