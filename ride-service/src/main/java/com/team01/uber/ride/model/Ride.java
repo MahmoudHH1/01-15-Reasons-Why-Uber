@@ -40,7 +40,7 @@ public class Ride {
     private Double dropoffLongitude;
 
     @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    //@JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)
     private RideStatus status;
 

@@ -98,6 +98,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- ── M3: RabbitMQ (Spring AMQP — publishers + consumers) ── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- ── M3: Actuator (Prometheus metrics) ── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

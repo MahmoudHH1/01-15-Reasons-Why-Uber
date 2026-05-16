@@ -7,8 +7,7 @@ public class TokenExtractionHandler extends AuthHandler {
     protected boolean process(AuthContext ctx) throws Exception {
         String authHeader = ctx.getRequest().getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            ctx.getResponse().getWriter().write("Missing or malformed Authorization header");
+            // Do not set 401 here, just return false to let the next handler or Spring Security handle it
             return false;
         }
         ctx.setToken(authHeader.substring(7));

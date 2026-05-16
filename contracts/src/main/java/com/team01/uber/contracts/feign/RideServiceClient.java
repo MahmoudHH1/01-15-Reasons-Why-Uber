@@ -35,4 +35,7 @@ public interface RideServiceClient {
 
     @GetMapping("/api/rides/driver/{driverId}/stats")
     DriverRideSummaryDTO getDriverStats(@PathVariable("driverId") Long driverId);
+
+    @GetMapping("/api/rides/driver/{driverId}/completed-count")
+    long getDriverCompletedRideCount(@PathVariable("driverId") Long driverId);
 }
