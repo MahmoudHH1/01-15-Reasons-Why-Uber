@@ -50,10 +50,17 @@ jwt:
   expiration: 86400000
 
 feign:
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
   ride-service:
     url: ${FEIGN_RIDE_SERVICE_URL:http://ride-service:8080}
   payment-service:
     url: ${FEIGN_PAYMENT_SERVICE_URL:http://payment-service:8080}
+  driver-service:
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+  location-service:
+    url: ${FEIGN_LOCATION_SERVICE_URL:http://location-service:8080}
+
 
 management:
   endpoints:

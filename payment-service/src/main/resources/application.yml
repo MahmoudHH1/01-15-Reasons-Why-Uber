@@ -30,6 +30,19 @@ spring:
       port: 6379
       password: redispass
 
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+
 feign:
   user-service:
     url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
