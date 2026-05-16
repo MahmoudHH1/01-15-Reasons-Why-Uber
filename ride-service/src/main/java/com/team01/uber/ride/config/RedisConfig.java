@@ -4,14 +4,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.micrometer.core.instrument.FunctionCounter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.interceptor.SimpleCacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -130,5 +135,23 @@ public class RedisConfig implements CachingConfigurer {
                 .withInitialCacheConfigurations(cacheConfigs)
                 .enableStatistics()
                 .build();
+    }
+
+    @Bean
+    public SmartInitializingSingleton bindRedisCachesToRegistry(MeterRegistry registry,
+                                                                RedisCacheManager cacheManager) {
+        return () -> cacheManager.getCacheNames().forEach(name -> {
+            RedisCache cache = (RedisCache) cacheManager.getCache(name);
+            if (cache == null) return;
+            Tags base = Tags.of("cache", name);
+            FunctionCounter.builder("cache.gets", cache, c -> c.getStatistics().getHits())
+                    .tags(base.and("result", "hit")).register(registry);
+            FunctionCounter.builder("cache.gets", cache, c -> c.getStatistics().getMisses())
+                    .tags(base.and("result", "miss")).register(registry);
+            FunctionCounter.builder("cache.puts", cache, c -> c.getStatistics().getPuts())
+                    .tags(base).register(registry);
+            FunctionCounter.builder("cache.evictions", cache, c -> c.getStatistics().getDeletes())
+                    .tags(base).register(registry);
+        });
     }
 }
