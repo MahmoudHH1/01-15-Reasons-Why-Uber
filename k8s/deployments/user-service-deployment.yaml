@@ -29,7 +29,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: user-postgres-secret
-              key: password
+              key: POSTGRES_PASSWORD
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
