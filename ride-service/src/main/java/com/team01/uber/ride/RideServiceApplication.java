@@ -7,11 +7,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
 @EnableCaching
-@EnableFeignClients(clients = {
-    com.team01.uber.contracts.feign.DriverServiceClient.class,
-    com.team01.uber.contracts.feign.LocationServiceClient.class,
-    com.team01.uber.contracts.feign.UserServiceClient.class
-})
+@EnableFeignClients(basePackages = "com.team01.uber.contracts.feign")
+
 public class RideServiceApplication {
 
     public static void main(String[] args) {

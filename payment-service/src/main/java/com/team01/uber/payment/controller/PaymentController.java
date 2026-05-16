@@ -11,6 +11,7 @@ import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
 import com.team01.uber.payment.service.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,10 +56,10 @@ public class PaymentController {
     }
 
     @GetMapping("/user/{userId}/summary")
-    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
-        log.info("Received GET /api/payments/user/{}/summary", userId);
+    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         UserPaymentSummaryDTO result = paymentService.getUserPaymentSummary(userId);
-        log.info("Returning 200 for GET /api/payments/user/{}/summary", userId);
+        log.info("Returning {} for {} {}", 200, request.getMethod(), request.getRequestURI());
         return result;
     }
 
@@ -66,10 +67,11 @@ public class PaymentController {
     public ResponseEntity<BigDecimal> getUserPaymentTotal(
             @PathVariable Long userId,
             @RequestParam String startDate,
-            @RequestParam String endDate) {
-        log.info("Received GET /api/payments/user/{}/total", userId);
+            @RequestParam String endDate,
+            HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         ResponseEntity<BigDecimal> response = ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, parseStartDate(startDate), parseEndDate(endDate)));
-        log.info("Returning 200 for GET /api/payments/user/{}/total", userId);
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
         return response;
     }
 
@@ -85,42 +87,42 @@ public class PaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<Payment> createPayment(@RequestBody Payment payment) {
-        log.info("Received POST /api/payments");
+    public ResponseEntity<Payment> createPayment(@RequestBody Payment payment, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
-        log.info("Returning 201 for POST /api/payments");
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
         return response;
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Payment> getPaymentById(@PathVariable Long id) {
-        log.info("Received GET /api/payments/{}", id);
+    public ResponseEntity<Payment> getPaymentById(@PathVariable Long id, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.getPaymentById(id));
-        log.info("Returning 200 for GET /api/payments/{}", id);
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
         return response;
     }
 
     @GetMapping
-    public ResponseEntity<List<Payment>> getAllPayments() {
-        log.info("Received GET /api/payments");
+    public ResponseEntity<List<Payment>> getAllPayments(HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         ResponseEntity<List<Payment>> response = ResponseEntity.ok(paymentService.getAllPayments());
-        log.info("Returning 200 for GET /api/payments");
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
         return response;
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment) {
-        log.info("Received PUT /api/payments/{}", id);
+    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.updatePayment(id, payment));
-        log.info("Returning 200 for PUT /api/payments/{}", id);
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
         return response;
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
-        log.info("Received DELETE /api/payments/{}", id);
+    public ResponseEntity<Void> deletePayment(@PathVariable Long id, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         paymentService.deletePayment(id);
-        log.info("Returning 204 for DELETE /api/payments/{}", id);
+        log.info("Returning {} for {} {}", 204, request.getMethod(), request.getRequestURI());
         return ResponseEntity.noContent().build();
     }
 
@@ -190,11 +192,12 @@ public class PaymentController {
     public ResponseEntity<Payment> processPaymentForRide(
             @PathVariable Long rideId,
             @Valid @RequestBody ProcessPaymentRequest request,
-            @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
-        log.info("Received POST /api/payments/ride/{}", rideId);
+            @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure,
+            HttpServletRequest httpRequest) {
+        log.info("Received {} {}", httpRequest.getMethod(), httpRequest.getRequestURI());
         ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
-        log.info("Returning 201 for POST /api/payments/ride/{}", rideId);
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), httpRequest.getMethod(), httpRequest.getRequestURI());
         return response;
     }
 

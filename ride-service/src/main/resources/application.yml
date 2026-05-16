@@ -48,16 +48,15 @@ server:
 jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
-
 feign:
-  driver-service:
-    url: http://driver-service:8080
   user-service:
-    url: http://user-service:8080
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
+  driver-service:
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
   location-service:
-    url: http://location-service:8080
+    url: ${FEIGN_LOCATION_SERVICE_URL:http://location-service:8080}
   payment-service:
-    url: http://payment-service:8080
+    url: ${FEIGN_PAYMENT_SERVICE_URL:http://payment-service:8080}
 
 management:
   endpoints:
