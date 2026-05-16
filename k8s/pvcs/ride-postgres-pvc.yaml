@@ -1,0 +1,2 @@
+# Removed unused standalone PVC.
+# PostgreSQL storage is provisioned by the StatefulSet via volumeClaimTemplates.

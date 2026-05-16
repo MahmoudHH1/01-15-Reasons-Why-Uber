@@ -36,10 +36,17 @@ spec:
             exec:
               command:
                 - mongosh
+                - --username
+                - root
+                - --password
+                - rootpass
+                - --authenticationDatabase
+                - admin
                 - --quiet
                 - --eval
                 - "db.adminCommand('ping').ok"
             initialDelaySeconds: 20
+            timeoutSeconds: 10
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 5
@@ -47,10 +54,17 @@ spec:
             exec:
               command:
                 - mongosh
+                - --username
+                - root
+                - --password
+                - rootpass
+                - --authenticationDatabase
+                - admin
                 - --quiet
                 - --eval
                 - "db.adminCommand('ping').ok"
             initialDelaySeconds: 20
+            timeoutSeconds: 10
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 3

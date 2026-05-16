@@ -4,6 +4,7 @@ import com.team01.uber.contracts.dto.UserDTO;
 import com.team01.uber.contracts.feign.UserServiceClient;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
+import com.team01.uber.driver.messaging.DriverEventPublisher;
 import com.team01.uber.driver.model.Driver;
 import com.team01.uber.driver.model.DriverDocument;
 import com.team01.uber.driver.observer.EntityObserver;
@@ -38,18 +39,21 @@ public class DriverDocumentService {
     private final CacheInvalidator cacheInvalidator;
     private final MongoEventLogger mongoEventLogger;
     private final UserServiceClient userServiceClient;
+    private final DriverEventPublisher driverEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
     public DriverDocumentService(DriverDocumentRepository driverDocumentRepository,
                                  DriverService driverService,
                                  CacheInvalidator cacheInvalidator,
                                  MongoEventLogger mongoEventLogger,
-                                 UserServiceClient userServiceClient) {
+                                 UserServiceClient userServiceClient,
+                                 DriverEventPublisher driverEventPublisher) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
         this.cacheInvalidator = cacheInvalidator;
         this.mongoEventLogger = mongoEventLogger;
         this.userServiceClient = userServiceClient;
+        this.driverEventPublisher = driverEventPublisher;
     }
 
     @PostConstruct
@@ -172,6 +176,8 @@ public class DriverDocumentService {
         cacheInvalidator.deleteKey("driver-service::driver-document::" + documentId);
         cacheInvalidator.deleteEntity("driver", driverId);
         invalidateDocumentFeatureCaches();
+
+        driverEventPublisher.publishDocumentVerified(driverId, documentId, verifiedBy);
 
         // initialize the lazy collection within the transaction before returning
         driver.getDriverDocuments().size();

@@ -30,7 +30,25 @@
         <java.version>25</java.version>
         <jjwt.version>0.12.6</jjwt.version>
     </properties>
+
+    <!-- ── M3 Addition: Spring Cloud BOM (§2.1) ──────────────────────────── -->
+    <!-- Required to resolve spring-cloud-starter-openfeign without           -->
+    <!-- specifying an explicit version. Compatible with Spring Boot 3.4.x.   -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.1.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+
+        <!-- ── M1/M2 unchanged ───────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -134,6 +152,30 @@
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- OpenFeign (§2.1) — brings @FeignClient, @EnableFeignClients,    -->
+        <!-- Spring Cloud auto-config, and feign.RequestInterceptor           -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <!-- Actuator (§11) — /actuator/health for K8s probes,               -->
+        <!-- /actuator/prometheus for Prometheus scraping                     -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <!-- Loki4J (§11.1) — structured log shipping to Loki -->
+        <dependency>
+            <groupId>com.github.loki4j</groupId>
+            <artifactId>loki-logback-appender</artifactId>
+            <version>1.5.1</version>
+        </dependency>
+
     </dependencies>
 
     <build>
