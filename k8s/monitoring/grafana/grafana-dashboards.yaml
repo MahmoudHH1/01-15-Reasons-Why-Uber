@@ -412,12 +412,12 @@ data:
           "fieldConfig": { "defaults": { "unit": "mps" } },
           "targets": [
             {
-              "expr": "sum(rate(spring_rabbitmq_template_seconds_count{job=\"ride-service\"}[1m]))",
+              "expr": "sum(rate(spring_rabbit_template_seconds_count{job=\"ride-service\"}[1m]))",
               "legendFormat": "published/s",
               "refId": "A"
             },
             {
-              "expr": "sum(rate(spring_rabbitmq_listener_seconds_count{job=\"ride-service\"}[1m]))",
+              "expr": "sum(rate(spring_rabbit_listener_seconds_count{job=\"ride-service\"}[1m]))",
               "legendFormat": "consumed/s",
               "refId": "B"
             }
