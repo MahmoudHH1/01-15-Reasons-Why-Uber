@@ -163,7 +163,7 @@ echo "$STATUS_PAYLOAD" | grep -q "\"driverId\":$DRIVER_ID" && report "(F4-3) pay
 echo "$STATUS_PAYLOAD" | grep -q "\"newStatus\":\"OFFLINE\"" && report "(F4-4) payload newStatus=OFFLINE" 1 || report "(F4-4) payload newStatus" 0 "$STATUS_PAYLOAD"
 echo "$STATUS_PAYLOAD" | grep -q "\"oldStatus\":\"AVAILABLE\"" && report "(F4-5) payload oldStatus=AVAILABLE" 1 || report "(F4-5) payload oldStatus" 0 "$STATUS_PAYLOAD"
 
-MONGO_AUD=$(mongo_eval "db.driver_events.countDocuments({action:'AVAILABILITY_UPDATED','params.driverId':$DRIVER_ID})" | tail -1 | tr -d '\r')
+MONGO_AUD=$(mongo_eval "db.driver_events.countDocuments({action:'AVAILABILITY_UPDATED',driverId:$DRIVER_ID})" | tail -1 | tr -d '\r')
 [ "$MONGO_AUD" = "1" ] && report "(F4-6) Mongo AVAILABILITY_UPDATED audit written" 1 || report "(F4-6) Mongo audit" 0 "count=$MONGO_AUD"
 
 # ── 8. F4 boundary: invalid status → 400 ──────────────────────────────
@@ -266,6 +266,69 @@ TCR_AFTER=$(echo "$DRIVER_AFTER" | python3 -c "import sys,json;print(json.load(s
                             || report "(C-8b) ride.cancelled status=BUSY → AVAILABLE" 0 "status=$STATUS"
 [ "$TCR_AFTER" = "$TCR_BEFORE" ] && report "(C-8c) tcr unchanged when reversing from BUSY" 1 \
                                 || report "(C-8c) tcr unchanged when reversing from BUSY" 0 "before=$TCR_BEFORE after=$TCR_AFTER"
+
+# ── 15b. ride.cancelled AVAILABLE branch reverses stats (1st delivery) ──
+echo
+echo "=== Consumer: ride.cancelled (status=AVAILABLE, prior earnings) → reverse stats ==="
+# RIDE_ID was completed earlier (C-3..C-5) → tcr was incremented to 1.
+# Driver is AVAILABLE again (after C-8b). AVAILABLE-branch should fire and reverse.
+DRIVER_PRE=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN")
+TCR_PRE=$(echo "$DRIVER_PRE" | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+publish_event "ride.cancelled" "com.team01.uber.contracts.events.RideCancelledEvent" \
+  "{\"rideId\":$RIDE_ID,\"userId\":1,\"driverId\":$DRIVER_ID,\"reason\":\"payment_failed\"}" >/dev/null
+sleep 1.5
+DRIVER_POST=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN")
+TCR_POST=$(echo "$DRIVER_POST" | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+REVERSED_LIST=$(echo "$DRIVER_POST" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('reversedRideIds',[]))" 2>/dev/null)
+EXPECTED_TCR=$((TCR_PRE - 1))
+[ "$TCR_POST" = "$EXPECTED_TCR" ] && report "(C-9a) ride.cancelled AVAILABLE branch decremented tcr by 1" 1 \
+                                  || report "(C-9a) ride.cancelled AVAILABLE branch decremented tcr by 1" 0 "pre=$TCR_PRE post=$TCR_POST"
+echo "$REVERSED_LIST" | grep -q "$RIDE_ID" && report "(C-9b) reversedRideIds tracks rideId=$RIDE_ID" 1 \
+                                            || report "(C-9b) reversedRideIds tracks rideId=$RIDE_ID" 0 "got $REVERSED_LIST"
+
+# ── 15c. Idempotency: duplicate ride.cancelled (AVAILABLE branch) → skip ──
+publish_event "ride.cancelled" "com.team01.uber.contracts.events.RideCancelledEvent" \
+  "{\"rideId\":$RIDE_ID,\"userId\":1,\"driverId\":$DRIVER_ID,\"reason\":\"payment_failed\"}" >/dev/null
+sleep 1.5
+TCR_DUP=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+[ "$TCR_DUP" = "$TCR_POST" ] && report "(C-10a) duplicate ride.cancelled AVAILABLE: tcr unchanged" 1 \
+                             || report "(C-10a) duplicate ride.cancelled AVAILABLE: tcr unchanged" 0 "post=$TCR_POST dup=$TCR_DUP"
+
+# Triple delivery — guard must hold for arbitrary re-delivery counts
+publish_event "ride.cancelled" "com.team01.uber.contracts.events.RideCancelledEvent" \
+  "{\"rideId\":$RIDE_ID,\"userId\":1,\"driverId\":$DRIVER_ID,\"reason\":\"payment_failed\"}" >/dev/null
+sleep 1.5
+TCR_TRIP=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+[ "$TCR_TRIP" = "$TCR_POST" ] && report "(C-10b) triple ride.cancelled AVAILABLE: still no further reversal" 1 \
+                              || report "(C-10b) triple ride.cancelled AVAILABLE: still no further reversal" 0 "post=$TCR_POST trip=$TCR_TRIP"
+
+# ── 15d. Fresh rideId should still be reversible (guard is per-rideId, not global)
+echo
+echo "=== Consumer: distinct rideId not blocked by prior reversal ==="
+# Bump driver back to BUSY then complete a fresh ride, then cancel — verify the new
+# rideId reverses correctly and isn't blocked by RIDE_ID being in reversedRideIds.
+RIDE_ID3=$((RANDOM * 1000 + 3))
+publish_event "ride.placed" "com.team01.uber.contracts.events.RidePlacedEvent" \
+  "{\"rideId\":$RIDE_ID3,\"userId\":1,\"driverId\":$DRIVER_ID}" >/dev/null
+sleep 1.5
+publish_event "ride.completed" "com.team01.uber.contracts.events.RideCompletedEvent" \
+  "{\"rideId\":$RIDE_ID3,\"userId\":1,\"driverId\":$DRIVER_ID,\"fare\":10.0}" >/dev/null
+sleep 1.5
+TCR_PRE3=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+publish_event "ride.cancelled" "com.team01.uber.contracts.events.RideCancelledEvent" \
+  "{\"rideId\":$RIDE_ID3,\"userId\":1,\"driverId\":$DRIVER_ID,\"reason\":\"payment_failed\"}" >/dev/null
+sleep 1.5
+DRIVER_FRESH=$(curl -s "$DRIVER_SVC/api/drivers/$DRIVER_ID" -H "Authorization: Bearer $TOKEN")
+TCR_FRESH=$(echo "$DRIVER_FRESH" | python3 -c "import sys,json;print(json.load(sys.stdin).get('totalCompletedRides',0))" 2>/dev/null)
+REVERSED_FRESH=$(echo "$DRIVER_FRESH" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('reversedRideIds',[]))" 2>/dev/null)
+EXPECTED_FRESH=$((TCR_PRE3 - 1))
+[ "$TCR_FRESH" = "$EXPECTED_FRESH" ] && report "(C-11a) fresh rideId still reverses (guard is per-rideId)" 1 \
+                                     || report "(C-11a) fresh rideId still reverses" 0 "pre=$TCR_PRE3 post=$TCR_FRESH"
+echo "$REVERSED_FRESH" | grep -q "$RIDE_ID3" && report "(C-11b) reversedRideIds now contains RIDE_ID3=$RIDE_ID3" 1 \
+                                              || report "(C-11b) reversedRideIds contains fresh rideId" 0 "got $REVERSED_FRESH"
 
 # ── 16. S2-F7 rating bounds: rating > 5 → 400 ──────────────────────────
 echo
