@@ -5,7 +5,6 @@ import com.team01.uber.contracts.events.RideCompletedEvent;
 import com.team01.uber.contracts.events.RidePlacedEvent;
 import com.team01.uber.driver.config.DriverEventConfig;
 import com.team01.uber.driver.service.DriverService;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,19 +26,10 @@ import static org.mockito.Mockito.verify;
 /**
  * §15 Bonus item (2) — Testcontainers RabbitMQ consumer integration test for driver-service.
  *
- * Verifies that ride.placed/.completed/.cancelled events delivered over a real
- * RabbitMQ broker invoke the corresponding DriverService.handleRide* methods.
- * DriverService is @MockitoBean-replaced so the test stays focused on consumer
- * dispatch and payload routing.
- *
- * Currently @Disabled — driver-service's @SpringBootTest context also boots
- * Elasticsearch (DriverIndexerService, DriverSearchEsRepository, the
- * spring-boot-starter-data-elasticsearch auto-config). Loading that without a
- * reachable ES backend kills the context with HTTP-connection failures during
- * health-check. The fix is to either:
- *   (a) add an Elasticsearch Testcontainer alongside RabbitMQ, or
- *   (b) exclude the ES auto-config and @MockitoBean the ES-dependent beans.
- * Both are mechanical follow-ups that fit cleanly on this template.
+ * Real RabbitMQ via Testcontainers; DriverService is @MockitoBean-replaced so we
+ * focus on consumer dispatch + payload routing. The Elasticsearch-related beans
+ * (DriverIndexerService, DriverSearchEsRepository) are mocked AND the four ES
+ * Spring Boot auto-configs are excluded — no real ES backend required.
  */
 @SpringBootTest(properties = {
         "spring.cloud.discovery.enabled=false",
@@ -53,18 +43,22 @@ import static org.mockito.Mockito.verify;
         "spring.sql.init.mode=never",
         "spring.data.mongodb.uri=mongodb://localhost:27017/test",
         "spring.data.redis.host=localhost",
-        "spring.elasticsearch.uris=http://localhost:9200",
         "feign.user-service.url=http://localhost:1",
-        "feign.ride-service.url=http://localhost:1"
+        "feign.ride-service.url=http://localhost:1",
+        // String-based auto-config exclusion — avoids Spring Boot 4 package-shuffle
+        // brittleness around ES auto-config classes. Anything matching these names
+        // in the AutoConfiguration.imports is skipped, no class-import needed.
+        "spring.autoconfigure.exclude=" +
+                "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration," +
+                "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration," +
+                "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration," +
+                "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration," +
+                "org.springframework.boot.data.elasticsearch.autoconfigure.DataElasticsearchAutoConfiguration," +
+                "org.springframework.boot.data.elasticsearch.autoconfigure.DataElasticsearchRepositoriesAutoConfiguration," +
+                "org.springframework.boot.elasticsearch.autoconfigure.ElasticsearchClientAutoConfiguration," +
+                "org.springframework.boot.elasticsearch.autoconfigure.ElasticsearchRestClientAutoConfiguration"
 })
 @Testcontainers
-@Disabled("""
-    Pending an Elasticsearch Testcontainer (or auto-config exclusion).
-    driver-service boots spring-boot-starter-data-elasticsearch and tries to
-    connect to spring.elasticsearch.uris at context load; without a reachable
-    ES the context never starts. Follow-up: add ElasticsearchContainer to this
-    test class or exclude the auto-config + @MockitoBean the ES-dependent beans.
-    """)
 class DriverRideEventConsumerIT {
 
     @Container
@@ -77,6 +71,14 @@ class DriverRideEventConsumerIT {
 
     @MockitoBean
     private DriverService driverService;
+
+    // ES-backed collaborators that DriverService normally autowires from the
+    // (now-excluded) ES auto-config. Mocked so the context boots cleanly.
+    @MockitoBean
+    private com.team01.uber.driver.repository.DriverSearchEsRepository driverSearchEsRepository;
+
+    @MockitoBean
+    private com.team01.uber.driver.service.DriverIndexerService driverIndexerService;
 
     @Test
     void ridePlaced_overTheWire_invokesHandleRidePlaced() {

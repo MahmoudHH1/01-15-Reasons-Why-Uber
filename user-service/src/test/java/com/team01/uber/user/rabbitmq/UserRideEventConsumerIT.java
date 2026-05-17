@@ -4,18 +4,12 @@ import com.team01.uber.user.config.RabbitMQConsumerConfig;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.repository.UserRepository;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
-import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -30,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,12 +45,6 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(properties = {
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.compatibility-verifier.enabled=false",
-        // user-service's RabbitMQConsumerConfig hardcodes the connection factory
-        // host to "rabbitmq" (a real M3 spec violation — environment is ignored).
-        // Bean-definition-override + a @Primary @TestConfiguration bean lets us
-        // route this IT through the Testcontainers broker without changing
-        // production code.
-        "spring.main.allow-bean-definition-overriding=true",
         "spring.datasource.url=jdbc:h2:mem:usertest;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
@@ -69,37 +58,12 @@ import static org.mockito.Mockito.when;
         "feign.payment-service.url=http://localhost:1"
 })
 @Testcontainers
-@Import(UserRideEventConsumerIT.TestRabbitConfig.class)
-@Disabled("""
-    user-service/config/RabbitMQConsumerConfig.java:49 hardcodes
-    factory.setHost("rabbitmq"). A test @Primary CachingConnectionFactory
-    overrides bean lookup but the @RabbitListener container still picks
-    the original host from the bound ConnectionFactory at listener-start
-    time, so the consumer never connects to the Testcontainer broker.
-
-    Fix the production bean to read host/port/credentials from the
-    environment (matches the §2 inter-service config rule) and remove
-    this @Disabled. The test body itself is correct.
-    """)
 class UserRideEventConsumerIT {
 
     @Container
+    @ServiceConnection
     static RabbitMQContainer rabbit =
             new RabbitMQContainer(DockerImageName.parse("rabbitmq:3-management"));
-
-    @TestConfiguration
-    static class TestRabbitConfig {
-        @Bean
-        @Primary
-        public ConnectionFactory connectionFactory() {
-            CachingConnectionFactory cf = new CachingConnectionFactory();
-            cf.setHost(rabbit.getHost());
-            cf.setPort(rabbit.getAmqpPort());
-            cf.setUsername(rabbit.getAdminUsername());
-            cf.setPassword(rabbit.getAdminPassword());
-            return cf;
-        }
-    }
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -161,7 +125,9 @@ class UserRideEventConsumerIT {
 
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
                 verify(userRepository, times(1)).findById(9999L));
-        verify(userRepository, never()).save(any());
+        // Scope the never() to userId=9999 to avoid cross-test mock pollution
+        // (Spring context + @MockitoBean is shared across @Test methods).
+        verify(userRepository, never()).save(argThat(u -> u != null && Long.valueOf(9999L).equals(u.getId())));
     }
 
     private static User activeUser(Long id, Long totalRides, Double totalSpent) {

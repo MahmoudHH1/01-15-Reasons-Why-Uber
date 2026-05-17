@@ -1,9 +1,9 @@
 package com.team01.uber.user.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 
 /**
  * RabbitMQ consumer topology for user-service.
@@ -43,14 +43,24 @@ public class RabbitMQConsumerConfig {
     public static final String RIDE_EVENTS_EXCHANGE = "ride.events";
 
 
+    // ConnectionFactory comes from Spring Boot auto-config, which binds
+    // spring.rabbitmq.host/port/username/password from application.yml
+    // (env-driven via ${SPRING_RABBITMQ_HOST:rabbitmq}). Aligned with the
+    // ride/driver/location/payment-service pattern — none of them declare
+    // a custom CF bean. Per §2 inter-service config, the environment is
+    // the source of truth so the same image boots in compose, MiniKube, and
+    // local-dev unchanged.
+
+    /**
+     * JSON message converter — aligned with ride/location/payment-service.
+     * Required to deserialize the JSON payloads ride-service publishes
+     * (ride.completed, ride.cancelled). Without this bean, Spring AMQP
+     * falls back to SimpleMessageConverter (Java native serialization) and
+     * blocks every inbound message with SecurityException on HashMap.
+     */
     @Bean
-    public CachingConnectionFactory connectionFactory() {
-        CachingConnectionFactory factory = new CachingConnectionFactory();
-        factory.setHost("rabbitmq");
-        factory.setPort(5672);
-        factory.setUsername("guest");
-        factory.setPassword("guest");
-        return factory;
+    public Jackson2JsonMessageConverter messageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 
     /**
