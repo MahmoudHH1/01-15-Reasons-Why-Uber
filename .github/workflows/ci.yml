@@ -89,3 +89,10 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/01-15-reasons-why-uber/${{ matrix.service }}:latest
             ghcr.io/${{ github.repository_owner }}/01-15-reasons-why-uber/${{ matrix.service }}:${{ github.sha }}
+
+  docker-done:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
+      - run: echo "all docker builds complete"
