@@ -97,18 +97,18 @@ git fetch origin
 git checkout feat/M3/cc/bonus-testing-suite/55-24853
 ```
 
-### Run the whole bonus suite in one command (38 tests across all 5 services, ~2 minutes)
+### Run the whole bonus suite in one command (44 tests across all 5 services, ~3 minutes)
 
 Needs Docker Desktop running (the Testcontainers ITs pull `rabbitmq:3-management` + `redis:7-alpine`).
 
 ```powershell
 mvn -pl user-service,driver-service,ride-service,location-service,payment-service -am `
-  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
+  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,UserRideEventConsumerIT,DriverRideEventConsumerIT,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
   "-Dsurefire.failIfNoSpecifiedTests=false" `
   test
 ```
 
-Expected: `BUILD SUCCESS` with the seven test classes reporting 9 + 4 + 4 + 6 + 6 + 3 + 6 = **38 tests, 0 failures**.
+Expected: `BUILD SUCCESS` with the nine test classes reporting 9 + 4 + 4 + 6 + 6 + 3 + 3 + 3 + 6 = **44 tests, 0 failures**.
 
 | Test class | Service | Tests | What it covers |
 |---|---|---|---|
@@ -117,6 +117,8 @@ Expected: `BUILD SUCCESS` with the seven test classes reporting 9 + 4 + 4 + 6 + 
 | `PaymentServiceFeignTest` | payment | 4 | S5-F9 summary — UserServiceClient existence check |
 | `RideServiceSagaPrechecksTest` | ride | 6 | S3-F4 completeRide §8.3 3-Feign pre-check matrix |
 | `PaymentEventConsumerSagaTest` | ride | 6 | §15.3 saga E2E — `payment.failed` → compensation cascade |
+| `UserRideEventConsumerIT` | user | 3 | Testcontainers IT — `ride.completed/.cancelled` over real AMQP, asserts userRepository.save argument captured |
+| `DriverRideEventConsumerIT` | driver | 3 | Testcontainers IT — `ride.placed/.completed/.cancelled` over real AMQP, ES auto-config excluded |
 | `PaymentRideEventConsumerIT` | payment | 3 | Testcontainers IT — `ride.completed/.cancelled` over real AMQP |
 | `LocationRideSagaConsumerIT` | location | 6 | Testcontainers IT — full ride lifecycle + redelivery idempotency |
 
@@ -125,20 +127,18 @@ Or split it into a one-time refresh + a no-`-am` filter command:
 ```powershell
 mvn install -DskipTests
 mvn -pl user-service,driver-service,ride-service,location-service,payment-service `
-  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
+  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,UserRideEventConsumerIT,DriverRideEventConsumerIT,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
   test
 ```
 
-### `@Disabled` ITs (template ready, blocked by separate concerns)
+### Prod-side fixes landed alongside the ITs
 
-Two ITs are in place but `@Disabled` with explicit follow-up notes:
+Two integration tests needed adjacent production code adjusted to align with the rest of the codebase:
 
-| Test class | Blocker |
+| Service | Fix |
 |---|---|
-| `user-service/.../UserRideEventConsumerIT` | `RabbitMQConsumerConfig.java:49` hardcodes `factory.setHost("rabbitmq")` — ignores environment. Bean-override at test scope doesn't propagate to the listener container's bound CF. Fix prod bean → remove `@Disabled`. |
-| `driver-service/.../DriverRideEventConsumerIT` | `@SpringBootTest` boots `spring-boot-starter-data-elasticsearch`; without a reachable ES backend the context dies at load. Add an `ElasticsearchContainer` to the test class or exclude the ES auto-config + `@MockitoBean` the ES-dependent beans. |
-
-Both follow-ups are mechanical and fit the same template once the production-side or container-side prerequisite lands.
+| `user-service` | `RabbitMQConsumerConfig` no longer declares a hardcoded `CachingConnectionFactory` — the Spring Boot auto-config from `application.yml` now wins (env-driven via `${SPRING_RABBITMQ_HOST:rabbitmq}`). Added a `Jackson2JsonMessageConverter @Bean` so the consumer can deserialize JSON payloads from ride-service (previously every inbound message DLQ'd with `SecurityException` on `HashMap`). Matches the ride/location/payment-service pattern. |
+| `driver-service` IT | String-based `spring.autoconfigure.exclude` for the ES auto-config classes (Spring Boot 4 moved them around — string exclusion is more durable than class imports). `@MockitoBean` for `DriverSearchEsRepository` + `DriverIndexerService`. H2 added as test dep. |
 
 ### Run only the fast suite (no Docker needed) — 12 tests, ~3 seconds
 
