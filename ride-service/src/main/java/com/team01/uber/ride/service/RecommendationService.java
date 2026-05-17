@@ -24,6 +24,7 @@ public class RecommendationService {
     private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
 
     private static final int DEFAULT_LIMIT = 5;
+    private static final int MAX_LIMIT = 100;
     private static final String RECOMMENDATIONS_CYPHER = """
             MATCH (target:User {id: $userId})-[:RODE_WITH]->(shared:Driver)
                   <-[:RODE_WITH]-(other:User)
@@ -79,7 +80,7 @@ public class RecommendationService {
                     "User service temporarily unavailable");
         }
 
-        int effectiveLimit = (limit == null || limit <= 0) ? DEFAULT_LIMIT : limit;
+        int effectiveLimit = (limit == null || limit <= 0) ? DEFAULT_LIMIT : Math.min(limit, MAX_LIMIT);
         return self.loadRecommendations(targetUserId, effectiveLimit);
     }
 
