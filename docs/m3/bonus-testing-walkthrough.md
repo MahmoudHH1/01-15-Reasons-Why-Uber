@@ -131,6 +131,78 @@ mvn -pl user-service,driver-service,ride-service,location-service,payment-servic
   test
 ```
 
+### Run each test class manually (one at a time)
+
+If you want to step through them individually — or run only one to debug — here's the exact command per class. Each one uses `-am` to refresh `contracts` first, so it works on a fresh `.m2` cache without needing a prior `mvn install`.
+
+**Unit tests (no Docker needed, < 5s each):**
+
+```powershell
+mvn -pl user-service -am `
+  "-Dtest=UserServiceFeignTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl driver-service -am `
+  "-Dtest=DriverServiceFeignTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl payment-service -am `
+  "-Dtest=PaymentServiceFeignTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl ride-service -am `
+  "-Dtest=RideServiceSagaPrechecksTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl ride-service -am `
+  "-Dtest=PaymentEventConsumerSagaTest" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+**Integration tests (Docker Desktop must be running, ~40s each):**
+
+```powershell
+mvn -pl user-service -am `
+  "-Dtest=UserRideEventConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl driver-service -am `
+  "-Dtest=DriverRideEventConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl payment-service -am `
+  "-Dtest=PaymentRideEventConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+```powershell
+mvn -pl location-service -am `
+  "-Dtest=LocationRideSagaConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+**Run a single test method inside a class:**
+
+```powershell
+mvn -pl ride-service -am `
+  "-Dtest=PaymentEventConsumerSagaTest#onPaymentFailed_compensationCascadeFires" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+Use `#testMethodName` after the class name. Useful when something is flaky and you want to drill in.
+
 ### Prod-side fixes landed alongside the ITs
 
 Two integration tests needed adjacent production code adjusted to align with the rest of the codebase:
