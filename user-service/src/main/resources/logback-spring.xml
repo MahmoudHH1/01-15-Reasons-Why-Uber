@@ -1,5 +1,7 @@
 <configuration>
 
+    <springProperty scope="context" name="spring.application.name" source="spring.application.name" defaultValue="user-service"/>
+
     <!-- SAFE local console output -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

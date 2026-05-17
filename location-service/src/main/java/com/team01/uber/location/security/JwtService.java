@@ -19,7 +19,7 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService() {
-        JwtConfigurationManager config = JwtConfigurationManager.getInstance();
+        LocationJwtConfigManager config = LocationJwtConfigManager.getInstance();
         byte[] keyBytes = Base64.getDecoder().decode(config.getSecret());
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = config.getExpirationMs();

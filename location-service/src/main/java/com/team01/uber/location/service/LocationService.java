@@ -485,7 +485,7 @@ public class LocationService {
             Map<String, Object> payload = new HashMap<>();
             payload.put("driverId", event.driverId());
             payload.put("rideId",   event.rideId());
-            notifyObservers("TRACKING_RECORDED", payload);
+            notifyObservers("TRIP_COMPLETED", payload);
         } finally {
             MDC.remove("driverId");
             MDC.remove("rideId");
