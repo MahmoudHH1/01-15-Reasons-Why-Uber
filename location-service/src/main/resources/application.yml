@@ -52,14 +52,7 @@ spring:
 
 feign:
   driver-service:
-    url: http://driver-service:8080
-
-server:
-  port: 8080
-
-jwt:
-  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
-  expiration: 86400000
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
 
 management:
   endpoints:
@@ -70,4 +63,11 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+  expiration: 86400000
 

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: api-gateway:latest
+          image: api-gateway:fixed-v1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -29,14 +29,16 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 300
             periodSeconds: 30
           resources:
+            requests:
+              memory: 256Mi
             limits:
               memory: 512Mi

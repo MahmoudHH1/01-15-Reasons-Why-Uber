@@ -4,6 +4,7 @@ metadata:
   name: location-service
   namespace: uber
 spec:
+  type: ClusterIP
   selector:
     app: location-service
   ports:

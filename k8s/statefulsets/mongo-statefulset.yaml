@@ -48,6 +48,8 @@ spec:
             initialDelaySeconds: 20
             timeoutSeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 5
           livenessProbe:
             exec:
               command:
@@ -64,6 +66,8 @@ spec:
             initialDelaySeconds: 20
             timeoutSeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
   volumeClaimTemplates:
     - metadata:
         name: data

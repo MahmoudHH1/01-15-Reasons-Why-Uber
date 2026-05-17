@@ -34,7 +34,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/users/health").permitAll()
+<<<<<<< HEAD
                 .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+=======
+                .requestMatchers("/actuator/**").permitAll()
+>>>>>>> main
                 .requestMatchers("/error").permitAll()
                 // role management — ADMIN only
                 .requestMatchers(HttpMethod.PUT, "/api/users/*/role").hasRole("ADMIN")

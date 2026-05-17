@@ -24,4 +24,4 @@ echo "--- 6. Application Services ---"
 kubectl apply -f k8s/services/
 kubectl apply -f k8s/deployments/
 kubectl apply -f k8s/api-gateway/
-kubectl apply -f k8s/monitoring/
+kubectl apply -R -f k8s/monitoring/

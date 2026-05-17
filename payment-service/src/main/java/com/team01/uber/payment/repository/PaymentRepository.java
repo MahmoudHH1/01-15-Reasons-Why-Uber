@@ -12,9 +12,6 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @Query(value = "SELECT COUNT(*) FROM users WHERE id = :userId", nativeQuery = true)
-    long countUsersById(@Param("userId") Long userId);
-
     @Query(value = "SELECT method::text, COUNT(*) AS cnt, SUM(amount) AS total " +
             "FROM payments " +
             "WHERE user_id = :userId AND status = 'COMPLETED' " +
@@ -45,36 +42,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Object[]> getRefundedAmountInRange(@Param("startDate") LocalDateTime startDate,
                                             @Param("endDate") LocalDateTime endDate);
 
-    @Query(value = "SELECT status FROM rides WHERE id = :rideId", nativeQuery = true)
-    String findRideStatusById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT fare FROM rides WHERE id = :rideId", nativeQuery = true)
-    Double findRideFareById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT user_id FROM rides WHERE id = :rideId", nativeQuery = true)
-    Long findRideUserIdById(@Param("rideId") Long rideId);
-
-    @Query(value = "SELECT (metadata->>'surgeMultiplier')::numeric FROM rides WHERE id = :rideId", nativeQuery = true)
-    Double findRideSurgeMultiplierById(@Param("rideId") Long rideId);
-
-    @Query(value = """
-            SELECT
-                d.vehicle_details->>'vehicleType' AS vehicle_type,
-                SUM(p.amount) AS total_revenue,
-                SUM(CASE WHEN p.transaction_details->>'surgeFee' IS NOT NULL
-                         THEN (p.transaction_details->>'surgeFee')::numeric
-                         ELSE p.amount * 0.15 END) AS surge_fee_revenue,
-                COUNT(DISTINCT p.ride_id) AS ride_count
-            FROM payments p
-            JOIN rides r ON r.id = p.ride_id
-            JOIN drivers d ON d.id = r.driver_id
-            WHERE p.status::text = 'COMPLETED'
-              AND r.requested_at BETWEEN :startDate AND :endDate
-            GROUP BY d.vehicle_details->>'vehicleType'
-            """, nativeQuery = true)
-    List<Object[]> findRevenueByVehicleType(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
+    @Query(value = "SELECT * FROM payments WHERE status = 'COMPLETED' " +
+            "AND created_at BETWEEN :start AND :end ORDER BY created_at DESC LIMIT 100",
+            nativeQuery = true)
+    List<Payment> findCompletedPaymentsInDateRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
     );
 
     Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
