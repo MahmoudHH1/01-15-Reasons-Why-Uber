@@ -1,5 +1,7 @@
 package com.team01.uber.user.rabbitmq;
 
+import com.team01.uber.contracts.events.RideCancelledEvent;
+import com.team01.uber.contracts.events.RideCompletedEvent;
 import com.team01.uber.user.config.RabbitMQConsumerConfig;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
@@ -17,8 +19,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -35,12 +35,13 @@ import static org.mockito.Mockito.when;
  * §15 Bonus item (2) — Testcontainers RabbitMQ consumer integration test for user-service.
  *
  * Real RabbitMQ + real Spring context; UserRepository is @MockitoBean-replaced so the
- * test exercises the consumer's Map-shape contract and asserts the repository save
- * was called with the correctly-mutated User (the "mutates the local DB" assertion).
+ * test asserts the repository save was called with the correctly-mutated User
+ * (the "mutates the local DB" assertion).
  *
  * Verifies:
  *   1. ride.completed -> userRepository.save called with totalRides+1, totalSpent+fare
- *   2. ride.cancelled -> userRepository.save called with totalRides-1, totalSpent-fare
+ *   2. ride.cancelled -> userRepository.save called with totalRides-1
+ *      (RideCancelledEvent carries no fare, so totalSpent is unchanged per spec)
  *   3. user-not-found -> save never called (graceful skip)
  */
 @SpringBootTest(properties = {
@@ -86,11 +87,9 @@ class UserRideEventConsumerIT {
         when(userRepository.findById(1001L)).thenReturn(Optional.of(u));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        publish("ride.completed", Map.of(
-                "routingKey", "ride.completed",
-                "userId", 1001L,
-                "rideId", 5001L,
-                "fare", 50.0));
+        publish("ride.completed",
+                new RideCompletedEvent(5001L, 1001L, 7001L, 50.0),
+                "com.team01.uber.contracts.events.RideCompletedEvent");
 
         ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
@@ -107,11 +106,9 @@ class UserRideEventConsumerIT {
         when(userRepository.findById(1002L)).thenReturn(Optional.of(u));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        publish("ride.cancelled", Map.of(
-                "routingKey", "ride.cancelled",
-                "userId", 1002L,
-                "rideId", 5002L,
-                "fare", 50.0));
+        publish("ride.cancelled",
+                new RideCancelledEvent(5002L, 1002L, 7002L, "user_requested"),
+                "com.team01.uber.contracts.events.RideCancelledEvent");
 
         ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
@@ -119,18 +116,17 @@ class UserRideEventConsumerIT {
 
         User saved = savedCaptor.getValue();
         assertThat(saved.getTotalRides()).isEqualTo(2L);
-        assertThat(saved.getTotalSpent()).isEqualTo(100.0);
+        // RideCancelledEvent has no fare field — totalSpent stays at 150.0.
+        assertThat(saved.getTotalSpent()).isEqualTo(150.0);
     }
 
     @Test
     void rideCompleted_userNotFound_saveNeverCalled() {
         when(userRepository.findById(9999L)).thenReturn(Optional.empty());
 
-        publish("ride.completed", Map.of(
-                "routingKey", "ride.completed",
-                "userId", 9999L,
-                "rideId", 5003L,
-                "fare", 25.0));
+        publish("ride.completed",
+                new RideCompletedEvent(5003L, 9999L, 7003L, 25.0),
+                "com.team01.uber.contracts.events.RideCompletedEvent");
 
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
                 verify(userRepository, times(1)).findById(9999L));
@@ -148,10 +144,14 @@ class UserRideEventConsumerIT {
         return u;
     }
 
-    private void publish(String routingKey, Map<String, Object> payload) {
+    private void publish(String routingKey, Object payload, String typeId) {
         rabbitTemplate.convertAndSend(
                 RabbitMQConsumerConfig.RIDE_EVENTS_EXCHANGE,
                 routingKey,
-                new HashMap<>(payload));
+                payload,
+                msg -> {
+                    msg.getMessageProperties().setHeader("__TypeId__", typeId);
+                    return msg;
+                });
     }
 }

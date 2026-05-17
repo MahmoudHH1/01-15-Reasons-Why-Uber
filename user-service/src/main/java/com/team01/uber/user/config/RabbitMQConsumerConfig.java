@@ -43,20 +43,44 @@ public class RabbitMQConsumerConfig {
     public static final String RIDE_EVENTS_EXCHANGE = "ride.events";
 
 
-    // ConnectionFactory comes from Spring Boot auto-config, which binds
-    // spring.rabbitmq.host/port/username/password from application.yml
-    // (env-driven via ${SPRING_RABBITMQ_HOST:rabbitmq}). Aligned with the
-    // ride/driver/location/payment-service pattern — none of them declare
-    // a custom CF bean. Per §2 inter-service config, the environment is
-    // the source of truth so the same image boots in compose, MiniKube, and
-    // local-dev unchanged.
+    /*
+     * Fix #1 — no custom CachingConnectionFactory @Bean.
+     *
+     * Spec quote (uber-m3.md §2 Inter-Service Communication):
+     *   "All inter-service connection details flow through application.yml
+     *    so the same image boots in compose, MiniKube, and local-dev unchanged."
+     *
+     * Why: this file previously declared a CachingConnectionFactory @Bean
+     * with factory.setHost("rabbitmq"). That hardcoded the broker DNS name
+     * and shadowed Spring Boot's auto-config — user-service only worked
+     * inside docker-compose (where "rabbitmq" resolves) and was unusable
+     * in MiniKube or local-dev despite application.yml already carrying
+     * ${SPRING_RABBITMQ_HOST:rabbitmq}.
+     *
+     * Fix: deleted the bean. Spring Boot auto-config now binds the
+     * ConnectionFactory from spring.rabbitmq.* in application.yml. Aligned
+     * with ride/driver/location/payment-service — none declare a custom CF.
+     */
 
-    /**
-     * JSON message converter — aligned with ride/location/payment-service.
-     * Required to deserialize the JSON payloads ride-service publishes
-     * (ride.completed, ride.cancelled). Without this bean, Spring AMQP
-     * falls back to SimpleMessageConverter (Java native serialization) and
-     * blocks every inbound message with SecurityException on HashMap.
+    /*
+     * Fix #2 — Jackson2JsonMessageConverter @Bean.
+     *
+     * Spec quote (uber-m3.md §2):
+     *   "Event payload records cross the wire as JSON (Jackson2-based
+     *    converter on both publisher and consumer sides)."
+     *
+     * Why: this file previously declared no message converter, so Spring
+     * AMQP fell back to SimpleMessageConverter (Java native serialization
+     * with a strict deny-list). When ride-service published JSON
+     * RideCompletedEvent / RideCancelledEvent records, user-service tried
+     * to Java-deserialize them as HashMap and bounced every inbound
+     * message to the DLQ with SecurityException — User.totalRides /
+     * User.totalSpent were never updated in production.
+     *
+     * Fix: register the same Jackson2JsonMessageConverter bean ride /
+     * location / payment-service already have. Consumer now deserializes
+     * JSON payloads correctly and the saga ride.completed/.cancelled path
+     * mutates user stats end-to-end.
      */
     @Bean
     public Jackson2JsonMessageConverter messageConverter() {
