@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'feat/**'
+      - 'fix/**'
       - main
 
 jobs:
@@ -22,6 +23,19 @@ jobs:
       - name: Build and run unit tests
         run: mvn clean package
 
+      - name: Upload service JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-jars
+          path: |
+            user-service/target/*.jar
+            driver-service/target/*.jar
+            ride-service/target/*.jar
+            location-service/target/*.jar
+            payment-service/target/*.jar
+            api-gateway/target/*.jar
+          if-no-files-found: error
+
   docker:
     name: Docker Build & Push
     runs-on: ubuntu-latest
@@ -31,9 +45,32 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [user-service, driver-service, ride-service, location-service, payment-service, api-gateway]
+        include:
+          - service: user-service
+            context: .
+            dockerfile: user-service/Dockerfile
+          - service: driver-service
+            context: .
+            dockerfile: driver-service/Dockerfile
+          - service: ride-service
+            context: .
+            dockerfile: ride-service/Dockerfile
+          - service: location-service
+            context: .
+            dockerfile: location-service/Dockerfile
+          - service: payment-service
+            context: .
+            dockerfile: payment-service/Dockerfile
+          - service: api-gateway
+            context: api-gateway
+            dockerfile: api-gateway/Dockerfile
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download service JARs
+        uses: actions/download-artifact@v4
+        with:
+          name: service-jars
 
       - name: Log in to GitHub Container Registry
         if: github.ref == 'refs/heads/main'
@@ -46,8 +83,8 @@ jobs:
       - name: Build and push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ${{ matrix.service }}/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/01-15-reasons-why-uber/${{ matrix.service }}:latest
