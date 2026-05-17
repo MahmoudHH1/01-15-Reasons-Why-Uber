@@ -126,6 +126,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- ── Circuit Breaker bonus (§15) ── -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+        </dependency>
+
         <!-- ── M3: Shared contracts (Feign client interfaces + DTOs + events) ── -->
         <dependency>
             <groupId>com.team01.uber</groupId>

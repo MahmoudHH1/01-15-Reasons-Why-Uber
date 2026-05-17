@@ -1,6 +1,6 @@
 package com.team01.uber.payment.security;
 
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.payment.client.UserClient;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -10,10 +10,10 @@ import java.io.IOException;
 
 public class UserLoaderHandler extends AuthHandler {
     private static final Logger log = LoggerFactory.getLogger(UserLoaderHandler.class);
-    private final UserServiceClient userServiceClient;
+    private final UserClient userClient;
 
-    public UserLoaderHandler(UserServiceClient userServiceClient) {
-        this.userServiceClient = userServiceClient;
+    public UserLoaderHandler(UserClient userClient) {
+        this.userClient = userClient;
     }
 
     @Override
@@ -23,21 +23,19 @@ public class UserLoaderHandler extends AuthHandler {
             return false;
         }
 
-        log.info("Calling {}.{} with args={}", "UserServiceClient", "getUser", ctx.getUserId());
+        log.info("Calling {}.{} with args={}", "UserClient", "getUser", ctx.getUserId());
         try {
-            userServiceClient.getUser(ctx.getUserId());
-            log.info("{}.{} returned successfully", "UserServiceClient", "getUser");
-            return handleNext(ctx);
+            userClient.getUser(ctx.getUserId());
+            log.info("{}.{} returned successfully", "UserClient", "getUser");
         } catch (FeignException.NotFound e) {
-            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            log.warn("Resilient call to {} failed: {}", "user-service", e.getMessage());
             writeStatus(ctx, HttpServletResponse.SC_NOT_FOUND, "caller user not found");
             return false;
-        } catch (FeignException e) {
-            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
-            writeStatus(ctx, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                    "User service temporarily unavailable");
-            return false;
+        } catch (Exception e) {
+            log.warn("Resilient call to {} failed with error: {}", "user-service", e.getMessage());
+            // Fallback handled by client, allowing to proceed if not 404
         }
+        return handleNext(ctx);
     }
 
     private static void writeStatus(AuthContext ctx, int status, String body) {

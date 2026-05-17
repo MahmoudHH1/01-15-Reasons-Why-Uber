@@ -63,11 +63,36 @@ jwt:
   secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
   expiration: 86400000
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      ride-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+      user-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+      driver-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: "prometheus,health,info"
+        include: "prometheus,health,info,circuitbreakers"
+  health:
+    circuitbreakers:
+      enabled: true
   metrics:
     distribution:
       percentiles-histogram:
