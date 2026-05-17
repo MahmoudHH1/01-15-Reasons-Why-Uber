@@ -1,29 +1,33 @@
 package com.team01.uber.driver.security;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.team01.uber.contracts.feign.UserServiceClient;
+import feign.FeignException;
 
 public class UserLoaderHandler extends AuthHandler {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final UserServiceClient userServiceClient;
 
-    public UserLoaderHandler(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public UserLoaderHandler(UserServiceClient userServiceClient) {
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
     public void handle(AuthContext ctx) {
-        try {
-            Integer count = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM users WHERE email = ?",
-                    Integer.class, ctx.getEmail());
-            if (count == null || count == 0) {
-                ctx.setErrorStatus(401);
-                ctx.setErrorMessage("User not found");
-                return;
-            }
-        } catch (Exception e) {
+        if (ctx.getUid() == null) {
             ctx.setErrorStatus(401);
-            ctx.setErrorMessage("User not found");
+            ctx.setErrorMessage("Missing uid claim");
+            return;
+        }
+
+        try {
+            userServiceClient.getUser(ctx.getUid());
+        } catch (FeignException.NotFound e) {
+            ctx.setErrorStatus(404);
+            ctx.setErrorMessage("caller user not found");
+            return;
+        } catch (FeignException e) {
+            ctx.setErrorStatus(503);
+            ctx.setErrorMessage("User service temporarily unavailable");
             return;
         }
         passToNext(ctx);
