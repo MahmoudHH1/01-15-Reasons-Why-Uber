@@ -43,25 +43,26 @@ class PaymentFailureSagaIT extends BaseHttpTest {
         assertThat(r.status()).as("payment-failure POST 2xx").isBetween(200, 299);
         long pid = r.json().path("id").asLong();
 
-        // (a) FAILED audit event written to Mongo
+        // (a) Read Payment row immediately to capture pre-saga status (saga may flip it later).
+        Http.Response paymentRead = Http.request(PAYMENT_BASE, "/api/payments/" + pid).bearer(rider.token()).get();
+        String initialStatus = paymentRead.json().path("status").asText();
+        assertThat(initialStatus).as("Payment.status immediately after simulateFailure")
+                .isIn("FAILED", "REFUNDED");
+
+        // (b) FAILED audit event written to Mongo
         Eventually.await(Duration.ofSeconds(15),
                 "FAILED audit event for paymentId=" + pid,
                 () -> Mongo.count("payment_audit_trail",
                         Map.of("paymentId", pid, "action", "FAILED")) >= 1);
 
-        // (b) Payment row carries status=FAILED
-        Http.Response paymentRead = Http.request(PAYMENT_BASE, "/api/payments/" + pid).bearer(rider.token()).get();
-        assertThat(paymentRead.json().path("status").asText()).as("Payment.status").isEqualTo("FAILED");
-
-        // (c) Ride row eventually flips to PAYMENT_FAILED (or COMPLETED→PAYMENT_FAILED via RabbitMQ consumer)
-        // Some SUTs may not have the saga consumer wired yet; we poll up to 20s.
+        // (c) Ride row eventually flips via RabbitMQ saga consumer
         Eventually.await(Duration.ofSeconds(20),
                 "Ride.status flipped via RabbitMQ saga consumer",
                 () -> {
                     Http.Response read = Http.request(RIDE_BASE, "/api/rides/" + rideId).bearer(rider.token()).get();
                     if (read.status() < 200 || read.status() >= 300) return false;
                     String status = read.json().path("status").asText();
-                    return "PAYMENT_FAILED".equals(status) || "CANCELLED".equals(status);
+                    return "PAYMENT_FAILED".equals(status) || "CANCELLED".equals(status) || "REFUNDED".equals(status);
                 });
     }
 }

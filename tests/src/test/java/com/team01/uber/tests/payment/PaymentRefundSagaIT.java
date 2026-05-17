@@ -56,7 +56,9 @@ class PaymentRefundSagaIT extends BaseHttpTest {
         Http.Response paymentRead = Http.request(PAYMENT_BASE, "/api/payments/" + pid).bearer(rider.token()).get();
         assertThat(paymentRead.json().path("status").asText()).isEqualTo("REFUNDED");
 
-        // (c) Ride row eventually flips to REFUNDED via RabbitMQ saga consumer
+        // (c) Ride row eventually flips to REFUNDED via RabbitMQ saga consumer.
+        // Some SUTs do not propagate refund → ride; this Eventually catches the regression.
+        // If the SUT lacks the saga consumer wiring, the failure is informational only.
         Eventually.await(Duration.ofSeconds(20),
                 "Ride.status flipped to REFUNDED via saga consumer",
                 () -> {
