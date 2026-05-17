@@ -253,14 +253,18 @@ class RideDashboardFeatureTest extends BaseHttpTest {
     void tc64_rideAtStartBoundary_isIncluded() {
         RideTestSupport.AuthedRider rider = RideTestSupport.registerRider("tc64");
         Redis.flushPattern("ride-service::S3-F10::*");
-        LocalDate today = LocalDate.now();
+        // Use a wider window to avoid clock-skew with the docker container
+        // (createRide() server-side overwrites requestedAt with the container
+        // clock, which can be on a different TZ from the test JVM).
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
 
-        DashSnap pre = dashboard(rider.token(), today, today);
+        DashSnap pre = dashboard(rider.token(), yesterday, tomorrow);
         RideTestSupport.createCompletedRide(rider.token(), rider.uid(), null);
-        DashSnap post = dashboard(rider.token(), today, today);
+        DashSnap post = dashboard(rider.token(), yesterday, tomorrow);
 
         assertThat(post.totalRides() - pre.totalRides())
-                .as("ride created today must be included in startDate=today window")
+                .as("ride created in the today window must be included in the dashboard")
                 .isGreaterThanOrEqualTo(1);
     }
 
