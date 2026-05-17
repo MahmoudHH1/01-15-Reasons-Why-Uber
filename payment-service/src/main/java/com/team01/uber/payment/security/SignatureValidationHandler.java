@@ -25,6 +25,7 @@ public class SignatureValidationHandler extends AuthHandler {
 
         ctx.setEmail(jwtService.extractEmail(ctx.getToken()));
         ctx.setRole(jwtService.extractRole(ctx.getToken()));
+        ctx.setUserId(jwtService.extractUserId(ctx.getToken()));
         return handleNext(ctx);
     }
 }

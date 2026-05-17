@@ -53,6 +53,8 @@ spring:
 feign:
   driver-service:
     url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
 
 management:
   endpoints:

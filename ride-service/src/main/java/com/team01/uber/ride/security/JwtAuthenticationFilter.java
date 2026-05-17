@@ -4,7 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.team01.uber.contracts.feign.UserServiceClient;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,11 +19,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
+    private final UserServiceClient userServiceClient;
 
-    public JwtAuthenticationFilter(JwtService jwtService, JdbcTemplate jdbcTemplate) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserServiceClient userServiceClient) {
         this.jwtService = jwtService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         AuthHandler head = new TokenExtractionHandler();
         head.setNext(new SignatureValidationHandler(jwtService))
-            .setNext(new UserLoaderHandler(jdbcTemplate))
+            .setNext(new UserLoaderHandler(userServiceClient))
             .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
         try {

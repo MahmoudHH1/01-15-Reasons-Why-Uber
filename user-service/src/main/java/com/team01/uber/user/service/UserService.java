@@ -17,27 +17,23 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import com.team01.uber.contracts.feign.PaymentServiceClient;
+import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.contracts.dto.RideSummaryDTO;
+import com.team01.uber.user.messaging.publishers.UserEventPublisher;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import com.team01.uber.user.messaging.publishers.UserEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.team01.uber.contracts.feign.RideServiceClient;
-import com.team01.uber.contracts.dto.RideSummaryDTO;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import com.team01.uber.user.messaging.publishers.UserEventPublisher;
-import com.team01.uber.contracts.feign.PaymentServiceClient;
-import java.math.BigDecimal;
 
 @Service
 public class UserService implements Observable {

@@ -1,4 +1,4 @@
- package com.team01.uber.user.config;
+package com.team01.uber.user.config;
 
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.context.annotation.Bean;

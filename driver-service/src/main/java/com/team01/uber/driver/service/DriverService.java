@@ -496,7 +496,7 @@ public class DriverService {
                 .driverId(id)
                 .name(driver.getName())
                 .totalRides(totalRides)
-                .totalRevenue(totalEarnings)
+                .totalEarnings(totalEarnings)
                 .averageRideFare(averageRideFare)
                 .averageRating(driver.getRating())
                 .totalRatings(driver.getTotalRatings())
