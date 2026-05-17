@@ -403,3 +403,69 @@ tests/
 ├── 40-location-service.sh     # S4-F10/F11/F12 + Cassandra + M1 S4-F1..F9 + CRUD
 └── 50-payment-service.sh      # S5-F10/F11/F12 + 3 strategies + M1 S5-F1..F9 + CRUD
 ```
+
+---
+
+## JUnit suite (M3 layer — `src/test/java/`)
+
+The new JUnit suite sits **alongside** the bash scripts. The bash scripts
+are kept as stack-level smoke tests; JUnit is the deeper layer that ports
+each public TC (TC01..TC425 from
+[scalable-docs.netlify.app](https://scalable-docs.netlify.app/Uber_Tests_Description.md))
+into per-service feature classes, adapted for M3 architecture
+(per-service Postgres, Feign reads, RabbitMQ writes, gateway-injected
+`X-User-Id` headers).
+
+### How to run
+
+The JUnit suite is HTTP black-box: it hits the running compose stack at
+`localhost:8081..8085`. Bring the stack up first.
+
+```bash
+# 1. Build + start the stack (matches the bash-script workflow)
+mvn clean package -DskipTests -T 4
+docker compose up --build -d
+
+# 2. Run the JUnit suite from the project root
+mvn -pl tests test
+
+# 3. Run a single feature class
+mvn -pl tests test -Dtest=RegisterFeatureTest -Dsurefire.failIfNoSpecifiedTests=false
+
+# 4. Override service URLs (e.g., to hit the gateway once it is wired into compose)
+mvn -pl tests test -Dservice.user.base=http://localhost:30080
+```
+
+### File map
+
+```
+tests/src/test/java/com/team01/uber/tests/
+├── BaseHttpTest.java          # USER_BASE..PAYMENT_BASE constants
+├── BaseUnitTest.java          # @ExtendWith(MockitoExtension.class) for non-HTTP cases
+├── fixtures/
+│   ├── Http.java              # fluent HTTP helper (java.net.http.HttpClient)
+│   ├── JwtTestHelper.java     # issues valid / expired tokens via shared contracts.JwtConfigurationManager
+│   ├── JwtClaims.java         # parse uid / role / email out of a token
+│   ├── GatewayHeaders.java    # X-User-Id / X-User-Role / X-Correlation-ID injection (simulates gateway)
+│   └── Nonce.java             # unique email + phone seeds
+├── user/                      # user-service TC ports
+│   ├── RegisterFeatureTest.java          # TC01, TC04
+│   ├── LoginFeatureTest.java             # TC02, TC05, TC09
+│   ├── JwtValidationFeatureTest.java     # TC08, TC10, TC11, expired
+│   └── UserCrudFeatureTest.java          # TC03, TC17, TC20
+├── driver/                    # (Phase 2 — TC ports for driver-service)
+├── ride/                      # (Phase 3 — TC ports + saga A)
+├── location/                  # (Phase 4)
+├── payment/                   # (Phase 5 — TC ports + saga B + C)
+└── designpatterns/            # (Phase 6 — TC378..TC425 cross-cutting DP TCs)
+```
+
+### Conventions
+
+- One test class per **feature** (matches the public doc's grouping).
+- Test method name `tc<NN>_<short_camel_case>`.
+- `@DisplayName` carries the verbatim title from the public doc.
+- Cross-service reads are mocked at the network layer (WireMock — to be
+  added in Phase 2 when driver-service tests need user lookups).
+- Cross-service writes will be verified via the RabbitMQ management API
+  in Phase 3 (saga tests).
