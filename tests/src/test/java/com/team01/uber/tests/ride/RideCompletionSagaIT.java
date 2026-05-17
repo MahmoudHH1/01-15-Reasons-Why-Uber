@@ -58,48 +58,76 @@ class RideCompletionSagaIT extends BaseHttpTest {
     }
 
     @Test
-    @DisplayName("Saga A — ride.completed propagates through payment chain (settles to PAYMENT_PENDING/PAID)")
-    void sagaA_rideCompletes_paymentChainSettlesRideStatus() {
-        RideTestSupport.AuthedRider rider = RideTestSupport.registerRider("sagaA");
-        long driverId = RideTestSupport.seedDriverWithStatus(rider.token(), "sagaA", "AVAILABLE");
+    @DisplayName("Saga A (hop 1/3) — ride.completed is published when /complete transitions IN_PROGRESS → COMPLETED")
+    void sagaA_hop1_rideCompletedIsPublished() {
+        RideTestSupport.AuthedRider rider = RideTestSupport.registerRider("sagaA1");
+        long driverId = RideTestSupport.seedDriverWithStatus(rider.token(), "sagaA1", "AVAILABLE");
+        seedLocationPing(rider.token(), driverId);
 
-        // (1) place a fresh ride directly into a COMPLETED state with a positive
-        //     fare. The straight-path /complete endpoint runs Feign-chain
-        //     pre-checks (location ping, etc) which can't be satisfied without
-        //     orchestrating a real location ping; for the saga A contract we
-        //     ALSO accept the seeded-COMPLETED path because the post-condition
-        //     under test is "ride.completed → payment-service consumes it" —
-        //     RideEventPublisher publishes the event on every save with status
-        //     COMPLETED via the Observer chain.
         long ridePublishedBefore = safePublished("ride.events");
 
-        // Use the public complete() flow when possible — fall back to direct
-        // POST COMPLETED if the Feign chain refuses (e.g. no location ping).
-        long rideId = tryCompleteFlow(rider, driverId);
-        if (rideId < 0) {
-            // Fallback: POST a COMPLETED ride directly. The createRide() in
-            // ride-service publishes RIDE_CREATED (Observer Mongo write); the
-            // explicit complete() Feign chain is bypassed. The RabbitMQ
-            // publisher hook fires on the COMPLETED transition, not on
-            // creation — so this fallback covers TC contract semantics
-            // (audit + state) but is weaker than the orchestrated chain.
-            rideId = RideTestSupport.createRide(rider.token(), rider.uid(), driverId,
-                    "COMPLETED", 50.0, Map.of());
-        }
-        final long observedRideId = rideId;
+        long rideId = driveFullLifecycle(rider, driverId);
+        assertThat(rideId)
+                .as("Saga A.1 precondition — driveFullLifecycle must reach COMPLETED")
+                .isPositive();
 
-        // (2) ride.events publish counter must have advanced (the COMPLETED
-        //     transition fires ride.completed)
+        // ride.events publish counter must have advanced (the COMPLETED
+        // transition fires ride.completed at the exchange).
         Eventually.await(Duration.ofSeconds(15),
                 "ride.events publish counter must advance after completion",
                 () -> safePublished("ride.events") > ridePublishedBefore);
+    }
 
-        // (3) Ride row must eventually leave COMPLETED and settle into a
-        //     payment-state. Acceptable terminal states: PAYMENT_PENDING
-        //     (payment created, not yet paid), PAID (payment processor mock
-        //     completed), or PAYMENT_FAILED (payment processor declined).
-        //     A stuck COMPLETED beyond the timeout indicates the consumer
-        //     chain is broken (DLQ, missing binding, swallowed exception).
+    @Test
+    @DisplayName("Saga A (hop 2/3) — payment-service consumes ride.completed and creates a PENDING payment")
+    void sagaA_hop2_paymentCreatedAfterRideCompleted() {
+        RideTestSupport.AuthedRider rider = RideTestSupport.registerRider("sagaA2");
+        long driverId = RideTestSupport.seedDriverWithStatus(rider.token(), "sagaA2", "AVAILABLE");
+        seedLocationPing(rider.token(), driverId);
+
+        long rideId = driveFullLifecycle(rider, driverId);
+        assertThat(rideId).as("Saga A.2 precondition").isPositive();
+        final long observedRideId = rideId;
+
+        // Search payments for a PENDING/COMPLETED record on this rideId.
+        // The payment.method field on Payment is @NotNull; payment-service's
+        // processRideCompleted() must set a default method (e.g. CREDIT_CARD)
+        // when consuming ride.completed for this assertion to succeed.
+        // SUT NOTE (regression): payment-service/src/main/java/.../PaymentService.java:612
+        //   processRideCompleted does not call payment.setMethod(...) → @NotNull
+        //   violation, message is NACKed three times, lands on DLQ, payment never
+        //   created. This test stays failing until the SUT sets a default method.
+        Eventually.await(Duration.ofSeconds(15),
+                "payment record must exist for ride " + observedRideId
+                        + " (payment-service must consume ride.completed and create a PENDING row)",
+                () -> {
+                    Http.Response r = Http.request(
+                            System.getProperty("service.payment.base", "http://localhost:8085"),
+                            "/api/payments/search?status=PENDING")
+                            .bearer(rider.token()).get();
+                    if (r.status() < 200 || r.status() >= 300) return false;
+                    for (JsonNode p : r.json()) {
+                        if (p.path("rideId").asLong() == observedRideId) return true;
+                    }
+                    return false;
+                });
+    }
+
+    @Test
+    @DisplayName("Saga A (hop 3/3) — ride.status settles to PAYMENT_PENDING / PAID after consumer chain")
+    void sagaA_hop3_rideStatusSettlesAfterChain() {
+        RideTestSupport.AuthedRider rider = RideTestSupport.registerRider("sagaA3");
+        long driverId = RideTestSupport.seedDriverWithStatus(rider.token(), "sagaA3", "AVAILABLE");
+        seedLocationPing(rider.token(), driverId);
+
+        long rideId = driveFullLifecycle(rider, driverId);
+        assertThat(rideId).as("Saga A.3 precondition").isPositive();
+        final long observedRideId = rideId;
+
+        // Ride row must leave COMPLETED and settle into a payment-state.
+        // Acceptable terminal states: PAYMENT_PENDING / PAID / PAYMENT_FAILED.
+        // A stuck COMPLETED indicates the consumer chain is broken — same
+        // root cause as hop 2.
         Eventually.await(Duration.ofSeconds(15),
                 "ride " + observedRideId + " must move from COMPLETED to a payment-state",
                 () -> {
@@ -113,18 +141,48 @@ class RideCompletionSagaIT extends BaseHttpTest {
                 });
     }
 
+    /** POST one location ping for the driver so location-service has a recent point. */
+    private void seedLocationPing(String token, long driverId) {
+        Map<String, Object> ping = new LinkedHashMap<>();
+        ping.put("latitude", 30.05);
+        ping.put("longitude", 31.05);
+        ping.put("metadata", Map.of());
+        Http.Response r = Http.request(
+                System.getProperty("service.location.base", "http://localhost:8084"),
+                "/api/locations/driver/" + driverId)
+                .bearer(token).json(ping).post();
+        if (r.status() < 200 || r.status() >= 300) {
+            throw new AssertionError("Could not seed driver location ping: "
+                    + r.status() + " " + r.body());
+        }
+    }
+
     /**
-     * Attempt the full lifecycle: REQUESTED → assign → IN_PROGRESS → complete.
-     * Returns the rideId on success, -1 on a pre-saga Feign refusal so callers
-     * can fall back to a direct COMPLETED seed.
+     * Drive REQUESTED → assign → IN_PROGRESS → complete. Returns the rideId
+     * on success, -1 on a pre-saga Feign refusal.
      */
-    private long tryCompleteFlow(RideTestSupport.AuthedRider rider, long driverId) {
+    private long driveFullLifecycle(RideTestSupport.AuthedRider rider, long driverId) {
         long rideId = RideTestSupport.createRequestedRide(rider.token(), rider.uid(), driverId);
 
         Http.Response assign = Http.request(RideTestSupport.RIDE_BASE,
                 "/api/rides/" + rideId + "/assign?driverId=" + driverId)
                 .bearer(rider.token()).put();
         if (assign.status() < 200 || assign.status() >= 300) return -1;
+
+        // Wait for the driver to settle into BUSY. The assign endpoint emits
+        // ride.placed which driver-service consumes ASYNCHRONOUSLY to flip
+        // BUSY. If we /complete before that consumer commits, the pre-saga
+        // Feign chain (BUSY check) refuses with 400.
+        Eventually.await(Duration.ofSeconds(10),
+                "driver " + driverId + " must become BUSY before /complete",
+                () -> {
+                    Http.Response av = Http.request(
+                            System.getProperty("service.driver.base", "http://localhost:8082"),
+                            "/api/drivers/" + driverId + "/availability")
+                            .bearer(rider.token()).get();
+                    return av.status() >= 200 && av.status() < 300
+                            && "BUSY".equals(av.json().path("status").asText());
+                });
 
         // Coerce to IN_PROGRESS via the unchecked update endpoint.
         JsonNode current = Http.request(RideTestSupport.RIDE_BASE, "/api/rides/" + rideId)
@@ -140,7 +198,9 @@ class RideCompletionSagaIT extends BaseHttpTest {
         update.put("fare", 50.0);
         update.put("metadata", Map.of());
         update.put("requestedAt", current.path("requestedAt").asText());
-        update.put("completedAt", current.path("completedAt").asText());
+        if (current.hasNonNull("completedAt")) {
+            update.put("completedAt", current.path("completedAt").asText());
+        }
         Http.Response coerce = Http.request(RideTestSupport.RIDE_BASE, "/api/rides/" + rideId)
                 .bearer(rider.token()).json(update).put();
         if (coerce.status() < 200 || coerce.status() >= 300) return -1;
