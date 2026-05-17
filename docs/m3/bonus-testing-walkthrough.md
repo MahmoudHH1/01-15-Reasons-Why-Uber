@@ -100,7 +100,7 @@ git checkout feat/M3/cc/bonus-testing-suite/55-24853
 ### Run the fast suite (no Docker needed) — 12 tests, ~3 seconds
 
 ```powershell
-mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
+mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
 ```
 
 Expected:
@@ -115,7 +115,7 @@ Expected:
 ### Run the integration test (needs Docker Desktop running) — 6 tests, ~50 seconds
 
 ```powershell
-mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" test
+mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" "-Dsurefire.failIfNoSpecifiedTests=false" test
 ```
 
 First run pulls `rabbitmq:3-management` and `redis:7-alpine` from Docker Hub. Subsequent runs are faster (~30 s).
@@ -139,6 +139,23 @@ Everything after `--%` is passed verbatim to mvn.
 
 ## Troubleshooting
 
+### `No tests matching pattern "<name>" were executed!`
+
+Surefire 3.2.5 errors when `-Dtest=...` matches nothing. `-am` re-runs `test` on the upstream `contracts` module (which has zero tests), and the filter doesn't match there → build fail before the target service runs. Either:
+
+1. Add `-Dsurefire.failIfNoSpecifiedTests=false` so surefire skips modules where the filter matches nothing:
+
+   ```powershell
+   mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" "-Dsurefire.failIfNoSpecifiedTests=false" test
+   ```
+
+2. Or refresh `contracts` once with `mvn install -DskipTests`, then run the service-only command without `-am`:
+
+   ```powershell
+   mvn install -DskipTests
+   mvn -pl location-service "-Dtest=LocationRideSagaConsumerIT" test
+   ```
+
 ### "Unknown lifecycle phase `.failIfNoSpecifiedTests=false`"
 
 PowerShell split the `-D` argument on the dot. Either:
@@ -148,7 +165,7 @@ PowerShell split the `-D` argument on the dot. Either:
 3. Or drop the flag — it only matters when the test filter matches **zero** classes; since we name real classes, omit it:
 
    ```powershell
-   mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
+   mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
    ```
 
 ### `RideServiceApplicationTests.contextLoads` fails with `UnknownHostException: ride-postgres`
@@ -169,7 +186,7 @@ Stale `contracts-1.0-SNAPSHOT.jar` in your local `.m2` cache. `mvn -pl <svc>` on
 1. **Add `-am` (also-make)** so Maven rebuilds `contracts` before the target service:
 
    ```powershell
-   mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" test
+   mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" "-Dsurefire.failIfNoSpecifiedTests=false" test
    ```
 
 2. **Or refresh everything once**:
