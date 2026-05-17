@@ -37,8 +37,10 @@
     <!-- MongoDB driver chatter during cluster discovery -->
     <logger name="org.mongodb.driver" level="WARN"/>
 
-    <!-- Cassandra driver chatter -->
-    <logger name="com.datastax.oss.driver" level="WARN"/>
+    <!-- Cassandra driver chatter — teardown reconnect storms after the container stops -->
+    <logger name="com.datastax.oss.driver" level="ERROR"/>
+    <logger name="com.datastax.oss.driver.internal.core.pool" level="OFF"/>
+    <logger name="com.datastax.oss.driver.internal.core.channel" level="OFF"/>
 
     <!-- Testcontainers — keep the container-lifecycle lines (start/stop are useful) -->
     <logger name="org.testcontainers" level="INFO"/>

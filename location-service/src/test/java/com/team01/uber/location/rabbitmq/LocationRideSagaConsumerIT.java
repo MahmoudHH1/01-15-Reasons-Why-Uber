@@ -18,12 +18,14 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.testcontainers.containers.CassandraContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +61,6 @@ import static org.mockito.Mockito.when;
         "spring.cloud.discovery.enabled=false",
         "spring.cloud.compatibility-verifier.enabled=false",
         "spring.cassandra.schema-action=none",
-        "spring.cassandra.contact-points=127.0.0.1",
         "spring.data.mongodb.uri=mongodb://localhost:27017/test",
         "feign.driver-service.url=http://localhost:1",
         "feign.user-service.url=http://localhost:1"
@@ -76,10 +77,22 @@ class LocationRideSagaConsumerIT {
     static GenericContainer<?> redis =
             new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379);
 
+    @Container
+    @SuppressWarnings("resource")
+    static CassandraContainer<?> cassandra =
+            new CassandraContainer<>(DockerImageName.parse("cassandra:4.1"))
+                    .withStartupTimeout(Duration.ofMinutes(5));
+
     @DynamicPropertySource
-    static void redisProps(DynamicPropertyRegistry registry) {
+    static void containerProps(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+        // CassandraConfig (AbstractCassandraConfiguration) reads the legacy
+        // spring.data.cassandra.* names, not Spring Boot 4's spring.cassandra.*.
+        registry.add("spring.data.cassandra.contact-points", cassandra::getHost);
+        registry.add("spring.data.cassandra.port", () -> cassandra.getMappedPort(9042));
+        registry.add("spring.data.cassandra.local-datacenter", cassandra::getLocalDatacenter);
+        registry.add("spring.data.cassandra.keyspace-name", () -> "uberks");
     }
 
     @Autowired
