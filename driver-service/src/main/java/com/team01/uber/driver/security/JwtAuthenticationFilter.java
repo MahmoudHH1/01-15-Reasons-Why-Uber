@@ -4,7 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.driver.client.UserClient;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,11 +19,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserServiceClient userServiceClient;
+    private final UserClient userClient;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserServiceClient userServiceClient) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserClient userClient) {
         this.jwtService = jwtService;
-        this.userServiceClient = userServiceClient;
+        this.userClient = userClient;
     }
 
     @Override
@@ -39,7 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         AuthHandler tokenExtractor = new TokenExtractionHandler();
         AuthHandler signatureValidator = new SignatureValidationHandler(jwtService);
-        AuthHandler userLoader = new UserLoaderHandler(userServiceClient);
+        AuthHandler userLoader = new UserLoaderHandler(userClient);
         AuthHandler roleAuthorizer = new RoleAuthorizationHandler("USER");
 
         tokenExtractor.setNext(signatureValidator);
