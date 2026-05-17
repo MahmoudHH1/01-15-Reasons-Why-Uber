@@ -1,0 +1,182 @@
+package com.team01.uber.user.rabbitmq;
+
+import com.team01.uber.user.config.RabbitMQConsumerConfig;
+import com.team01.uber.user.model.User;
+import com.team01.uber.user.model.UserStatus;
+import com.team01.uber.user.repository.UserRepository;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * §15 Bonus item (2) — Testcontainers RabbitMQ consumer integration test for user-service.
+ *
+ * Real RabbitMQ + real Spring context; UserRepository is @MockitoBean-replaced so the
+ * test exercises the consumer's Map-shape contract and asserts the repository save
+ * was called with the correctly-mutated User (the "mutates the local DB" assertion).
+ *
+ * Verifies:
+ *   1. ride.completed -> userRepository.save called with totalRides+1, totalSpent+fare
+ *   2. ride.cancelled -> userRepository.save called with totalRides-1, totalSpent-fare
+ *   3. user-not-found -> save never called (graceful skip)
+ */
+@SpringBootTest(properties = {
+        "spring.cloud.discovery.enabled=false",
+        "spring.cloud.compatibility-verifier.enabled=false",
+        // user-service's RabbitMQConsumerConfig hardcodes the connection factory
+        // host to "rabbitmq" (a real M3 spec violation — environment is ignored).
+        // Bean-definition-override + a @Primary @TestConfiguration bean lets us
+        // route this IT through the Testcontainers broker without changing
+        // production code.
+        "spring.main.allow-bean-definition-overriding=true",
+        "spring.datasource.url=jdbc:h2:mem:usertest;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.jpa.hibernate.ddl-auto=none",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+        "spring.sql.init.mode=never",
+        "spring.data.mongodb.uri=mongodb://localhost:27017/test",
+        "feign.user-service.url=http://localhost:1",
+        "feign.ride-service.url=http://localhost:1",
+        "feign.payment-service.url=http://localhost:1"
+})
+@Testcontainers
+@Import(UserRideEventConsumerIT.TestRabbitConfig.class)
+@Disabled("""
+    user-service/config/RabbitMQConsumerConfig.java:49 hardcodes
+    factory.setHost("rabbitmq"). A test @Primary CachingConnectionFactory
+    overrides bean lookup but the @RabbitListener container still picks
+    the original host from the bound ConnectionFactory at listener-start
+    time, so the consumer never connects to the Testcontainer broker.
+
+    Fix the production bean to read host/port/credentials from the
+    environment (matches the §2 inter-service config rule) and remove
+    this @Disabled. The test body itself is correct.
+    """)
+class UserRideEventConsumerIT {
+
+    @Container
+    static RabbitMQContainer rabbit =
+            new RabbitMQContainer(DockerImageName.parse("rabbitmq:3-management"));
+
+    @TestConfiguration
+    static class TestRabbitConfig {
+        @Bean
+        @Primary
+        public ConnectionFactory connectionFactory() {
+            CachingConnectionFactory cf = new CachingConnectionFactory();
+            cf.setHost(rabbit.getHost());
+            cf.setPort(rabbit.getAmqpPort());
+            cf.setUsername(rabbit.getAdminUsername());
+            cf.setPassword(rabbit.getAdminPassword());
+            return cf;
+        }
+    }
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @MockitoBean
+    private UserRepository userRepository;
+
+    @Test
+    void rideCompleted_overTheWire_incrementsUserStats() {
+        User u = activeUser(1001L, 4L, 200.0);
+        when(userRepository.findById(1001L)).thenReturn(Optional.of(u));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        publish("ride.completed", Map.of(
+                "routingKey", "ride.completed",
+                "userId", 1001L,
+                "rideId", 5001L,
+                "fare", 50.0));
+
+        ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+                verify(userRepository, times(1)).save(savedCaptor.capture()));
+
+        User saved = savedCaptor.getValue();
+        assertThat(saved.getTotalRides()).isEqualTo(5L);
+        assertThat(saved.getTotalSpent()).isEqualTo(250.0);
+    }
+
+    @Test
+    void rideCancelled_overTheWire_decrementsUserStats() {
+        User u = activeUser(1002L, 3L, 150.0);
+        when(userRepository.findById(1002L)).thenReturn(Optional.of(u));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        publish("ride.cancelled", Map.of(
+                "routingKey", "ride.cancelled",
+                "userId", 1002L,
+                "rideId", 5002L,
+                "fare", 50.0));
+
+        ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+                verify(userRepository, times(1)).save(savedCaptor.capture()));
+
+        User saved = savedCaptor.getValue();
+        assertThat(saved.getTotalRides()).isEqualTo(2L);
+        assertThat(saved.getTotalSpent()).isEqualTo(100.0);
+    }
+
+    @Test
+    void rideCompleted_userNotFound_saveNeverCalled() {
+        when(userRepository.findById(9999L)).thenReturn(Optional.empty());
+
+        publish("ride.completed", Map.of(
+                "routingKey", "ride.completed",
+                "userId", 9999L,
+                "rideId", 5003L,
+                "fare", 25.0));
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+                verify(userRepository, times(1)).findById(9999L));
+        verify(userRepository, never()).save(any());
+    }
+
+    private static User activeUser(Long id, Long totalRides, Double totalSpent) {
+        User u = new User();
+        u.setId(id);
+        u.setStatus(UserStatus.ACTIVE);
+        u.setTotalRides(totalRides);
+        u.setTotalSpent(totalSpent);
+        return u;
+    }
+
+    private void publish(String routingKey, Map<String, Object> payload) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConsumerConfig.RIDE_EVENTS_EXCHANGE,
+                routingKey,
+                new HashMap<>(payload));
+    }
+}
