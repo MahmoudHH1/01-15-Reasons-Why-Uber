@@ -41,6 +41,7 @@ spring:
         default-requeue-rejected: false
         retry:
           enabled: true
+          initial-interval: 1000
           max-attempts: 3
 
 feign:
