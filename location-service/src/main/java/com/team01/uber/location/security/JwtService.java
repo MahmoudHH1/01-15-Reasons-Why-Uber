@@ -1,5 +1,6 @@
 package com.team01.uber.location.security;
 
+import com.team01.uber.contracts.security.JwtConfigurationManager;
 import java.util.Base64;
 import java.util.Date;
 
