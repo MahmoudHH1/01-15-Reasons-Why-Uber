@@ -1,5 +1,6 @@
 package com.team01.uber.ride.security;
 
+import com.team01.uber.contracts.security.JwtConfigurationManager;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
