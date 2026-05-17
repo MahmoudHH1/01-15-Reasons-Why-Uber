@@ -36,16 +36,25 @@ spring:
       port: 6379
       password: redispass
 
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
 feign:
   driver-service:
-    url: http://driver-service:8080
-
-server:
-  port: 8080
-
-jwt:
-  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
-  expiration: 86400000
+    url: ${FEIGN_DRIVER_SERVICE_URL:http://driver-service:8080}
+  user-service:
+    url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
 
 resilience4j:
   circuitbreaker:
@@ -69,4 +78,11 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: "bXlzdXBlcnNlY3JldGtleWZvcmp3dGF1dGhlbnRpY2F0aW9u"
+  expiration: 86400000
 

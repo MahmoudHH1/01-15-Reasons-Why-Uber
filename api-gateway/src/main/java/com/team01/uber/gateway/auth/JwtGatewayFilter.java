@@ -42,34 +42,29 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
         }
 
         if (isPublicPath(path)) {
-            // Still forward correlation ID even for public endpoints
             ServerHttpRequest mutated = exchange.getRequest().mutate()
                     .header("X-Correlation-ID", correlationId)
                     .build();
             return chain.filter(exchange.mutate().request(mutated).build());
         }
 
-        // Extract Authorization header
         String authHeader = exchange.getRequest().getHeaders()
                 .getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("Missing or malformed Authorization header for path: {}", path);
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete(); // short-circuit, no downstream call
+            return exchange.getResponse().setComplete();
         }
 
-        String token = authHeader.substring(7); // strip "Bearer "
+        String token = authHeader.substring(7);
 
         try {
-            // Validate token and extract claims
             Claims claims = jwtValidator.validateAndExtract(token);
 
-            // Extract identity from claims
             String userId = claims.get("uid", Long.class).toString();
             String userRole = claims.get("role", String.class);
 
-            // Forward identity headers + correlation ID to downstream services
             String finalCorrelationId = correlationId;
             ServerHttpRequest mutated = exchange.getRequest().mutate()
                     .header("X-User-Id", userId)
@@ -83,17 +78,14 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange.mutate().request(mutated).build());
 
         } catch (JwtException e) {
-            // Token is invalid or expired
             log.warn("JWT validation failed for path {}: {}", path, e.getMessage());
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete(); // short-circuit
+            return exchange.getResponse().setComplete();
         }
     }
 
-    // Paths that do not require a JWT token
     private boolean isPublicPath(String path) {
-        return path.startsWith("/api/auth/register")
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/actuator/health");
+        return path.startsWith("/api/auth/")
+                || path.startsWith("/actuator/");
     }
 }

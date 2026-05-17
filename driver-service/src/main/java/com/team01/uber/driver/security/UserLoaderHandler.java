@@ -1,29 +1,39 @@
 package com.team01.uber.driver.security;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.team01.uber.contracts.feign.UserServiceClient;
+import feign.FeignException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class UserLoaderHandler extends AuthHandler {
+    private static final Logger log = LoggerFactory.getLogger(UserLoaderHandler.class);
+    private final UserServiceClient userServiceClient;
 
-    private final JdbcTemplate jdbcTemplate;
-
-    public UserLoaderHandler(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public UserLoaderHandler(UserServiceClient userServiceClient) {
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
     public void handle(AuthContext ctx) {
-        try {
-            Integer count = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM users WHERE email = ?",
-                    Integer.class, ctx.getEmail());
-            if (count == null || count == 0) {
-                ctx.setErrorStatus(401);
-                ctx.setErrorMessage("User not found");
-                return;
-            }
-        } catch (Exception e) {
+        if (ctx.getUid() == null) {
             ctx.setErrorStatus(401);
-            ctx.setErrorMessage("User not found");
+            ctx.setErrorMessage("Missing uid claim");
+            return;
+        }
+
+        log.info("Calling {}.{} with args={}", "UserServiceClient", "getUser", ctx.getUid());
+        try {
+            userServiceClient.getUser(ctx.getUid());
+            log.info("{}.{} returned successfully", "UserServiceClient", "getUser");
+        } catch (FeignException.NotFound e) {
+            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            ctx.setErrorStatus(404);
+            ctx.setErrorMessage("caller user not found");
+            return;
+        } catch (FeignException e) {
+            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            ctx.setErrorStatus(503);
+            ctx.setErrorMessage("User service temporarily unavailable");
             return;
         }
         passToNext(ctx);

@@ -4,7 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.team01.uber.contracts.feign.UserServiceClient;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,21 +15,20 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
+    private final UserServiceClient userServiceClient;
 
-    public JwtAuthenticationFilter(JwtService jwtService, JdbcTemplate jdbcTemplate) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserServiceClient userServiceClient) {
         this.jwtService = jwtService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        return path.equals("/api/locations/health");
+        String path = request.getRequestURI();
+        return path.equals("/api/locations/health") || path.startsWith("/actuator");
     }
 
     @Override
@@ -42,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Build the Chain of Responsibility
         AuthHandler head = new TokenExtractionHandler();
         head.setNext(new SignatureValidationHandler(jwtService))
-            .setNext(new UserLoaderHandler(jdbcTemplate))
+            .setNext(new UserLoaderHandler(userServiceClient))
             .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
         boolean authenticated = false;
@@ -63,8 +62,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (authenticated) {
-            filterChain.doFilter(request, response);
-        }
+        filterChain.doFilter(request, response);
     }
 }

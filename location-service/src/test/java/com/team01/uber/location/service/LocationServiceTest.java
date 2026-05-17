@@ -33,6 +33,8 @@ public class LocationServiceTest {
     private RedisTemplate redisTemplate;
     @Mock
     private DriverClient driverClient;
+    @Mock
+    private org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
     private LocationService locationService;
 
@@ -43,7 +45,8 @@ public class LocationServiceTest {
                 trackingRepository,
                 redisTemplate,
                 new ArrayList<>(),
-                driverClient
+                driverClient,
+                rabbitTemplate
         );
     }
 

@@ -30,7 +30,22 @@
         <java.version>25</java.version>
         <jjwt.version>0.12.6</jjwt.version>
         <elasticsearch-java.version>8.19.12</elasticsearch-java.version>
+        <spring-cloud.version>2025.1.1</spring-cloud.version>
+        <loki-logback.version>2.0.0</loki-logback.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!-- ── M1 dependencies ── -->
         <dependency>
@@ -68,6 +83,42 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- ── M3: contracts module (shared Feign interfaces + DTOs) ── -->
+        <dependency>
+            <groupId>com.team01.uber</groupId>
+            <artifactId>contracts</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- ── M3: OpenFeign (inter-service calls) ── -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <!-- ── M3: RabbitMQ (Spring AMQP — publishers + consumers) ── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
+        <!-- ── M3: Actuator (Prometheus metrics) ── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- ── M3: Loki4J (structured log shipping to Loki) ── -->
+        <dependency>
+            <groupId>com.github.loki4j</groupId>
+            <artifactId>loki-logback-appender</artifactId>
+            <version>${loki-logback.version}</version>
         </dependency>
 
         <!-- ── M2: Spring Security (JWT filter chain) ── -->

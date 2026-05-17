@@ -2,6 +2,7 @@ package com.team01.uber.location.controller;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,6 @@ import com.team01.uber.location.dto.NearbyDriverDTO;
 import com.team01.uber.location.dto.PurgeResponse;
 import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.TrackingRequest;
-import com.team01.uber.location.enums.EventType;
-import com.team01.uber.location.factory.EventFactory;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationEvent;
 import com.team01.uber.location.repository.LocationEventRepository;
@@ -48,15 +47,12 @@ public class LocationController {
 
     private final LocationService locationService;
     private final LocationEventRepository locationEventRepository;
-    private final EventFactory eventFactory;
     private static final Logger log = LoggerFactory.getLogger(LocationController.class);
 
     public LocationController(LocationService locationService,
-                              LocationEventRepository locationEventRepository,
-                              EventFactory eventFactory) {
+                              LocationEventRepository locationEventRepository) {
         this.locationService = locationService;
         this.locationEventRepository = locationEventRepository;
-        this.eventFactory = eventFactory;
     }
 
     @GetMapping("/health")
@@ -68,19 +64,11 @@ public class LocationController {
     public ResponseEntity<LocationAnalyticsDTO> getAnalytics(
             @RequestParam String startDate,
             @RequestParam String endDate) {
-// Log ANALYTICS_VIEWED event to MongoDB (must run on every invocation, even cache hits)
-        try {
-            locationEventRepository.save((LocationEvent) eventFactory.createEvent(EventType.LOCATION, Map.of(
-                    "action", "ANALYTICS_VIEWED",
-                    "driverId", 0L, // Global analytics, no specific driver
-                    "timestamp", LocalDateTime.now(),
-                    "details", Map.of("startDate", startDate, "endDate", endDate)
-            )));
-        } catch (Exception e) {
-            log.warn("Failed to log ANALYTICS_VIEWED event: {}", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(locationService.getAnalytics(startDate, endDate));
+        ResponseEntity<LocationAnalyticsDTO> result = ResponseEntity.ok(locationService.getAnalytics(startDate, endDate));
+        CompletableFuture.runAsync(() -> locationEventRepository.save(
+                new LocationEvent(0L, "ANALYTICS_VIEWED", LocalDateTime.now(),
+                        Map.of("startDate", startDate, "endDate", endDate))));
+        return result;
     }
 
     @PostMapping
@@ -190,6 +178,12 @@ public class LocationController {
     public ResponseEntity<LocationTrackingDTO> recordGpsEvent(
             @PathVariable Long driverId,
             @RequestBody TrackingRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(locationService.recordGpsEvent(driverId, request));
+        ResponseEntity<LocationTrackingDTO> result = ResponseEntity.status(HttpStatus.CREATED)
+                .body(locationService.recordGpsEvent(driverId, request));
+        CompletableFuture.runAsync(() -> locationEventRepository.save(
+                new LocationEvent(driverId, "TRACKING_RECORDED", LocalDateTime.now(),
+                        Map.of("latitude", request.getLatitude() != null ? request.getLatitude() : 0.0,
+                               "longitude", request.getLongitude() != null ? request.getLongitude() : 0.0))));
+        return result;
     }
 }

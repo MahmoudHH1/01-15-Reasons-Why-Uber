@@ -3,110 +3,138 @@ package com.team01.uber.ride.repository;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.model.Ride;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
-import java.util.List;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-
 import java.util.List;
 
 public interface RideRepository extends JpaRepository<Ride, Long> {
-    // Cross-service: queries the shared drivers table directly
-    @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id", nativeQuery = true)
-    boolean driverExists(@Param("id") Long id);
 
-    @Query(value = "SELECT COUNT(*) > 0 FROM users WHERE id = :id", nativeQuery = true)
-    boolean userExists(@Param("id") Long id);
+        // ── M1/M2 intra-service queries (unchanged) ───────────────────────────────
 
-    @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id AND status = 'AVAILABLE'", nativeQuery = true)
-    boolean isDriverAvailable(@Param("id") Long id);
+        // S3-F3: surge pricing — counts active rides near a location (local rides table
+        // only)
+        @Query(value = "SELECT COUNT(*) FROM rides " +
+                        "WHERE pickup_latitude BETWEEN :lat - 0.01 AND :lat + 0.01 " +
+                        "AND pickup_longitude BETWEEN :lon - 0.01 AND :lon + 0.01 " +
+                        "AND status::text IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
+        long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
 
-    @Modifying
-    @Transactional
-    @Query(value = "UPDATE drivers SET status = 'BUSY' WHERE id = :id AND STATUS = 'AVAILABLE'", nativeQuery = true)
-    int setDriverBusy(@Param("id") Long id);
+        // S3-F5: filter rides by metadata JSONB field (local rides table only)
+        @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value", nativeQuery = true)
+        List<Ride> findByMetadataField(@Param("key") String key, @Param("value") String value);
 
-    @Modifying
-    @Transactional
-    @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
-    int setDriverAvailable(@Param("driverId") Long driverId);
+        // S3-F1: rides by date range
+        @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end ORDER BY r.requestedAt DESC")
+        List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
 
-    @Query(value = "SELECT COUNT(*) FROM rides " +
-            "WHERE pickup_latitude BETWEEN :lat - 0.01 AND :lat + 0.01 " +
-            "AND pickup_longitude BETWEEN :lon - 0.01 AND :lon + 0.01 " +
-            "AND status::text IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')",
-            nativeQuery = true)
-    long countActiveRidesNearby(@Param("lat") double lat, @Param("lon") double lon);
+        // S3-F1: rides by date range and status
+        @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end AND r.status = :status ORDER BY r.requestedAt DESC")
+        List<Ride> findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end,
+                        @Param("status") RideStatus status);
 
+        // S3-F1: flexible search
+        @Query(value = "SELECT * FROM rides WHERE " +
+                        "(CAST(:status AS text) IS NULL OR status::text = CAST(:status AS text)) AND " +
+                        "(CAST(:start AS timestamp) IS NULL OR requested_at >= CAST(:start AS timestamp)) AND " +
+                        "(CAST(:end AS timestamp) IS NULL OR requested_at < CAST(:end AS timestamp)) AND " +
+                        "(CAST(:userId AS bigint) IS NULL OR user_id = CAST(:userId AS bigint)) " +
+                        "ORDER BY requested_at DESC", nativeQuery = true)
+        List<Ride> searchRidesFlexible(
+                        @Param("status") String status,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end,
+                        @Param("userId") Long userId);
 
-    @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value"
-            , nativeQuery = true)
-    List<Ride> findByMetadataField(@Param("key") String key, @Param("value") String value);
-  
-  
-    @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end ORDER BY r.requestedAt DESC")
-    List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end
-    );
+        // ── M3 new queries for exposed endpoints (S3-READ-DB) ────────────────────
 
-    @Query("SELECT r FROM Ride r WHERE r.requestedAt >= :start AND r.requestedAt < :end AND r.status = :status ORDER BY r.requestedAt DESC")
-    List<Ride> findByRequestedAtBetweenAndStatusOrderByRequestedAtDesc(
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end,
-            @Param("status") RideStatus status
-    );
+        // GET /api/rides/user/{userId}/summary — used by S1-F3
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.userId = :userId")
+        long countTotalRidesByUserId(@Param("userId") Long userId);
 
-    @Query(value = "SELECT * FROM rides WHERE " +
-            "(CAST(:status AS text) IS NULL OR status::text = CAST(:status AS text)) AND " +
-            "(CAST(:start AS timestamp) IS NULL OR requested_at >= CAST(:start AS timestamp)) AND " +
-            "(CAST(:end AS timestamp) IS NULL OR requested_at < CAST(:end AS timestamp)) AND " +
-            "(CAST(:userId AS bigint) IS NULL OR user_id = CAST(:userId AS bigint)) " +
-            "ORDER BY requested_at DESC",
-            nativeQuery = true)
-    List<Ride> searchRidesFlexible(
-            @Param("status") String status,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end,
-            @Param("userId") Long userId
-    );
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.userId = :userId AND r.status IN (:statuses)")
+        long countRidesByUserIdAndStatuses(
+                        @Param("userId") Long userId,
+                        @Param("statuses") List<RideStatus> statuses);
 
+        @Query("SELECT COALESCE(SUM(r.fare), 0.0) FROM Ride r WHERE r.userId = :userId AND r.status IN (:statuses)")
+        Double sumFareByUserIdAndStatuses(
+                        @Param("userId") Long userId,
+                        @Param("statuses") List<RideStatus> statuses);
 
-    @Query(value = "SELECT COUNT(*) > 0 FROM drivers WHERE id = :id AND status = 'BUSY'", nativeQuery = true)
-    boolean isDriverBusy(@Param("id") Long id);
+        // GET /api/rides/user/{userId}/active-count — used by S1-F4
+        // Active = REQUESTED, ACCEPTED, IN_PROGRESS, COMPLETED, PAYMENT_PENDING (per
+        // §5)
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.userId = :userId AND r.status IN (:statuses)")
+        int countActiveRidesByUserId(
+                        @Param("userId") Long userId,
+                        @Param("statuses") List<RideStatus> statuses);
 
+        // GET /api/rides/user/{userId}/completed-count — used by S1-F9
+        // Completed = COMPLETED, PAID (per §5)
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.userId = :userId AND r.status IN (:statuses)")
+        long countCompletedRidesByUserId(
+                        @Param("userId") Long userId,
+                        @Param("statuses") List<RideStatus> statuses);
 
-    @Modifying
-    @Transactional
-    @Query(value = "INSERT INTO payments (ride_id, user_id, amount, method, status, created_at) " +
-            "VALUES (:rideId, :userId, :amount, 'CASH', 'PENDING', :createdAt)",
-            nativeQuery = true)
-    void createPayment(@Param("rideId") Long rideId,
-                       @Param("userId") Long userId,
-                       @Param("amount") Double amount,
-                       @Param("createdAt") LocalDateTime createdAt);
+        // ── M3 driver-side queries — NO date range ────────────────────────────────
 
-    // S3-F11: cross-service lookup for user name
-    @Query(value = "SELECT name FROM users WHERE id = :userId", nativeQuery = true)
-    String findUserNameById(@Param("userId") Long userId);
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses)")
+        long countRidesByDriverIdAndStatuses(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses);
 
-    // S3-F11: cross-service lookup for driver name and vehicleType
-    @Query(value = "SELECT name FROM drivers WHERE id = :driverId", nativeQuery = true)
-    String findDriverNameById(@Param("driverId") Long driverId);
+        @Query("SELECT COALESCE(SUM(r.fare), 0.0) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses)")
+        Double sumFareByDriverIdAndStatuses(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses);
 
-    @Query(value = "SELECT vehicle_details->>'vehicleType' FROM drivers WHERE id = :driverId", nativeQuery = true)
-    String findDriverVehicleTypeById(@Param("driverId") Long driverId);
-  
-    @Query(value = "SELECT COALESCE(SUM(p.amount), 0) FROM payments p " +
-            "JOIN rides r ON p.ride_id = r.id " +
-            "WHERE r.status = 'COMPLETED' AND p.status = 'COMPLETED' " +
-            "AND r.requested_at >= :start AND r.requested_at < :end",
-            nativeQuery = true)
-    double getTotalRevenueForCompletedRidesFromPayments(@Param("start") LocalDateTime start,
-                                            @Param("end") LocalDateTime end);
+        // ── M3 driver-side queries — WITH date range ──────────────────────────────
+
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses) AND r.requestedAt >= :start AND r.requestedAt < :end")
+        long countRidesByDriverIdAndStatusesAndDateRange(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
+
+        @Query("SELECT COALESCE(SUM(r.fare), 0.0) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses) AND r.requestedAt >= :start AND r.requestedAt < :end")
+        Double sumFareByDriverIdAndStatusesAndDateRange(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
+
+        // GET /api/rides/driver/{driverId}/active-count — used by S2-F4
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses)")
+        int countActiveRidesByDriverId(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses);
+
+        // GET /api/rides/driver/{driverId}/completed-count — used by S2-F6
+        @Query("SELECT COUNT(r) FROM Ride r WHERE r.driverId = :driverId AND r.status IN (:statuses)")
+        long countCompletedRidesByDriverId(
+                        @Param("driverId") Long driverId,
+                        @Param("statuses") List<RideStatus> statuses);
+
+        // ── M3 removed (cross-service — replaced by Feign or events) ─────────────
+        // driverExists() → DriverServiceClient.getDriver()
+        // userExists() → UserServiceClient.getUser()
+        // isDriverAvailable() → DriverServiceClient.getDriverAvailability()
+        // isDriverBusy() → DriverServiceClient.getDriverAvailability()
+        // setDriverBusy() → ride.placed event consumed by driver-service
+        // setDriverAvailable() → ride.completed/cancelled event consumed by
+        // driver-service
+        // createPayment() → ride.completed event consumed by payment-service
+        // findUserNameById() → UserServiceClient.getUser().name()
+        // findDriverNameById() → DriverServiceClient.getDriver().name()
+        // findDriverVehicleTypeById() →
+        // DriverServiceClient.getDriver().vehicleDetails()
+        // getTotalRevenueForCompletedRidesFromPayments() → local rides.fare used
+        // instead (§5 S3-F10 note)
 }

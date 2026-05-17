@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-service-configmap
+  namespace: uber
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://payment-postgres:5432/uberdb-payments
+  SPRING_DATASOURCE_USERNAME: postgres
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_USERNAME: guest
+  FEIGN_USER_SERVICE_URL: http://user-service:8080
+  FEIGN_RIDE_SERVICE_URL: http://ride-service:8080
+  FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080

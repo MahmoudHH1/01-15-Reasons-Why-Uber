@@ -11,7 +11,10 @@ import com.team01.uber.payment.model.Payment;
 import com.team01.uber.payment.service.CouponService;
 import com.team01.uber.payment.service.PaymentCouponService;
 import com.team01.uber.payment.service.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +23,7 @@ import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.RefundRequest;
 import com.team01.uber.payment.model.PaymentStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +31,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
 
     private final PaymentService paymentService;
     private final CouponService couponService;
@@ -50,8 +56,23 @@ public class PaymentController {
     }
 
     @GetMapping("/user/{userId}/summary")
-    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId) {
-        return paymentService.getUserPaymentSummary(userId);
+    public UserPaymentSummaryDTO getUserPaymentSummary(@PathVariable Long userId, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        UserPaymentSummaryDTO result = paymentService.getUserPaymentSummary(userId);
+        log.info("Returning {} for {} {}", 200, request.getMethod(), request.getRequestURI());
+        return result;
+    }
+
+    @GetMapping("/user/{userId}/total")
+    public ResponseEntity<BigDecimal> getUserPaymentTotal(
+            @PathVariable Long userId,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<BigDecimal> response = ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, parseStartDate(startDate), parseEndDate(endDate)));
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
+        return response;
     }
 
     @PutMapping("/{id}/refund")
@@ -66,28 +87,42 @@ public class PaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<Payment> createPayment(@RequestBody Payment payment) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
+    public ResponseEntity<Payment> createPayment(@RequestBody Payment payment, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createPayment(payment));
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
+        return response;
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Payment> getPaymentById(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.getPaymentById(id));
+    public ResponseEntity<Payment> getPaymentById(@PathVariable Long id, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.getPaymentById(id));
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
+        return response;
     }
 
     @GetMapping
-    public ResponseEntity<List<Payment>> getAllPayments() {
-        return ResponseEntity.ok(paymentService.getAllPayments());
+    public ResponseEntity<List<Payment>> getAllPayments(HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<List<Payment>> response = ResponseEntity.ok(paymentService.getAllPayments());
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
+        return response;
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment) {
-        return ResponseEntity.ok(paymentService.updatePayment(id, payment));
+    public ResponseEntity<Payment> updatePayment(@PathVariable Long id, @RequestBody Payment payment, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
+        ResponseEntity<Payment> response = ResponseEntity.ok(paymentService.updatePayment(id, payment));
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), request.getMethod(), request.getRequestURI());
+        return response;
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
+    public ResponseEntity<Void> deletePayment(@PathVariable Long id, HttpServletRequest request) {
+        log.info("Received {} {}", request.getMethod(), request.getRequestURI());
         paymentService.deletePayment(id);
+        log.info("Returning {} for {} {}", 204, request.getMethod(), request.getRequestURI());
         return ResponseEntity.noContent().build();
     }
 
@@ -122,7 +157,7 @@ public class PaymentController {
         return paymentService.searchPayments(status, start, end, userId);
     }
 
-    private LocalDateTime parseStartDate(String dateStr) {
+    private LocalDateTime   parseStartDate(String dateStr) {
         try {
             return LocalDateTime.parse(dateStr);
         } catch (java.time.format.DateTimeParseException e) {
@@ -157,9 +192,13 @@ public class PaymentController {
     public ResponseEntity<Payment> processPaymentForRide(
             @PathVariable Long rideId,
             @Valid @RequestBody ProcessPaymentRequest request,
-            @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure) {
-        return ResponseEntity.status(HttpStatus.CREATED)
+            @RequestParam(name = "simulateFailure", required = false, defaultValue = "false") boolean simulateFailure,
+            HttpServletRequest httpRequest) {
+        log.info("Received {} {}", httpRequest.getMethod(), httpRequest.getRequestURI());
+        ResponseEntity<Payment> response = ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.processPaymentForRide(rideId, request, simulateFailure));
+        log.info("Returning {} for {} {}", response.getStatusCode().value(), httpRequest.getMethod(), httpRequest.getRequestURI());
+        return response;
     }
 
     @GetMapping("/analytics/methods")

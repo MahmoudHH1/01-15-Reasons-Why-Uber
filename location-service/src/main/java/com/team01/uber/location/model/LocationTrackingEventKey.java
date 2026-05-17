@@ -15,28 +15,28 @@ public class LocationTrackingEventKey implements Serializable {
     @PrimaryKeyColumn(name = "driver_id", type = PrimaryKeyType.PARTITIONED)
     private Long driverId;
 
-    @PrimaryKeyColumn(name = "event_timestamp", type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
-    private Instant eventTimestamp;
+    @PrimaryKeyColumn(name = "timestamp", type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
+    private Instant timestamp;
 
     public LocationTrackingEventKey() {}
 
-    public LocationTrackingEventKey(Long driverId, Instant eventTimestamp) {
+    public LocationTrackingEventKey(Long driverId, Instant timestamp) {
         this.driverId = driverId;
-        this.eventTimestamp = eventTimestamp;
+        this.timestamp = timestamp;
     }
 
     public Long getDriverId() { return driverId; }
     public void setDriverId(Long driverId) { this.driverId = driverId; }
-    public Instant getEventTimestamp() { return eventTimestamp; }
-    public void setEventTimestamp(Instant eventTimestamp) { this.eventTimestamp = eventTimestamp; }
+    public Instant getTimestamp() { return timestamp; }
+    public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof LocationTrackingEventKey that)) return false;
-        return Objects.equals(driverId, that.driverId) && Objects.equals(eventTimestamp, that.eventTimestamp);
+        return Objects.equals(driverId, that.driverId) && Objects.equals(timestamp, that.timestamp);
     }
 
     @Override
-    public int hashCode() { return Objects.hash(driverId, eventTimestamp); }
+    public int hashCode() { return Objects.hash(driverId, timestamp); }
 }

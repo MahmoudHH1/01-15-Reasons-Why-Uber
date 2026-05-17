@@ -1,36 +1,51 @@
 package com.team01.uber.payment.security;
 
+import com.team01.uber.contracts.feign.UserServiceClient;
+import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 public class UserLoaderHandler extends AuthHandler {
+    private static final Logger log = LoggerFactory.getLogger(UserLoaderHandler.class);
+    private final UserServiceClient userServiceClient;
 
-    private final JdbcTemplate jdbcTemplate;
-
-    public UserLoaderHandler(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public UserLoaderHandler(UserServiceClient userServiceClient) {
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
     public boolean handle(AuthContext ctx) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM users WHERE email = ?",
-                Integer.class,
-                ctx.getEmail()
-        );
-
-        if (count == null || count == 0) {
-            try {
-                ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                ctx.getResponse().getWriter().write("User not found");
-            } catch (IOException e) {
-                ctx.getResponse().setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            }
+        if (ctx.getUserId() == null) {
+            writeStatus(ctx, HttpServletResponse.SC_UNAUTHORIZED, "Missing uid claim");
             return false;
         }
 
-        return handleNext(ctx);
+        log.info("Calling {}.{} with args={}", "UserServiceClient", "getUser", ctx.getUserId());
+        try {
+            userServiceClient.getUser(ctx.getUserId());
+            log.info("{}.{} returned successfully", "UserServiceClient", "getUser");
+            return handleNext(ctx);
+        } catch (FeignException.NotFound e) {
+            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            writeStatus(ctx, HttpServletResponse.SC_NOT_FOUND, "caller user not found");
+            return false;
+        } catch (FeignException e) {
+            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            writeStatus(ctx, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                    "User service temporarily unavailable");
+            return false;
+        }
+    }
+
+    private static void writeStatus(AuthContext ctx, int status, String body) {
+        try {
+            ctx.getResponse().setStatus(status);
+            ctx.getResponse().getWriter().write(body);
+        } catch (IOException ignored) {
+            ctx.getResponse().setStatus(status);
+        }
     }
 }
