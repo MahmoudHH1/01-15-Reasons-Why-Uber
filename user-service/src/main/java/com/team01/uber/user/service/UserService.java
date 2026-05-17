@@ -234,8 +234,9 @@ public class UserService implements Observable {
                     "startDate must not be after endDate");
         }
         
-        // Fetch all users (cap at 100 to avoid N+1 explosion)
-        List<User> candidates = userRepository.findAll().stream().limit(100).toList();
+        // §2.12: cap the candidate set at the local-DB query stage (LIMIT 100)
+        // before the per-user Feign fan-out to payment-service.
+        List<User> candidates = userRepository.findCandidateUsersCapped();
         
         // Per-user Feign calls to payment-service
         List<TopRiderDTO> riders = new ArrayList<>();
@@ -338,8 +339,9 @@ public class UserService implements Observable {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
         }
         
-        // Fetch users by language preference (cap at 100)
-        List<User> candidates =userRepository.findByPreference("language", lang).stream().limit(100).toList();
+        // §2.12: cap the candidate set at the local-DB query stage (LIMIT 100)
+        // before the per-user Feign fan-out to ride-service.
+        List<User> candidates = userRepository.findByPreferenceCapped("language", lang);
         
         // Per-user Feign calls to ride-service
         List<User> qualified = new ArrayList<>();

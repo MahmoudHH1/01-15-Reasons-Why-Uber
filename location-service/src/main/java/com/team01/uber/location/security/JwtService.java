@@ -1,5 +1,6 @@
 package com.team01.uber.location.security;
 
+import com.team01.uber.contracts.security.JwtConfigurationManager;
 import java.util.Base64;
 import java.util.Date;
 
@@ -18,7 +19,7 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService() {
-        LocationJwtConfigManager config = LocationJwtConfigManager.getInstance();
+        JwtConfigurationManager config = JwtConfigurationManager.getInstance();
         byte[] keyBytes = Base64.getDecoder().decode(config.getSecret());
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = config.getExpirationMs();
