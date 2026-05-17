@@ -38,15 +38,21 @@ final class RideTestSupport {
         return new AuthedRider(a.uid(), a.email(), a.token());
     }
 
-    /** Seed a brand-new driver via driver-service. Returns the driver id. */
+    /** Seed a brand-new AVAILABLE driver via driver-service. Returns the driver id. */
     static long seedDriver(String token, String tag) {
+        return seedDriverWithStatus(token, tag, "AVAILABLE");
+    }
+
+    /** Seed a brand-new driver with a specific status (AVAILABLE / BUSY / OFFLINE). */
+    static long seedDriverWithStatus(String token, String tag, String status) {
+        String plate = "PL-" + Nonce.nonce().substring(0, 6).toUpperCase();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", tag + " Drv");
         body.put("email", Nonce.email(tag + "_drv"));
         body.put("phone", Nonce.phone());
         body.put("licenseNumber", "LIC-" + Nonce.nonce());
-        body.put("vehiclePlate", "PL-" + Nonce.nonce().substring(0, 6).toUpperCase());
-        body.put("vehicleType", "STANDARD");
+        body.put("status", status);
+        body.put("vehicleDetails", Map.of("vehicleType", "SEDAN", "plate", plate));
         Http.Response r = Http.request(DRIVER_BASE, "/api/drivers")
                 .bearer(token)
                 .json(body)
