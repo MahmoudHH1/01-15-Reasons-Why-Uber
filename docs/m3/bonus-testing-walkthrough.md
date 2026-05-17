@@ -1,63 +1,204 @@
 # Bonus Testing Suite — Walkthrough
 
-Walkthrough for PR #240, which delivers the M3 §15 Bonus **"Full Testing Suite"** across all 5 services.
+PR #240 delivers the M3 §15 Bonus **"Full Testing Suite"** — **44 tests, 0 failures, 0 skipped**, across all 5 services. This walkthrough covers (1) how to run the suite, and (2) the exact business-logic scenarios each test exercises.
 
 ---
 
-## What §15 Bonus asks for (verbatim from `docs/m3/uber-m3.md` §15, line 2626)
+## What §15 Bonus asks for (verbatim, `docs/m3/uber-m3.md` §15 line 2626)
 
-> | Bonus                  | Description |
-> | ---------------------- | ----------- |
-> | **Full Testing Suite** | (1) Unit tests for service business logic with `@MockBean` on all Feign clients. (2) RabbitMQ consumer integration tests with Testcontainers — publish an event, assert the consumer processes it and mutates the local DB. (3) Saga E2E test: trigger S3-F4, assert `payment.initiated` is received; then inject payment failure, assert compensation runs. |
+> **Full Testing Suite** — *"(1) Unit tests for service business logic with `@MockBean` on all Feign clients. (2) RabbitMQ consumer integration tests with Testcontainers — publish an event, assert the consumer processes it and mutates the local DB. (3) Saga E2E test: trigger S3-F4, assert `payment.initiated` is received; then inject payment failure, assert compensation runs."*
 
-Three required categories — this PR delivers all three, scaled to every service that has a Feign client and/or a RabbitMQ consumer:
-
-| Spec item | Where it's delivered |
+| Spec item | Delivered by |
 |---|---|
-| **(1) Unit tests with `@MockBean` on all Feign clients** | `UserServiceFeignTest`, `DriverServiceFeignTest`, `PaymentServiceFeignTest`, `RideServiceSagaPrechecksTest` |
-| **(2) RabbitMQ consumer ITs with Testcontainers** | `UserRideEventConsumerIT`, `DriverRideEventConsumerIT`, `PaymentRideEventConsumerIT`, `LocationRideSagaConsumerIT` |
-| **(3) Saga E2E test — trigger S3-F4 + inject payment failure + assert compensation** | `RideServiceSagaPrechecksTest` (S3-F4 trigger + `payment.initiated` publish) + `PaymentEventConsumerSagaTest` (payment.failed → compensation cascade) |
+| **(1)** Unit tests w/ Feign mocks | `UserServiceFeignTest` · `DriverServiceFeignTest` · `PaymentServiceFeignTest` · `RideServiceSagaPrechecksTest` |
+| **(2)** Testcontainers consumer ITs | `UserRideEventConsumerIT` · `DriverRideEventConsumerIT` · `PaymentRideEventConsumerIT` · `LocationRideSagaConsumerIT` |
+| **(3)** Saga E2E w/ compensation | `RideServiceSagaPrechecksTest` (S3-F4 trigger) + `PaymentEventConsumerSagaTest` (`payment.failed` → compensation cascade) |
 
-§15 is **opt-in extra credit**. §16 Critical Rule #9 still applies — the grader runs *their* tests, not yours. The bonus rewards having the testing suite exist and exercise the three required categories. Total delivered: **44 tests, 0 failures, 0 skipped**.
-
-> **Note on `@MockitoBean` vs `@MockBean`.** The spec text says `@MockBean`. The PR uses `@MockitoBean`. They are semantically identical — only the import line changes. `@MockBean` at `org.springframework.boot.test.mock.mockito.MockBean` was a Spring Boot-only annotation. Spring Boot 3.4 deprecated it; Spring Boot 4.0 **removed** it entirely. The replacement is `@MockitoBean` at `org.springframework.test.context.bean.override.mockito.MockitoBean` — same purpose, now provided by Spring Framework directly. The project is on Spring Boot 4.0.4, so `@MockBean` does not exist on the classpath; using `@MockitoBean` is the only option. The spec was written when `@MockBean` was still current.
+> `@MockitoBean` is used everywhere `@MockBean` appears in the spec — Spring Boot 4.0 removed the legacy `@MockBean`; `@MockitoBean` at `org.springframework.test.context.bean.override.mockito.MockitoBean` is the only replacement and is semantically identical.
 
 ---
 
-## Every file in this PR — what it does and why it's here
+## How to run
 
-| File | Kind | What it does |
+### Switch to the branch
+
+```powershell
+git fetch origin
+git checkout feat/M3/cc/bonus-testing-suite/55-24853
+```
+
+### The whole suite in one command (44 tests, ~4 minutes first run)
+
+Needs Docker Desktop running (Testcontainers pulls `rabbitmq:3-management`, `redis:7-alpine`, `cassandra:4.1`).
+
+```powershell
+mvn -pl user-service,driver-service,ride-service,location-service,payment-service -am `
+  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,UserRideEventConsumerIT,DriverRideEventConsumerIT,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" `
+  test
+```
+
+Expected: `BUILD SUCCESS` with **44 tests, 0 failures, 0 skipped**.
+
+### Run each class manually (one at a time)
+
+**Unit tests (no Docker needed, < 5s each):**
+
+```powershell
+mvn -pl user-service    -am "-Dtest=UserServiceFeignTest"          "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl driver-service  -am "-Dtest=DriverServiceFeignTest"        "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl payment-service -am "-Dtest=PaymentServiceFeignTest"       "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl ride-service    -am "-Dtest=RideServiceSagaPrechecksTest"  "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl ride-service    -am "-Dtest=PaymentEventConsumerSagaTest"  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+**Integration tests (Docker required, ~40–180s each):**
+
+```powershell
+mvn -pl user-service     -am "-Dtest=UserRideEventConsumerIT"     "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl driver-service   -am "-Dtest=DriverRideEventConsumerIT"   "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl payment-service  -am "-Dtest=PaymentRideEventConsumerIT"  "-Dsurefire.failIfNoSpecifiedTests=false" test
+mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT"  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+**A single test method inside a class:**
+
+```powershell
+mvn -pl ride-service -am `
+  "-Dtest=PaymentEventConsumerSagaTest#onPaymentFailed_compensationCascadeFires" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+> PowerShell quoting: wrap every `-D...` in double quotes (otherwise it splits on the dot — `"Unknown lifecycle phase .failIfNoSpecifiedTests=false"`). Alternative: prefix everything after `mvn ...` with `--%` to bypass PowerShell parsing.
+
+---
+
+## Business-logic scenarios — what each test actually exercises
+
+### 1. `UserServiceFeignTest` — 9 tests, user-service (§15.1)
+
+Service-level method tests for the three user-service endpoints whose logic depends on Feign calls. Every Feign client (`RideServiceClient`, `PaymentServiceClient`) is a Mockito `@Mock` — no Spring context, no DB.
+
+**S1-F6 `GET /api/users/top-riders`** — aggregate top spenders for a date range.
+
+| Scenario | Setup | Expected |
 |---|---|---|
-| `docs/m3/bonus-testing-walkthrough.md` | docs | This walkthrough. Quotes the spec, indexes every test, lists run commands, documents the prod-side fixes. |
-| `pom.xml` (root) | build | Adds `testcontainers-bom 1.20.4` to `<dependencyManagement>` so each service can pull `testcontainers` + `rabbitmq` + `cassandra` + `junit-jupiter` modules without re-specifying the version. |
-| **user-service** | | |
-| `user-service/pom.xml` | build | Adds `h2`, `testcontainers`, `testcontainers/junit-jupiter`, `testcontainers/rabbitmq`, `spring-boot-testcontainers` in `<scope>test</scope>`. |
-| `user-service/src/test/.../service/UserServiceFeignTest.java` | §15.1 unit | **9 tests** for S1-F6 `getTopRiders`, S1-F9 `findUsersByLanguageWithMinRides`, S1-F4 `deactivateUser` — all Feign clients (`RideServiceClient`, `PaymentServiceClient`) mocked via `@Mock` + `@InjectMocks`. No Spring context, no DB. ~1s runtime. |
-| `user-service/src/test/.../rabbitmq/UserRideEventConsumerIT.java` | §15.2 IT | **3 tests** booting real `rabbitmq:3-management` via Testcontainers. Publishes JSON `ride.completed`/`ride.cancelled` events to the real broker, asserts `userRepository.save(...)` is called with the correctly-mutated `User` (`totalRides±1`, `totalSpent±fare`). Uses explicit `@DynamicPropertySource` to wire `spring.rabbitmq.*` to the container, plus `spring.amqp.deserialization.trust.all=true` as a safety net. |
-| `user-service/src/test/resources/logback-test.xml` | test config | Silences post-teardown noise (Lettuce, AMQP listener container, Loki4j) so the test output is readable. |
-| `user-service/src/main/java/.../config/RabbitMQConsumerConfig.java` | **prod fix** | Removed hardcoded `factory.setHost("rabbitmq")` `CachingConnectionFactory` bean (it shadowed Spring Boot's env-driven auto-config — violated §2 *"All inter-service connection details flow through `application.yml`"*). Added `Jackson2JsonMessageConverter @Bean` so the consumer can deserialize JSON payloads from ride-service — without it Spring AMQP fell back to `SimpleMessageConverter` and every `ride.completed`/`ride.cancelled` event silently DLQ'd with `SecurityException` on `HashMap`. Now matches the ride/location/payment-service pattern. |
-| `user-service/src/main/java/.../messaging/consumers/RideEventConsumer.java` | **prod fix** | **Real production bug.** The file had two `@RabbitListener` methods on the **same** queue (`user.ride.saga-listener`). Spring AMQP creates one `SimpleMessageListenerContainer` per `@RabbitListener` → two competing consumers on one queue → RabbitMQ round-robins → each method silently `return`'d when the payload `routingKey` didn't match its expected value, but the message was already ack'd. **Result: ~50% of `ride.completed`/`ride.cancelled` events were silently dropped in production.** Consolidated into a single `onRideEvent` that dispatches by routing key, matching the payment-service `@RabbitListener` + `@RabbitHandler` shape. |
-| **driver-service** | | |
-| `driver-service/pom.xml` | build | Same Testcontainers test-deps as user-service plus `h2`. |
-| `driver-service/src/test/.../service/DriverServiceFeignTest.java` | §15.1 unit | **4 tests** for S2-F4 `updateAvailability` — the `OFFLINE` gate that calls `RideServiceClient.countActiveRidesForDriver`. All Feign clients mocked. |
-| `driver-service/src/test/.../rabbitmq/DriverRideEventConsumerIT.java` | §15.2 IT | **3 tests** publishing `ride.placed`/`.completed`/`.cancelled` over real RabbitMQ, asserting `DriverService.handleRidePlaced/Completed/Cancelled` is invoked. Uses string-based `spring.autoconfigure.exclude` for 8 Elasticsearch auto-config FQNs (Spring Boot 4 moved them between packages — string exclusion is more durable than class imports). `DriverIndexerService` + `DriverSearchEsRepository` mocked so no real ES backend is needed. |
-| `driver-service/src/test/resources/logback-test.xml` | test config | Same noise-silencing as user-service. |
-| **ride-service** | | |
-| `ride-service/src/test/.../service/RideServiceSagaPrechecksTest.java` | §15.1 unit + §15.3 trigger | **6 tests** for `RideService.completeRide` — the **S3-F4 saga trigger**. Constructs the service by hand with all 9 collaborators mocked, drives each branch of §8.3's three pre-saga Feign pre-checks (user / driver / location). Happy path asserts `publishRideCompleted` fires after `save` (`InOrder` enforces §2.11 commit-then-publish). Failure paths assert short-circuit (no downstream Feign call, no publish). |
-| `ride-service/src/test/.../messaging/consumers/PaymentEventConsumerSagaTest.java` | §15.3 E2E | **6 tests** — the §15.3 bonus E2E. The signature test `onPaymentFailed_compensationCascadeFires` injects a `payment.failed` event and asserts `markRideStatus(rideId, PAYMENT_FAILED)` runs **before** `publishRideCancelled(ride, "payment_failed")` (compensation cascade, §8.4). Plus redelivery idempotency, missing-ride no-op, and the happy-path `payment.initiated`/`.completed`/`.refunded` arrows from §8.2. |
-| **location-service** | | |
-| `location-service/pom.xml` | build | Testcontainers test-deps including `testcontainers/cassandra` (real Cassandra spun up for the IT). |
-| `location-service/src/test/.../rabbitmq/LocationRideSagaConsumerIT.java` | §15.2 IT | **6 tests** — full ride lifecycle over real RabbitMQ + Redis + Cassandra (all Testcontainers). Asserts §6 *"Mark the most recent location for this driver with the rideId"* via `ArgumentCaptor<LocationTrackingEvent>`, redelivery idempotency via Redis SETNX, and §6 *"no Cassandra mutation"* on `ride.cancelled`. Wires the Cassandra container through the **legacy `spring.data.cassandra.*` properties** (which `CassandraConfig extends AbstractCassandraConfiguration` actually reads), not Spring Boot 4's `spring.cassandra.*`. |
-| `location-service/src/test/resources/logback-test.xml` | test config | Silences AMQP/Lettuce/Loki4j/Cassandra DataStax driver pool reconnect storms during teardown. |
-| **payment-service** | | |
-| `payment-service/pom.xml` | build | Same Testcontainers test-deps. |
-| `payment-service/src/test/.../service/PaymentServiceFeignTest.java` | §15.1 unit | **4 tests** for S5-F9 `getUserPaymentSummary` — exercises the `UserServiceClient` existence check (§2.10) with the Feign client mocked. |
-| `payment-service/src/test/.../rabbitmq/PaymentRideEventConsumerIT.java` | §15.2 IT | **3 tests** publishing `ride.completed`/`.cancelled` over real RabbitMQ, asserting `PaymentService.processRideCompleted/Cancelled` is invoked. Uses `ddl-auto=none` because payment-service has a Postgres `NAMED_ENUM` (coupons table) that H2 can't model. |
-| `payment-service/src/test/resources/logback-test.xml` | test config | Same noise-silencing pattern. |
+| Happy path: 3 candidates, sort desc, limit 2 | repo returns 3 users; payment-service returns 100 / 500 / 300 per user | top[0]=user 2 ($500), top[1]=user 3 ($300); 3 Feign fan-out calls (one per candidate) |
+| Zero-spend user excluded from list | payment-service returns BigDecimal.ZERO for the only candidate | result list is empty |
+| Invalid date format short-circuits before Feign | `start="not-a-date"` | 400 `"Invalid date format"`; **zero** Feign calls |
 
-### Final test counts (44 total)
+**S1-F9 `GET /api/users/by-language`** — filter users by language preference + minimum completed rides.
 
-| Test class | Service | Tests | Spec item |
+| Scenario | Setup | Expected |
+|---|---|---|
+| Filter by `minRides>=3` | 3 users with rideCounts 5/2/10 | users 1+3 returned (2 below threshold dropped); 3 Feign calls |
+| Blank `lang` short-circuits | `lang="  "` | 400 `"lang must not be blank"`; **zero** Feign calls |
+| Feign 404 on one user is swallowed | user 1 → FeignException.NotFound, user 2 → count=7 | user 2 returned alone; 404 treated as "0 rides" for filtering, doesn't fail the whole call |
+
+**S1-F4 `PATCH /api/users/{id}/deactivate`** — soft-deactivate with active-rides gate.
+
+| Scenario | Setup | Expected |
+|---|---|---|
+| 0 active rides → deactivate succeeds | user ACTIVE, rideServiceClient returns 0 | status flipped to DEACTIVATED; `user.deactivated` event published |
+| Active rides present → refuse | rideServiceClient returns 2 | 400 `"active rides"`; row never saved; no event published |
+| Already DEACTIVATED → idempotent no-op | user already DEACTIVATED | returns 200; **never** consults Feign; no save, no event |
+
+### 2. `DriverServiceFeignTest` — 4 tests, driver-service (§15.1)
+
+S2-F4 `PATCH /api/drivers/{id}/availability` — the OFFLINE gate per §8.3.
+
+| Scenario | Setup | Expected |
+|---|---|---|
+| Going OFFLINE with 0 active rides | driver BUSY, rideServiceClient returns 0 | status flipped to OFFLINE; `driver.status-changed("BUSY","OFFLINE")` published |
+| Going OFFLINE with active rides | driver BUSY, rideServiceClient returns 1 | 400 `"Cannot go OFFLINE"`; row never saved; no event |
+| AVAILABLE / BUSY transitions skip Feign | driver AVAILABLE → BUSY | persists; **zero** Feign calls (only OFFLINE consults ride-service) |
+| Graceful degradation on Feign 503 | rideServiceClient throws ServiceUnavailable | treated as 0 active rides → OFFLINE persists (ride-service outage shouldn't block legitimate OFFLINE) |
+
+### 3. `PaymentServiceFeignTest` — 4 tests, payment-service (§15.1)
+
+S5-F9 `GET /api/payments/user/{id}/summary` — Feign-gated read per §2.10 caller-existence.
+
+| Scenario | Setup | Expected |
+|---|---|---|
+| Happy path: aggregate across 3 methods | user exists; repo returns CREDIT_CARD/CASH/WALLET rows | summary: 6 payments, $305 total, per-method breakdown matches |
+| Empty payments but user exists | user exists; repo returns empty list | summary returns with totals=0, empty breakdown (NOT 404 — spec wording §7) |
+| §2.10 user-service 404 → 404 | userServiceClient throws NotFound | 404 `"User not found"`; **DB query never runs** |
+| §2.10 user-service 503 → 503 | userServiceClient throws ServiceUnavailable | 503 `"User service temporarily unavailable"`; **DB query never runs** |
+
+### 4. `RideServiceSagaPrechecksTest` — 6 tests, ride-service (§15.1 + §15.3 trigger)
+
+S3-F4 `POST /api/rides/{id}/complete` — the saga trigger. §8.3 mandates three Feign pre-checks before the local commit + publish.
+
+| Scenario | Setup | Expected |
+|---|---|---|
+| **Happy path (all 3 pre-checks pass)** | user ACTIVE, driver BUSY, recent ping in last 5 min | `ArgumentCaptor<Ride>` shows saved ride has `status=COMPLETED`, `completedAt!=null`; `InOrder` enforces user-feign → driver-feign → location-feign → `save` → `publishRideCompleted` (§2.11) |
+| Pre-check 1: user DEACTIVATED | userServiceClient returns `status="DEACTIVATED"` | 400 `"User account is not active"`; driver & location Feign never called; no save, no publish |
+| Pre-check 1: user not found | userServiceClient throws FeignException.NotFound | 400 `"User not found"`; same short-circuit assertions |
+| Pre-check 2: driver not BUSY | driverServiceClient returns AVAILABLE | 400 `"Driver is not currently active"`; location Feign never called |
+| **Pre-check 3 (Scenario C): location stale** | locationServiceClient throws 404 (no ping last 5 min) | 400 `"Driver not actively tracked"` — this is §8.6 Scenario C verbatim |
+| Cheap state check runs first | ride already `COMPLETED` | 400 with **zero** Feign calls (status check short-circuits before fanning out) |
+
+### 5. `PaymentEventConsumerSagaTest` — 6 tests, ride-service (§15.3 E2E)
+
+The §15.3 bonus E2E. Tests the ride-service consumer's reaction to `payment.*` events — the choreography from §8.2.
+
+| Scenario | Setup | Expected |
+|---|---|---|
+| §8.2 step 4: `payment.initiated` arrives | event with rideId=10 | `markRideStatus(10, PAYMENT_PENDING)`; no `ride.cancelled` published |
+| §8.2 step 6a happy path: `payment.completed` | event with rideId=10 | `markRideStatus(10, PAID)`; no cancel |
+| **§15.3 bonus: `payment.failed` → compensation cascade** | event reason=`"card declined"` | `markRideStatus(10, PAYMENT_FAILED)` runs **before** `publishRideCancelled(ride, "payment_failed")` — `InOrder` enforces commit-then-publish (§2.11) and `verifyNoMoreInteractions` proves nothing extra fires |
+| §8.6 idempotency: re-delivered `payment.failed` | publish event twice; markRideStatus returns ride then null | `markRideStatus` called twice; **`publishRideCancelled` called only once** (compensation doesn't double-fire) |
+| Terminal-state idempotency | markRideStatus returns null (ride already terminal) | no `publishRideCancelled` — §16 rule 11 state-based idempotency |
+| §8.2 step 7: `payment.refunded` | event | `markRideStatus(10, REFUNDED)`; no cancel |
+
+### 6. `UserRideEventConsumerIT` — 3 tests, user-service (§15.2)
+
+Boots real `rabbitmq:3-management` via Testcontainers + real user-service Spring context. `UserRepository` is `@MockitoBean` so we assert the *exact User row* the consumer would persist.
+
+| Scenario | Publish | Expected (within 10s) |
+|---|---|---|
+| `ride.completed` over the wire | `RideCompletedEvent(rideId=5001, userId=1001, driverId=7001, fare=50.0)` on `ride.events` → `ride.completed` | `userRepository.save(...)` called once; captured `User` has `totalRides=5` (was 4) and `totalSpent=250.0` (was 200) |
+| `ride.cancelled` over the wire | `RideCancelledEvent(rideId=5002, userId=1002, driverId=7002, reason="user_requested")` | `userRepository.save(...)` called once; captured `User` has `totalRides=2` (was 3); `totalSpent` unchanged (RideCancelledEvent carries no fare) |
+| User not found on `ride.completed` | event with userId=9999; repo returns Optional.empty() | `findById(9999)` called once; `save(...)` **never** called for userId=9999 (graceful skip, no DLQ) |
+
+### 7. `DriverRideEventConsumerIT` — 3 tests, driver-service (§15.2)
+
+Same Testcontainers shape; `DriverService` is `@MockitoBean`. Elasticsearch auto-config is excluded by FQN string so no real ES backend is needed.
+
+| Scenario | Publish | Expected |
+|---|---|---|
+| `ride.placed` | `RidePlacedEvent(rideId=81001, userId=71001, driverId=91001)` | `DriverService.handleRidePlaced(driverId=91001, rideId=81001)` invoked once |
+| `ride.completed` | `RideCompletedEvent(81002, 71002, 91002, fare=42.5)` | `handleRideCompleted(91002, 81002, 42.5)` invoked once (fare arg propagated) |
+| `ride.cancelled` | `RideCancelledEvent(81003, 71003, 91003, "user_requested")` | `handleRideCancelled(91003, 81003)` invoked once |
+
+### 8. `PaymentRideEventConsumerIT` — 3 tests, payment-service (§15.2)
+
+Same Testcontainers shape; `PaymentService` is `@MockitoBean`.
+
+| Scenario | Publish | Expected |
+|---|---|---|
+| `ride.completed` payload propagation | `RideCompletedEvent(91001, 71001, 81001, 42.5)` | `processRideCompleted(event)` called once with **all fields matching** (rideId, userId, driverId, fare) |
+| `ride.cancelled` payload propagation | `RideCancelledEvent(91002, 71002, 81002, "user_requested")` | `processRideCancelled(event)` called with rideId=91002 and reason="user_requested" |
+| Cross-dispatch isolation | publish `ride.completed` only | `processRideCompleted` called once; **`processRideCancelled` zero times** (proves `@RabbitHandler` routes by event Java type, not round-robin) |
+
+### 9. `LocationRideSagaConsumerIT` — 6 tests, location-service (§15.2)
+
+The richest IT: real RabbitMQ + real Redis + real Cassandra (all Testcontainers). `LocationTrackingEventRepository` and `MongoEventLogger` are `@MockitoBean`.
+
+| Scenario | Publish | Expected |
+|---|---|---|
+| `ride.placed` notifies Observer | `RidePlacedEvent(9001, 7001, 8001)` | `mongoEventLogger.onEvent("LOCATION_UPDATED", …)` called once; `trackingRepository.save(...)` **never** called |
+| **Redis SETNX idempotency** | publish same `ride.placed` twice | observer `onEvent` called **exactly once** (Redis-backed deduplication, §16 rule 11) |
+| **§6 "mark latest row with rideId"** | pre-stub `findTopByKeyDriverId(8002)` to return an existing row; publish `RideCompletedEvent(9002, 7002, 8002, 42.5)` | `ArgumentCaptor<LocationTrackingEvent>` captures the saved row → `saved.getRideId() == 9002L` AND `saved.getKey().getDriverId() == 8002L`; observer fires `"TRIP_COMPLETED"` |
+| `ride.completed` redelivery idempotency | publish twice | `findTopByKeyDriverId` called twice, but `save(...)` called **only once** (handler sees rideId already set and skips) |
+| No prior tracking ping → no-op | `findTopByKeyDriverId` returns Optional.empty | observer still notified `"TRIP_COMPLETED"`; `save(...)` **never** called; no NullPointerException |
+| **§6 "no Cassandra mutation on cancel"** | `RideCancelledEvent(9003, 7003, 8003, "DRIVER_NO_SHOW")` | observer fires `"TRIP_CANCELLED"`; **both** `findTopByKeyDriverId` and `save` never called — §6 verbatim |
+
+---
+
+## Final test counts
+
+| Class | Service | Tests | Spec item |
 |---|---|---|---|
 | `UserServiceFeignTest` | user | 9 | §15.1 |
 | `DriverServiceFeignTest` | driver | 4 | §15.1 |
@@ -72,124 +213,12 @@ Three required categories — this PR delivers all three, scaled to every servic
 
 ---
 
-## Running the suite (PowerShell)
-
-> PowerShell parses `-Dfoo.bar=baz` differently than CMD — it can split on the dot. Wrap each `-D` argument in double quotes, or use the `--%` stop-parsing token.
-
-### Switch to the branch
-
-```powershell
-git fetch origin
-git checkout feat/M3/cc/bonus-testing-suite/55-24853
-```
-
-### Run the whole bonus suite in one command (44 tests, ~4 minutes first run)
-
-Needs Docker Desktop running (the Testcontainers ITs pull `rabbitmq:3-management`, `redis:7-alpine`, `cassandra:4.1`).
-
-```powershell
-mvn -pl user-service,driver-service,ride-service,location-service,payment-service -am `
-  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,UserRideEventConsumerIT,DriverRideEventConsumerIT,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
-  "-Dsurefire.failIfNoSpecifiedTests=false" `
-  test
-```
-
-Expected: `BUILD SUCCESS` with **44 tests, 0 failures, 0 skipped**.
-
-Or split it into a one-time refresh + a no-`-am` filter command:
-
-```powershell
-mvn install -DskipTests
-mvn -pl user-service,driver-service,ride-service,location-service,payment-service `
-  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,UserRideEventConsumerIT,DriverRideEventConsumerIT,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
-  test
-```
-
-### Run each test class manually (one at a time)
-
-**Unit tests (no Docker needed, < 5s each):**
-
-```powershell
-mvn -pl user-service    -am "-Dtest=UserServiceFeignTest"          "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl driver-service  -am "-Dtest=DriverServiceFeignTest"        "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl payment-service -am "-Dtest=PaymentServiceFeignTest"       "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl ride-service    -am "-Dtest=RideServiceSagaPrechecksTest"  "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl ride-service    -am "-Dtest=PaymentEventConsumerSagaTest"  "-Dsurefire.failIfNoSpecifiedTests=false" test
-```
-
-**Integration tests (Docker Desktop must be running, ~40–180s each):**
-
-```powershell
-mvn -pl user-service     -am "-Dtest=UserRideEventConsumerIT"     "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl driver-service   -am "-Dtest=DriverRideEventConsumerIT"   "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl payment-service  -am "-Dtest=PaymentRideEventConsumerIT"  "-Dsurefire.failIfNoSpecifiedTests=false" test
-mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT"  "-Dsurefire.failIfNoSpecifiedTests=false" test
-```
-
-**Run a single test method inside a class:**
-
-```powershell
-mvn -pl ride-service -am `
-  "-Dtest=PaymentEventConsumerSagaTest#onPaymentFailed_compensationCascadeFires" `
-  "-Dsurefire.failIfNoSpecifiedTests=false" test
-```
-
-Use `#testMethodName` after the class name. Useful when something is flaky and you want to drill in.
-
-### Alternative PowerShell syntax (stop-parsing token)
-
-If quoting feels awkward, use `--%`:
-
-```powershell
-mvn -pl ride-service --% -Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest test
-```
-
-Everything after `--%` is passed verbatim to mvn.
-
----
-
-## Prod-side fixes landed alongside the ITs
-
-Two **real production bugs** in user-service surfaced while wiring up the §15.2 IT, plus one test-only Cassandra wiring fix in location-service. All three are documented in commit messages.
-
-| Service | Production change | Why |
-|---|---|---|
-| `user-service` | **`RabbitMQConsumerConfig` — removed hardcoded host, added Jackson converter.** Deleted `factory.setHost("rabbitmq")` so Spring Boot auto-config now binds `spring.rabbitmq.*` from `application.yml` (env-driven, the same image boots in compose/MiniKube/local-dev unchanged). Added `Jackson2JsonMessageConverter @Bean`. | §2 *"All inter-service connection details flow through `application.yml`"* and §2.8 *"Event payload records cross the wire as JSON (Jackson2-based converter on both publisher and consumer sides)"*. Without the Jackson bean, Spring AMQP fell back to `SimpleMessageConverter` and every inbound `ride.completed`/`.cancelled` message silently DLQ'd with `SecurityException` on `HashMap` — meaning `User.totalRides` / `User.totalSpent` were never updated in production. |
-| `user-service` | **`RideEventConsumer` — consolidated two `@RabbitListener` methods into one.** Was: `onRideCompleted` and `onRideCancelled` each annotated `@RabbitListener(queues = "user.ride.saga-listener")`, each filtering by payload `routingKey` and `return`'ing if it didn't match. Now: a single `onRideEvent` that dispatches in-process by routing key. | Spring AMQP creates **one consumer per `@RabbitListener`** → two competing consumers on the same queue → RabbitMQ round-robins → ~50% of messages hit the "wrong" handler that just returns and ack's, silently dropping the event. Aligns with the payment-service shape (one class-level `@RabbitListener` + multiple `@RabbitHandler` methods dispatched by deserialized Java type). |
-| `location-service` IT | **Added a Cassandra Testcontainer + `cassandra:4.1`.** Wired through the **legacy** `spring.data.cassandra.contact-points`/`port`/`local-datacenter` names (which `CassandraConfig extends AbstractCassandraConfiguration` reads), not Spring Boot 4's `spring.cassandra.*`. `withStartupTimeout(5min)` to absorb first-pull cold start. | `CassandraConfig` forces a real connection at boot (its `getSchemaAction()` returns `CREATE_IF_NOT_EXISTS`). Without a Cassandra container, context-load fails with *"Could not reach any contact point"* on localhost:9042. The `spring.cassandra.*` test props had no effect because of the property-name mismatch. |
-
----
-
 ## Troubleshooting
 
-### `No tests matching pattern "<name>" were executed!`
-
-Surefire 3.2.5 errors when `-Dtest=...` matches nothing. `-am` re-runs `test` on the upstream `contracts` module (which has zero tests), and the filter doesn't match there → build fail before the target service runs. Either:
-
-1. Add `-Dsurefire.failIfNoSpecifiedTests=false` so surefire skips modules where the filter matches nothing.
-2. Or refresh `contracts` once with `mvn install -DskipTests`, then run the service-only command without `-am`.
-
-### "Unknown lifecycle phase `.failIfNoSpecifiedTests=false`"
-
-PowerShell split the `-D` argument on the dot. Either quote each `-D` (`"-Dsurefire.failIfNoSpecifiedTests=false"`), use `--%` before all `-D` args, or drop the flag entirely when the filter names real classes.
-
-### `Testcontainers could not find a valid Docker environment`
-
-Docker Desktop is not running. Start it and retry.
-
-### `NoClassDefFoundError: com/team01/uber/contracts/security/JwtConfigurationManager`
-
-Stale `contracts-1.0-SNAPSHOT.jar` in your local `.m2` cache. `mvn -pl <svc>` on its own does not rebuild upstream Maven modules. Two fixes:
-
-1. **Add `-am` (also-make)** so Maven rebuilds `contracts` before the target service.
-2. **Or refresh everything once** with `mvn install -DskipTests` and re-run.
-
-### Cassandra IT times out at startup
-
-First Docker pull of `cassandra:4.1` can take several minutes on a slow network. `LocationRideSagaConsumerIT` declares `.withStartupTimeout(Duration.ofMinutes(5))` to absorb that. If it still times out, pull the image manually first: `docker pull cassandra:4.1`.
-
----
-
-## Independence
-
-This PR branches directly off `origin/main` and depends on **no other PR in the queue**. The unit tests are pure Mockito; the integration tests mock the data repositories and only spin RabbitMQ + Redis + Cassandra as real containers. None of the §2.10 caller-existence fixes (PRs #234-#237), the §2.12 cap fixes (PRs #238-#239), or the §6 action-label fix (PR #233) are required for the suite to run green.
+| Symptom | Fix |
+|---|---|
+| `No tests matching pattern "<name>" were executed!` (build fails on `contracts` module) | Add `-Dsurefire.failIfNoSpecifiedTests=false` to skip modules where the filter matches nothing — `-am` rebuilds contracts but it has zero tests. |
+| `"Unknown lifecycle phase .failIfNoSpecifiedTests=false"` | PowerShell split the `-D` on the dot. Quote each `-D` (`"-Dfoo.bar=baz"`), or use `--%` before all `-D` args. |
+| `Testcontainers could not find a valid Docker environment` | Docker Desktop is not running. Start it and retry. |
+| `NoClassDefFoundError: ...JwtConfigurationManager` | Stale `contracts-1.0-SNAPSHOT.jar` in `.m2`. Either add `-am`, or run `mvn install -DskipTests` once and re-run. |
+| Cassandra IT times out at startup | First-pull of `cassandra:4.1` is slow. `LocationRideSagaConsumerIT` already declares `.withStartupTimeout(5min)` — if it still times out, run `docker pull cassandra:4.1` manually first. |
