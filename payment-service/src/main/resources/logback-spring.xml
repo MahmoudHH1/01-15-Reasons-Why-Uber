@@ -3,19 +3,20 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <springProperty scope="context" name="spring.application.name" source="spring.application.name"/>
+    <springProperty scope="context" name="spring.application.name" source="spring.application.name" defaultValue="payment-service"/>
 
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
         </http>
         <labels>
-            app=uber
-            service=${spring.application.name}
-            level=%level
-            env=k8s
+            <pattern>
+                app=uber
+                service=${spring.application.name}
+                level=%level
+                env=k8s
+            </pattern>
         </labels>
-        <structuredMetadata>off</structuredMetadata>
         <message>
             <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${spring.application.name}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","userId":"%X{userId:-}","paymentId":"%X{paymentId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
         </message>

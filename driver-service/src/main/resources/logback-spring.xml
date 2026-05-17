@@ -11,14 +11,17 @@
         <http>
             <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
         </http>
-        <format>
-            <label>
-                <pattern>app=uber,service=${springAppName},level=%level,env=k8s</pattern>
-            </label>
-            <message>
-                <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${springAppName}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","driverId":"%X{driverId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
-            </message>
-        </format>
+        <labels>
+            <pattern>
+                app=uber
+                service=${springAppName}
+                level=%level
+                env=k8s
+            </pattern>
+        </labels>
+        <message>
+            <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${springAppName}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","driverId":"%X{driverId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
+        </message>
     </appender>
 
     <springProfile name="k8s">

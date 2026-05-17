@@ -14,26 +14,29 @@
         <http>
             <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
         </http>
-        <format>
-            <label>
-                <pattern>app=uber,service=${spring.application.name},level=%level,env=k8s</pattern>
-            </label>
-            <message>
-                <pattern>
-                    {
-                        "timestamp": "%d{ISO8601}",
-                        "level": "%level",
-                        "service": "${spring.application.name}",
-                        "thread": "%thread",
-                        "logger": "%logger{36}",
-                        "correlationId": "%X{correlationId:-}",
-                        "userId": "%X{userId:-}",
-                        "routingKey": "%X{routingKey:-}",
-                        "message": "%msg"
-                    }
-                </pattern>
-            </message>
-        </format>
+        <labels>
+            <pattern>
+                app=uber
+                service=${spring.application.name}
+                level=%level
+                env=k8s
+            </pattern>
+        </labels>
+        <message>
+            <pattern>
+                {
+                    "timestamp": "%d{ISO8601}",
+                    "level": "%level",
+                    "service": "${spring.application.name}",
+                    "thread": "%thread",
+                    "logger": "%logger{36}",
+                    "correlationId": "%X{correlationId:-}",
+                    "userId": "%X{userId:-}",
+                    "routingKey": "%X{routingKey:-}",
+                    "message": "%msg"
+                }
+            </pattern>
+        </message>
     </appender>
 
     <!-- FIX: console is mandatory -->
