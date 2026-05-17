@@ -43,16 +43,25 @@ public final class Seeders {
     }
 
     /**
-     * Try to log in as ADMIN with the default seeded admin credentials documented in the bash scripts
-     * ({@code admin@uber.io} / {@code Admin!2026}). Returns the admin token if successful.
-     * Falls back to {@code null} when the SUT has no admin seed — callers should skip admin-only TCs.
+     * Try to log in as ADMIN. Two credential pairs are tried in order:
+     *   1. {@code admin@uber.com / admin123} — what {@code user-service}'s {@code DataSeeder} actually creates.
+     *   2. {@code admin@uber.io / Admin!2026} — the spec-doc fallback (e.g., bash scripts).
+     * Returns the admin token if either succeeds, else {@code null} — callers should skip admin-only TCs.
      */
     public static String adminTokenOrNull() {
-        Http.Response r = Http.request(USER_BASE, "/api/auth/login")
-                .json(Map.of("email", "admin@uber.io", "password", "Admin!2026"))
-                .post();
-        if (r.status() < 200 || r.status() >= 300) return null;
-        return r.json().path("token").asText(null);
+        String[][] credentials = {
+                {"admin@uber.com", "admin123"},
+                {"admin@uber.io", "Admin!2026"}
+        };
+        for (String[] c : credentials) {
+            Http.Response r = Http.request(USER_BASE, "/api/auth/login")
+                    .json(Map.of("email", c[0], "password", c[1]))
+                    .post();
+            if (r.status() >= 200 && r.status() < 300) {
+                return r.json().path("token").asText(null);
+            }
+        }
+        return null;
     }
 
     public static SeededDriver seedDriver(String token, String tag) {
