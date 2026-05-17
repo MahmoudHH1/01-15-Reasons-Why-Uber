@@ -97,27 +97,48 @@ git fetch origin
 git checkout feat/M3/cc/bonus-testing-suite/55-24853
 ```
 
-### Run the whole bonus suite in one command (18 tests, ~1 minute)
+### Run the whole bonus suite in one command (38 tests across all 5 services, ~2 minutes)
 
-Needs Docker Desktop running (the Testcontainers IT pulls `rabbitmq:3-management` + `redis:7-alpine`).
+Needs Docker Desktop running (the Testcontainers ITs pull `rabbitmq:3-management` + `redis:7-alpine`).
 
 ```powershell
-mvn -pl ride-service,location-service -am `
-  "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,LocationRideSagaConsumerIT" `
+mvn -pl user-service,driver-service,ride-service,location-service,payment-service -am `
+  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
   "-Dsurefire.failIfNoSpecifiedTests=false" `
   test
 ```
 
-Expected: `Tests run: 18, Failures: 0, Errors: 0` across the three test classes, BUILD SUCCESS.
+Expected: `BUILD SUCCESS` with the seven test classes reporting 9 + 4 + 4 + 6 + 6 + 3 + 6 = **38 tests, 0 failures**.
+
+| Test class | Service | Tests | What it covers |
+|---|---|---|---|
+| `UserServiceFeignTest` | user | 9 | S1-F6 top-riders, S1-F9 lang, S1-F4 deactivate — all Feign clients @Mock'd |
+| `DriverServiceFeignTest` | driver | 4 | S2-F4 availability OFFLINE gate via RideServiceClient |
+| `PaymentServiceFeignTest` | payment | 4 | S5-F9 summary — UserServiceClient existence check |
+| `RideServiceSagaPrechecksTest` | ride | 6 | S3-F4 completeRide §8.3 3-Feign pre-check matrix |
+| `PaymentEventConsumerSagaTest` | ride | 6 | §15.3 saga E2E — `payment.failed` → compensation cascade |
+| `PaymentRideEventConsumerIT` | payment | 3 | Testcontainers IT — `ride.completed/.cancelled` over real AMQP |
+| `LocationRideSagaConsumerIT` | location | 6 | Testcontainers IT — full ride lifecycle + redelivery idempotency |
 
 Or split it into a one-time refresh + a no-`-am` filter command:
 
 ```powershell
 mvn install -DskipTests
-mvn -pl ride-service,location-service `
-  "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,LocationRideSagaConsumerIT" `
+mvn -pl user-service,driver-service,ride-service,location-service,payment-service `
+  "-Dtest=UserServiceFeignTest,DriverServiceFeignTest,PaymentServiceFeignTest,RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,PaymentRideEventConsumerIT,LocationRideSagaConsumerIT" `
   test
 ```
+
+### `@Disabled` ITs (template ready, blocked by separate concerns)
+
+Two ITs are in place but `@Disabled` with explicit follow-up notes:
+
+| Test class | Blocker |
+|---|---|
+| `user-service/.../UserRideEventConsumerIT` | `RabbitMQConsumerConfig.java:49` hardcodes `factory.setHost("rabbitmq")` — ignores environment. Bean-override at test scope doesn't propagate to the listener container's bound CF. Fix prod bean → remove `@Disabled`. |
+| `driver-service/.../DriverRideEventConsumerIT` | `@SpringBootTest` boots `spring-boot-starter-data-elasticsearch`; without a reachable ES backend the context dies at load. Add an `ElasticsearchContainer` to the test class or exclude the ES auto-config + `@MockitoBean` the ES-dependent beans. |
+
+Both follow-ups are mechanical and fit the same template once the production-side or container-side prerequisite lands.
 
 ### Run only the fast suite (no Docker needed) — 12 tests, ~3 seconds
 
