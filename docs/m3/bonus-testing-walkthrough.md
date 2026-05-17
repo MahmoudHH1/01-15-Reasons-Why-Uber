@@ -173,4 +173,4 @@ No changes under `src/main/`. No changes to `contracts/`. Production code is unt
 
 This PR branches directly off `origin/main` and depends on **no other PR in the queue**. The unit tests are pure Mockito; the integration test mocks the data repositories and only spins RabbitMQ + Redis as real containers. None of the §2.10 caller-existence fixes (PRs #234-#237), the §2.12 cap fixes (PRs #238-#239), or the §6 action-label fix (PR #233) are required for the suite to run green.
 
-One caveat: the IT for `ride.completed` asserts the action label `"TRACKING_RECORDED"` (matching current `main` behaviour). PR #233 changes that label to `"TRIP_COMPLETED"` per §6. When #233 merges, one assertion in `LocationRideSagaConsumerIT.rideCompleted_marksLatestTrackingRow_withRideId_perSection6` needs the literal flipped — one-line follow-up.
+PR #233 (TRIP_COMPLETED action label fix), PRs #234-#237 (UserLoaderHandler Feign migration) and PR #238 (S3-F12 cap) are now merged in `main`. After merging `main` into this branch, the four `ride.completed` IT assertions were flipped from `"TRACKING_RECORDED"` to `"TRIP_COMPLETED"` to match the new production behaviour.

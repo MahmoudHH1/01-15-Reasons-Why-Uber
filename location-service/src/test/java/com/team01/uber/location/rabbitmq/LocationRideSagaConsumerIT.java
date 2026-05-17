@@ -130,7 +130,7 @@ class LocationRideSagaConsumerIT {
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             verify(trackingRepository, times(1)).findTopByKeyDriverId(8002L);
             verify(trackingRepository, times(1)).save(saveCaptor.capture());
-            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRIP_COMPLETED"), any());
         });
 
         LocationTrackingEvent saved = saveCaptor.getValue();
@@ -155,7 +155,7 @@ class LocationRideSagaConsumerIT {
 
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             verify(trackingRepository, times(1)).save(any(LocationTrackingEvent.class));
-            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRIP_COMPLETED"), any());
         });
 
         publish("ride.completed", event, "com.team01.uber.contracts.events.RideCompletedEvent");
@@ -163,7 +163,7 @@ class LocationRideSagaConsumerIT {
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
                 verify(trackingRepository, times(2)).findTopByKeyDriverId(8004L));
         verify(trackingRepository, times(1)).save(any(LocationTrackingEvent.class));
-        verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+        verify(mongoEventLogger, times(1)).onEvent(eq("TRIP_COMPLETED"), any());
     }
 
     @Test
@@ -175,7 +175,7 @@ class LocationRideSagaConsumerIT {
 
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             verify(trackingRepository, times(1)).findTopByKeyDriverId(8005L);
-            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRIP_COMPLETED"), any());
         });
         verify(trackingRepository, never()).save(any());
     }
