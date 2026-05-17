@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: cassandra-statefulset
+  name: cassandra
   namespace: uber
 spec:
   serviceName: cassandra
@@ -16,34 +16,46 @@ spec:
     spec:
       containers:
         - name: cassandra
-          image: cassandra:latest
+          image: cassandra:5.0
           ports:
+            - containerPort: 7000
+              name: intra-node
+            - containerPort: 7001
+              name: tls-intra-node
+            - containerPort: 7199
+              name: jmx
             - containerPort: 9042
               name: cql
-          env:
-            - name: MAX_HEAP_SIZE
-              value: "256M"
+            - containerPort: 9160
+              name: thrift
           resources:
             limits:
-              memory: 768Mi
+              memory: 2Gi
             requests:
-              memory: 512Mi
-          livenessProbe:
-            exec:
-              command:
-                - cqlsh
-                - -e
-                - "DESCRIBE KEYSPACES"
-            initialDelaySeconds: 60
-            periodSeconds: 30
+              memory: 1Gi
+          env:
+            - name: MAX_HEAP_SIZE
+              value: 256M
+            - name: HEAP_NEWSIZE
+              value: 64M
           readinessProbe:
             exec:
               command:
-                - cqlsh
-                - -e
-                - "DESCRIBE KEYSPACES"
+                - /bin/bash
+                - -c
+                - "cqlsh -e 'DESCRIBE KEYSPACES'"
             initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 30
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - "cqlsh -e 'DESCRIBE KEYSPACES'"
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 30
           volumeMounts:
             - name: cassandra-data
               mountPath: /var/lib/cassandra
@@ -51,7 +63,7 @@ spec:
     - metadata:
         name: cassandra-data
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
-            storage: 10Gi
+            storage: 2Gi

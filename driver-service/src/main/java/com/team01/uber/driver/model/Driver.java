@@ -1,5 +1,6 @@
 package com.team01.uber.driver.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -9,6 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +50,16 @@ public class Driver {
 
     private Integer totalRatings = 0;
 
+    @Column(name = "total_completed_rides", nullable = false)
+    private Integer totalCompletedRides = 0;
+
+    @Column(name = "total_earnings", nullable = false)
+    private Double totalEarnings = 0.0;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "reversed_ride_ids", columnDefinition = "jsonb")
+    private List<Long> reversedRideIds = new ArrayList<>();
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> vehicleDetails;
@@ -57,5 +69,6 @@ public class Driver {
 
     // Driver is the inverse side; DriverDocument is the owning side (holds the FK)
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<DriverDocument> driverDocuments;
 }

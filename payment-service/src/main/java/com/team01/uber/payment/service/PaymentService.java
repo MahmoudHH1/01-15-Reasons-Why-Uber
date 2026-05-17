@@ -1,5 +1,17 @@
 package com.team01.uber.payment.service;
 
+import com.team01.uber.contracts.dto.RideDTO;
+import com.team01.uber.contracts.dto.UserDTO;
+import com.team01.uber.contracts.events.PaymentCompletedEvent;
+import com.team01.uber.contracts.events.PaymentFailedEvent;
+import com.team01.uber.contracts.events.PaymentInitiatedEvent;
+import com.team01.uber.contracts.events.PaymentRefundedEvent;
+import com.team01.uber.contracts.events.RideCancelledEvent;
+import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.feign.DriverServiceClient;
+import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.contracts.feign.UserServiceClient;
+import feign.FeignException;
 import com.team01.uber.payment.adapter.MongoDocumentAdapter;
 import com.team01.uber.payment.dto.AppliedCouponDTO;
 import com.team01.uber.payment.dto.PaymentDetailsDTO;
@@ -17,6 +29,7 @@ import com.team01.uber.payment.strategy.RefundContext;
 import com.team01.uber.payment.strategy.RefundResult;
 import com.team01.uber.payment.strategy.RefundStrategy;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
+import com.team01.uber.payment.messaging.PaymentEventPublisher;
 import org.bson.Document;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -29,22 +42,37 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
     private final RefundStrategySelector strategySelector;
     private final CacheInvalidationService cacheInvalidationService;
     private final MongoTemplate mongoTemplate;
     private final MongoDocumentAdapter mongoDocumentAdapter;
+    private final PaymentEventPublisher paymentEventPublisher;
+    private final UserServiceClient userServiceClient;
+    private final RideServiceClient rideServiceClient;
+    private final DriverServiceClient driverServiceClient;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -52,12 +80,20 @@ public class PaymentService {
                           RefundStrategySelector strategySelector,
                           CacheInvalidationService cacheInvalidationService,
                           MongoTemplate mongoTemplate,
-                          MongoDocumentAdapter mongoDocumentAdapter) {
+                          MongoDocumentAdapter mongoDocumentAdapter,
+                          PaymentEventPublisher paymentEventPublisher,
+                          UserServiceClient userServiceClient,
+                          RideServiceClient rideServiceClient,
+                          DriverServiceClient driverServiceClient) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
         this.mongoTemplate = mongoTemplate;
         this.mongoDocumentAdapter = mongoDocumentAdapter;
+        this.paymentEventPublisher = paymentEventPublisher;
+        this.userServiceClient = userServiceClient;
+        this.rideServiceClient = rideServiceClient;
+        this.driverServiceClient = driverServiceClient;
     }
 
     public void register(EntityObserver observer) {
@@ -74,34 +110,55 @@ public class PaymentService {
         }
     }
 
+    private void publishAfterCommit(Runnable action) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
+    }
+
     @Cacheable(value = "payment-service::S5-F9", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
-        if (paymentRepository.countUsersById(userId) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        MDC.put("userId", userId.toString());
+        try {
+            try {
+                log.info("Calling UserServiceClient.getUser with args={}", userId);
+                userServiceClient.getUser(userId);
+                log.info("UserServiceClient.getUser returned successfully");
+            } catch (FeignException.NotFound e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            } catch (FeignException e) {
+                log.warn("Feign call to user-service failed: {}", e.getMessage());
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service temporarily unavailable");
+            }
+
+            List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
+
+            Map<String, Double> methodBreakdown = new HashMap<>();
+            long totalPayments = 0;
+            double totalAmount = 0.0;
+
+            for (Object[] row : rows) {
+                String method = (String) row[0];
+                long count = ((Number) row[1]).longValue();
+                double amount = ((Number) row[2]).doubleValue();
+
+                methodBreakdown.put(method, amount);
+                totalPayments += count;
+                totalAmount += amount;
+            }
+
+            return UserPaymentSummaryDTO.builder()
+                    .userId(userId)
+                    .totalPayments(totalPayments)
+                    .totalAmount(totalAmount)
+                    .methodBreakdown(methodBreakdown)
+                    .build();
+        } finally {
+            MDC.remove("userId");
         }
-
-        List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
-
-        Map<String, Double> methodBreakdown = new HashMap<>();
-        long totalPayments = 0;
-        double totalAmount = 0.0;
-
-        for (Object[] row : rows) {
-            String method = (String) row[0];
-            long count = ((Number) row[1]).longValue();
-            double amount = ((Number) row[2]).doubleValue();
-
-            methodBreakdown.put(method, amount);
-            totalPayments += count;
-            totalAmount += amount;
-        }
-
-        return UserPaymentSummaryDTO.builder()
-                .userId(userId)
-                .totalPayments(totalPayments)
-                .totalAmount(totalAmount)
-                .methodBreakdown(methodBreakdown)
-                .build();
     }
 
     public Payment createPayment(Payment payment) {
@@ -110,6 +167,7 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.PENDING);
         }
         Payment saved = paymentRepository.save(payment);
+        log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
         cacheInvalidationService.invalidatePattern("payment-service::S5-F1::*");
         Map<String, Object> payload = new HashMap<>();
         payload.put("paymentId", saved.getId());
@@ -121,33 +179,39 @@ public class PaymentService {
 
     @Transactional
     public Payment processRefund(Long id, String reason) {
-        Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        MDC.put("paymentId", id.toString());
+        try {
+            Payment payment = paymentRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
 
-        if (payment.getStatus() != PaymentStatus.COMPLETED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Only COMPLETED payments can be refunded");
+            if (payment.getStatus() != PaymentStatus.COMPLETED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Only COMPLETED payments can be refunded");
+            }
+
+            payment.setStatus(PaymentStatus.REFUNDED);
+
+            if (payment.getTransactionDetails() == null) {
+                payment.setTransactionDetails(new HashMap<>());
+            }
+            payment.getTransactionDetails().put("refundReason", reason);
+            payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+
+            notifyObservers("REFUNDED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of("reason", reason)
+            ));
+
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+            return saved;
+        } finally {
+            MDC.remove("paymentId");
         }
-
-        payment.setStatus(PaymentStatus.REFUNDED);
-
-        if (payment.getTransactionDetails() == null) {
-            payment.setTransactionDetails(new HashMap<>());
-        }
-        payment.getTransactionDetails().put("refundReason", reason);
-        payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
-
-        Payment saved = paymentRepository.save(payment);
-
-        notifyObservers("REFUNDED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of("reason", reason)
-        ));
-
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
-        return saved;
     }
 
     @Transactional
@@ -168,8 +232,13 @@ public class PaymentService {
 
     @Cacheable(value = "payment-service::payment", key = "#id")
     public Payment getPaymentById(Long id) {
-        return paymentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        MDC.put("paymentId", id.toString());
+        try {
+            return paymentRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        } finally {
+            MDC.remove("paymentId");
+        }
     }
 
     public List<Payment> getAllPayments() {
@@ -177,21 +246,27 @@ public class PaymentService {
     }
 
     public Payment updatePayment(Long id, Payment payment) {
-        Payment existing = getPaymentById(id);
-        existing.setRideId(payment.getRideId());
-        existing.setUserId(payment.getUserId());
-        existing.setAmount(payment.getAmount());
-        existing.setMethod(payment.getMethod());
-        existing.setStatus(payment.getStatus());
-        existing.setTransactionDetails(payment.getTransactionDetails());
-        Payment saved = paymentRepository.save(existing);
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("paymentId", saved.getId());
-        if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
-        updatePayload.put("amount", saved.getAmount());
-        notifyObservers("PAYMENT_UPDATED", updatePayload);
-        return saved;
+        MDC.put("paymentId", id.toString());
+        try {
+            Payment existing = getPaymentById(id);
+            existing.setRideId(payment.getRideId());
+            existing.setUserId(payment.getUserId());
+            existing.setAmount(payment.getAmount());
+            existing.setMethod(payment.getMethod());
+            existing.setStatus(payment.getStatus());
+            existing.setTransactionDetails(payment.getTransactionDetails());
+            Payment saved = paymentRepository.save(existing);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(id);
+            Map<String, Object> updatePayload = new HashMap<>();
+            updatePayload.put("paymentId", saved.getId());
+            if (saved.getMethod() != null) updatePayload.put("method", saved.getMethod().name());
+            updatePayload.put("amount", saved.getAmount());
+            notifyObservers("PAYMENT_UPDATED", updatePayload);
+            return saved;
+        } finally {
+            MDC.remove("paymentId");
+        }
     }
 
     public void deletePayment(Long id) {
@@ -207,26 +282,35 @@ public class PaymentService {
 
     @Transactional
     public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
-        String rideStatus = paymentRepository.findRideStatusById(rideId);
-        if (rideStatus == null) {
+        MDC.put("rideId", rideId.toString());
+        RideDTO ride;
+        try {
+            log.info("Calling RideServiceClient.getRide with args={}", rideId);
+            ride = rideServiceClient.getRide(rideId);
+            log.info("RideServiceClient.getRide returned successfully");
+        } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        } catch (FeignException e) {
+            log.warn("Feign call to ride-service failed: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
-        if (!"COMPLETED".equals(rideStatus)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not COMPLETED");
+
+        if (!"PAYMENT_PENDING".equals(ride.status()) && !"COMPLETED".equals(ride.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in a payable status");
         }
 
         if (paymentRepository.existsByRideIdAndStatus(rideId, PaymentStatus.COMPLETED)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "already paid");
         }
 
+        final RideDTO finalRide = ride;
         Payment payment = paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
                 .or(() -> paymentRepository.findByRideIdAndStatus(rideId, PaymentStatus.FAILED))
                 .orElseGet(() -> {
                     Payment newPayment = new Payment();
                     newPayment.setRideId(rideId);
-                    newPayment.setUserId(paymentRepository.findRideUserIdById(rideId));
-                    Double fare = paymentRepository.findRideFareById(rideId);
-                    newPayment.setAmount(fare != null ? fare : 0.0);
+                    newPayment.setUserId(finalRide.userId());
+                    newPayment.setAmount(finalRide.fare() != null ? finalRide.fare() : 0.0);
                     newPayment.setCreatedAt(LocalDateTime.now());
                     return newPayment;
                 });
@@ -237,70 +321,78 @@ public class PaymentService {
                 ? payment.getTransactionDetails()
                 : new HashMap<>();
 
-        if (simulateFailure) {
-            payment.setStatus(PaymentStatus.FAILED);
-            details.put("gatewayResponse", "declined");
-            details.put("failureReason", "simulated gateway failure");
+        try {
+            if (simulateFailure) {
+                payment.setStatus(PaymentStatus.FAILED);
+                details.put("gatewayResponse", "declined");
+                details.put("failureReason", "simulated gateway failure");
+                payment.setTransactionDetails(details);
+
+                Payment saved = paymentRepository.save(payment);
+                log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+                MDC.put("paymentId", saved.getId().toString());
+                notifyObservers("FAILED", Map.of(
+                        "paymentId", saved.getId(),
+                        "method", saved.getMethod().name(),
+                        "amount", saved.getAmount(),
+                        "details", Map.of(
+                                "failureReason", "simulated gateway failure",
+                                "rideId", rideId
+                        )
+                ));
+                final long failedPaymentId = saved.getId();
+                publishAfterCommit(() -> paymentEventPublisher.publishFailed(
+                        new PaymentFailedEvent(failedPaymentId, rideId, "simulated gateway failure")));
+                return saved;
+            }
+
+            payment.setStatus(PaymentStatus.COMPLETED);
+            details.put("gatewayResponse", "approved");
+            if (request.getCardLastFour() != null) {
+                details.put("cardLastFour", request.getCardLastFour());
+            }
+
+            double surgeFee = computeSurgeFee(rideId, payment.getAmount());
+            details.put("surgeFee", surgeFee);
+
             payment.setTransactionDetails(details);
 
             Payment saved = paymentRepository.save(payment);
-            notifyObservers("FAILED", Map.of(
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+            MDC.put("paymentId", saved.getId().toString());
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+            notifyObservers("CREATED", Map.of(
+                    "paymentId", saved.getId(),
+                    "method", saved.getMethod().name(),
+                    "amount", saved.getAmount(),
+                    "details", Map.of("rideId", rideId)
+            ));
+
+            notifyObservers("COMPLETED", Map.of(
                     "paymentId", saved.getId(),
                     "method", saved.getMethod().name(),
                     "amount", saved.getAmount(),
                     "details", Map.of(
-                            "failureReason", "simulated gateway failure",
-                            "rideId", rideId
+                            "gatewayResponse", "approved",
+                            "rideId", rideId,
+                            "surgeFee", surgeFee
                     )
             ));
+
+            final long completedPaymentId = saved.getId();
+            final double completedAmount = saved.getAmount();
+            publishAfterCommit(() -> paymentEventPublisher.publishCompleted(
+                    new PaymentCompletedEvent(completedPaymentId, rideId, completedAmount)));
+
             return saved;
+        } finally {
+            MDC.remove("paymentId");
+            MDC.remove("rideId");
         }
-
-        payment.setStatus(PaymentStatus.COMPLETED);
-        details.put("gatewayResponse", "approved");
-        if (request.getCardLastFour() != null) {
-            details.put("cardLastFour", request.getCardLastFour());
-        }
-
-        double surgeFee = computeSurgeFee(rideId, payment.getAmount());
-        details.put("surgeFee", surgeFee);
-
-        payment.setTransactionDetails(details);
-
-        Payment saved = paymentRepository.save(payment);
-        cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
-
-        notifyObservers("CREATED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of("rideId", rideId)
-        ));
-
-        notifyObservers("COMPLETED", Map.of(
-                "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
-                "amount", saved.getAmount(),
-                "details", Map.of(
-                        "gatewayResponse", "approved",
-                        "rideId", rideId,
-                        "surgeFee", surgeFee
-                )
-        ));
-
-        return saved;
     }
 
     private double computeSurgeFee(Long rideId, double amount) {
-        try {
-            Double surgeMultiplier = paymentRepository.findRideSurgeMultiplierById(rideId);
-            if (surgeMultiplier != null && surgeMultiplier > 1.0) {
-                Double fare = paymentRepository.findRideFareById(rideId);
-                double baseFare = fare != null ? fare : amount;
-                return baseFare * (surgeMultiplier - 1.0);
-            }
-        } catch (Exception ignored) {
-        }
         return amount * 0.15;
     }
 
@@ -327,6 +419,7 @@ public class PaymentService {
         details.put("gatewayResponse", "approved");
 
         Payment saved = paymentRepository.save(payment);
+        log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
         cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
         Map<String, Object> retryPayload = new HashMap<>();
         retryPayload.put("paymentId", saved.getId());
@@ -409,23 +502,75 @@ public class PaymentService {
                     "startDate must be before endDate");
         }
 
-        List<Object[]> rows = paymentRepository.findRevenueByVehicleType(startDate, endDate);
+        // Cap candidate set to 100 per M3 N+1 fan-out rule
+        List<Payment> payments = paymentRepository.findCompletedPaymentsInDateRange(startDate, endDate);
 
-        return rows.stream().map(row -> {
-            String vehicleType    = (String) row[0];
-            double totalRevenue   = ((Number) row[1]).doubleValue();
-            double surgeFeeRevenue = ((Number) row[2]).doubleValue();
-            double baseFareRevenue = totalRevenue - surgeFeeRevenue;
-            long rideCount        = ((Number) row[3]).longValue();
+        // rideId → driverId via Feign (deduplicated)
+        Map<Long, Long> rideToDriver = new HashMap<>();
+        for (Long rideId : payments.stream().map(Payment::getRideId).filter(r -> r != null).collect(Collectors.toSet())) {
+            try {
+                log.info("Calling RideServiceClient.getRide with args={}", rideId);
+                RideDTO ride = rideServiceClient.getRide(rideId);
+                if (ride.driverId() != null) rideToDriver.put(rideId, ride.driverId());
+                log.info("RideServiceClient.getRide returned successfully");
+            } catch (FeignException e) {
+                log.warn("Feign call to ride-service failed for rideId {}: {}", rideId, e.getMessage());
+            }
+        }
 
-            return VehicleTypeRevenueDTO.builder()
-                    .vehicleType(vehicleType)
-                    .baseFareRevenue(baseFareRevenue)
-                    .surgeFeeRevenue(surgeFeeRevenue)
-                    .totalRevenue(totalRevenue)
-                    .rideCount(rideCount)
-                    .build();
-        }).toList();
+        // driverId → vehicleType via Feign (deduplicated)
+        Map<Long, String> driverToVehicleType = new HashMap<>();
+        for (Long driverId : new HashSet<>(rideToDriver.values())) {
+            try {
+                log.info("Calling DriverServiceClient.getDriver with args={}", driverId);
+                com.team01.uber.contracts.dto.DriverDTO driver = driverServiceClient.getDriver(driverId);
+                String vt = driver.vehicleDetails() != null ? (String) driver.vehicleDetails().get("vehicleType") : null;
+                driverToVehicleType.put(driverId, vt != null ? vt : "UNKNOWN");
+                log.info("DriverServiceClient.getDriver returned successfully");
+            } catch (FeignException e) {
+                log.warn("Feign call to driver-service failed for driverId {}: {}", driverId, e.getMessage());
+            }
+        }
+
+        // Aggregate by vehicleType in Java
+        Map<String, double[]> agg = new HashMap<>();
+        for (Payment p : payments) {
+            if (p.getRideId() == null) continue;
+            Long driverId = rideToDriver.get(p.getRideId());
+            if (driverId == null) continue;
+            String vehicleType = driverToVehicleType.getOrDefault(driverId, "UNKNOWN");
+
+            double surgeFee = 0.0;
+            if (p.getTransactionDetails() != null && p.getTransactionDetails().get("surgeFee") != null) {
+                surgeFee = ((Number) p.getTransactionDetails().get("surgeFee")).doubleValue();
+            } else {
+                surgeFee = p.getAmount() * 0.15;
+            }
+
+            double[] bucket = agg.computeIfAbsent(vehicleType, k -> new double[3]);
+            bucket[0] += p.getAmount();
+            bucket[1] += surgeFee;
+            bucket[2] += 1;
+        }
+
+        return agg.entrySet().stream()
+                .map(e -> VehicleTypeRevenueDTO.builder()
+                        .vehicleType(e.getKey())
+                        .totalRevenue(e.getValue()[0])
+                        .surgeFeeRevenue(e.getValue()[1])
+                        .baseFareRevenue(e.getValue()[0] - e.getValue()[1])
+                        .rideCount((long) e.getValue()[2])
+                        .build())
+                .toList();
+    }
+
+    public BigDecimal getUserPaymentTotal(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
+        MDC.put("userId", userId.toString());
+        try {
+            return paymentRepository.getUserPaymentTotal(userId, startDate, endDate);
+        } finally {
+            MDC.remove("userId");
+        }
     }
 
     public void logAnalyticsViewed(LocalDateTime startDate, LocalDateTime endDate) {
@@ -461,5 +606,114 @@ public class PaymentService {
         return results.getMappedResults().stream()
                 .map(mongoDocumentAdapter::adapt)
                 .toList();
+    }
+
+    @Transactional
+    public void processRideCompleted(RideCompletedEvent event) {
+        MDC.put("rideId", event.rideId().toString());
+        MDC.put("routingKey", "ride.completed");
+        try {
+            log.info("Consuming ride.completed for rideId={}", event.rideId());
+
+            boolean alreadyExists = paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.PENDING).isPresent()
+                    || paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.COMPLETED).isPresent();
+            if (alreadyExists) {
+                log.info("Payment already exists for rideId={}, skipping ride.completed", event.rideId());
+                return;
+            }
+
+            Payment payment = new Payment();
+            payment.setRideId(event.rideId());
+            payment.setUserId(event.userId());
+            payment.setAmount(event.fare() != null ? event.fare() : 0.0);
+            payment.setStatus(PaymentStatus.PENDING);
+            payment.setCreatedAt(LocalDateTime.now());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+            MDC.put("paymentId", saved.getId().toString());
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("paymentId", saved.getId());
+            payload.put("amount", saved.getAmount());
+            notifyObservers("CREATED", payload);
+
+            final long initiatedPaymentId = saved.getId();
+            final double initiatedAmount = saved.getAmount();
+            final long initiatedRideId = event.rideId();
+            publishAfterCommit(() -> paymentEventPublisher.publishInitiated(
+                    new PaymentInitiatedEvent(initiatedPaymentId, initiatedRideId, initiatedAmount)));
+
+            log.info("Processed ride.completed for rideId={}, created paymentId={}", event.rideId(), saved.getId());
+        } finally {
+            MDC.remove("rideId");
+            MDC.remove("paymentId");
+            MDC.remove("routingKey");
+        }
+    }
+
+    @Transactional
+    public void processRideCancelled(RideCancelledEvent event) {
+        MDC.put("rideId", event.rideId().toString());
+        MDC.put("routingKey", "ride.cancelled");
+        try {
+            log.info("Consuming ride.cancelled for rideId={}", event.rideId());
+
+            if (paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.REFUNDED).isPresent()) {
+                log.info("Payment already refunded for rideId={}, skipping ride.cancelled", event.rideId());
+                return;
+            }
+
+            Payment payment = paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.PENDING)
+                    .or(() -> paymentRepository.findByRideIdAndStatus(event.rideId(), PaymentStatus.FAILED))
+                    .orElse(null);
+
+            if (payment == null) {
+                log.info("No refundable payment for rideId={}, skipping ride.cancelled", event.rideId());
+                return;
+            }
+
+            MDC.put("paymentId", payment.getId().toString());
+
+            RefundSurgeRequest req = new RefundSurgeRequest();
+            req.setReason("ride_cancelled");
+            req.setRefundSurge(true);
+
+            RefundStrategy strategy = strategySelector.select(payment, req);
+            RefundResult result = strategy.calculateRefund(payment, req);
+            double refundAmount = result.getAmount() > 0 ? result.getAmount() : payment.getAmount();
+
+            payment.setStatus(PaymentStatus.REFUNDED);
+            if (payment.getTransactionDetails() == null) {
+                payment.setTransactionDetails(new HashMap<>());
+            }
+            payment.getTransactionDetails().put("refundAmount", refundAmount);
+            payment.getTransactionDetails().put("refundReason", req.getReason());
+            payment.getTransactionDetails().put("refundSurgeIncluded", req.isRefundSurge());
+            payment.getTransactionDetails().put("refundedAt", LocalDateTime.now().toString());
+            payment.getTransactionDetails().put("strategyName", strategy.getClass().getSimpleName());
+
+            Payment saved = paymentRepository.save(payment);
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
+
+            Map<String, Object> notifyPayload = new HashMap<>();
+            notifyPayload.put("paymentId", saved.getId());
+            if (saved.getMethod() != null) notifyPayload.put("method", saved.getMethod().name());
+            notifyPayload.put("amount", saved.getAmount());
+            notifyObservers("REFUNDED", notifyPayload);
+            cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+            final long refundedPaymentId = saved.getId();
+            final long refundedRideId = event.rideId();
+            final double finalRefundAmount = refundAmount;
+            publishAfterCommit(() -> paymentEventPublisher.publishRefunded(
+                    new PaymentRefundedEvent(refundedPaymentId, refundedRideId, finalRefundAmount)));
+
+            log.info("Processed ride.cancelled for rideId={}, refunded paymentId={}", event.rideId(), saved.getId());
+        } finally {
+            MDC.remove("rideId");
+            MDC.remove("paymentId");
+            MDC.remove("routingKey");
+        }
     }
 }

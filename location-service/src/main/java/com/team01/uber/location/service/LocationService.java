@@ -12,6 +12,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import java.time.format.DateTimeParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -22,6 +26,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.team01.uber.contracts.dto.LocationDTO;
 import com.team01.uber.contracts.dto.DriverDTO;
+import com.team01.uber.contracts.events.LocationTrackedEvent;
+import com.team01.uber.contracts.events.RideCancelledEvent;
+import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.events.RidePlacedEvent;
+import com.team01.uber.location.config.LocationEventConfig;
 import com.team01.uber.location.adapter.CassandraRowAdapter;
 import com.team01.uber.location.adapter.LocationAdapter;
 import com.team01.uber.location.client.DriverClient;
@@ -36,6 +45,7 @@ import com.team01.uber.location.dto.StationaryDriverDTO;
 import com.team01.uber.location.dto.TrackingRequest;
 import com.team01.uber.location.model.Location;
 import com.team01.uber.location.model.LocationTrackingEvent;
+import com.team01.uber.location.model.LocationTrackingEventKey;
 import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationRepository;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
@@ -46,6 +56,8 @@ import jakarta.transaction.Transactional;
 @Service
 public class LocationService {
 
+    private static final Logger log = LoggerFactory.getLogger(LocationService.class);
+
     private final LocationRepository locationRepository;
     private final LocationTrackingEventRepository trackingRepository;
     private final RedisTemplate redisTemplate;
@@ -54,18 +66,21 @@ public class LocationService {
     private final LocationAdapter locationAdapter = new LocationAdapter();
     private final CassandraRowAdapter cassandraRowAdapter = new CassandraRowAdapter();
     private final DriverClient driverClient;
+    private final RabbitTemplate rabbitTemplate;
 
     @SuppressWarnings("unchecked")
     public LocationService(LocationRepository locationRepository,
                            LocationTrackingEventRepository trackingRepository,
                            RedisTemplate redisTemplate,
                            List<EntityObserver> observers,
-                           DriverClient driverClient) {
+                           DriverClient driverClient,
+                           RabbitTemplate rabbitTemplate) {
         this.locationRepository = locationRepository;
         this.trackingRepository = trackingRepository;
         this.redisTemplate = redisTemplate;
         this.initialObservers = observers;
         this.driverClient = driverClient;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @PostConstruct
@@ -347,10 +362,11 @@ public class LocationService {
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
         LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDriversLocal(maxSpeed, since);
-        
+
         List<StationaryDriverDTO> stationaryDrivers = new ArrayList<>();
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
+            MDC.put("driverId", String.valueOf(driverId));
             try {
                 DriverDTO driver = driverClient.getDriver(driverId);
                 stationaryDrivers.add(StationaryDriverDTO.builder()
@@ -362,7 +378,9 @@ public class LocationService {
                         .lastUpdated((LocalDateTime) row[4])
                         .build());
             } catch (Exception e) {
-                // Skip if driver details can't be fetched
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage(), e);
+            } finally {
+                MDC.remove("driverId");
             }
         }
         return stationaryDrivers;
@@ -371,10 +389,11 @@ public class LocationService {
     @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
     public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
         List<Object[]> results = locationRepository.findNearbyDriversLocal(lat, lon, radiusKm);
-        
+
         List<NearbyDriverDTO> nearbyDrivers = new ArrayList<>();
         for (Object[] row : results) {
             Long driverId = ((Number) row[0]).longValue();
+            MDC.put("driverId", String.valueOf(driverId));
             try {
                 DriverDTO driver = driverClient.getDriver(driverId);
                 if ("AVAILABLE".equals(driver.status())) {
@@ -387,7 +406,9 @@ public class LocationService {
                             .build());
                 }
             } catch (Exception e) {
-                // Skip if driver details can't be fetched
+                log.warn("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage(), e);
+            } finally {
+                MDC.remove("driverId");
             }
         }
         return nearbyDrivers;
@@ -411,12 +432,88 @@ public class LocationService {
             }
         } else {
             // Default to all events for the driver if range is incomplete
-            events = trackingRepository.findByDriverId(driverId);
+            events = trackingRepository.findByKeyDriverId(driverId);
         }
 
         return events.stream()
                 .map(cassandraRowAdapter::adapt)
                 .toList();
+    }
+
+    public void handleRidePlaced(RidePlacedEvent event) {
+        String idempotencyKey = "idempotency:location-service:ride.placed:" + event.rideId();
+        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(idempotencyKey, "PROCESSED", java.time.Duration.ofHours(24));
+        if (Boolean.FALSE.equals(isNew)) {
+            log.info("ride.placed idempotency: rideId={} already processed, skipping", event.rideId());
+            return;
+        }
+
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.placed for driverId={}", event.driverId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            payload.put("action",   "RIDE_PLACED");
+            notifyObservers("LOCATION_UPDATED", payload);
+            log.info("Processed ride.placed for driverId={}", event.driverId());
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
+    }
+
+    @CacheEvict(value = "location-service::S4-F12", allEntries = true)
+    public void handleRideCompleted(RideCompletedEvent event) {
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.completed for driverId={}", event.driverId());
+            java.util.Optional<LocationTrackingEvent> latestOpt = trackingRepository.findTopByKeyDriverId(event.driverId());
+            if (latestOpt.isPresent()) {
+                LocationTrackingEvent latest = latestOpt.get();
+                if (event.rideId().equals(latest.getRideId())) {
+                    log.info("ride.completed idempotency: rideId={} already marked on latest ping, skipping", event.rideId());
+                    return;
+                }
+                latest.setRideId(event.rideId());
+                trackingRepository.save(latest);
+                log.info("Processed ride.completed: marked final ping with rideId={} for driverId={}", event.rideId(), event.driverId());
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            notifyObservers("TRIP_COMPLETED", payload);
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
+    }
+
+    public void handleRideCancelled(RideCancelledEvent event) {
+        String idempotencyKey = "idempotency:location-service:ride.cancelled:" + event.rideId();
+        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(idempotencyKey, "PROCESSED", java.time.Duration.ofHours(24));
+        if (Boolean.FALSE.equals(isNew)) {
+            log.info("ride.cancelled idempotency: rideId={} already processed, skipping", event.rideId());
+            return;
+        }
+
+        MDC.put("driverId", String.valueOf(event.driverId()));
+        MDC.put("rideId",   String.valueOf(event.rideId()));
+        try {
+            log.info("Consuming ride.cancelled for driverId={}", event.driverId());
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("driverId", event.driverId());
+            payload.put("rideId",   event.rideId());
+            payload.put("reason",   event.reason());
+            notifyObservers("TRIP_CANCELLED", payload);
+            log.info("Processed ride.cancelled for driverId={}: logged TRIP_CANCELLED to Mongo", event.driverId());
+        } finally {
+            MDC.remove("driverId");
+            MDC.remove("rideId");
+        }
     }
 
     private Instant parseToInstant(String dateStr, boolean startOfDay) {
@@ -504,7 +601,6 @@ public class LocationService {
 
         trackingRepository.save(event);
 
-        // Notify observers (MongoDB event logging)
         Map<String, Object> payload = new HashMap<>();
         payload.put("driverId", driverId);
         payload.put("latitude", request.getLatitude());
@@ -516,6 +612,26 @@ public class LocationService {
         payload.put("notes", request.getNotes());
         payload.put("timestamp", now);
         notifyObservers("TRACKING_RECORDED", payload);
+
+        MDC.put("routingKey", LocationEventConfig.ROUTING_KEY_TRACKED);
+        try {
+            LocationTrackedEvent trackedEvent = new LocationTrackedEvent(
+                    driverId,
+                    request.getRideId(),
+                    request.getLatitude(),
+                    request.getLongitude()
+            );
+            rabbitTemplate.convertAndSend(
+                    LocationEventConfig.LOCATION_EXCHANGE,
+                    LocationEventConfig.ROUTING_KEY_TRACKED,
+                    trackedEvent
+            );
+            log.info("Published {} for driverId={}", LocationEventConfig.ROUTING_KEY_TRACKED, driverId);
+        } catch (Exception e) {
+            log.warn("Failed to publish {}: {}", LocationEventConfig.ROUTING_KEY_TRACKED, e.getMessage(), e);
+        } finally {
+            MDC.remove("routingKey");
+        }
 
         return locationAdapter.adaptToLocationTrackingDTO(event);
     }

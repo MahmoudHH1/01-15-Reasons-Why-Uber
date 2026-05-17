@@ -228,8 +228,269 @@ data:
     }
   ride-dashboard.json: |
     {
-      "title": "Ride Service Dashboard (STUB)",
-      "panels": []
+      "title": "Ride Service Dashboard",
+      "uid": "ride-service-dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "tags": ["uber", "ride-service"],
+      "refresh": "30s",
+      "templating": {
+        "list": [
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_PROMETHEUS",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_LOKI",
+            "options": [],
+            "query": "loki",
+            "refresh": 1,
+            "type": "datasource"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Ride Database Error Rate (LogQL)",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 80 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+              "editorMode": "code",
+              "expr": "sum by (level) (rate({app=\"uber\", service=\"ride-service\"} |= \"ERROR\" [1m]))",
+              "legendFormat": "Log Level: {{level}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "PostgreSQL Event Actions Distribution (LogQL)",
+          "type": "piechart",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": { "displayMode": "list", "placement": "right", "showLegend": true },
+            "pieType": "donut",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+              "editorMode": "code",
+              "expr": "sum by (level) (count_over_time({app=\"uber\", service=\"ride-service\"} [5m]))",
+              "legendFormat": "{{level}} Operations",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Live System Activity Log Stream (LogQL)",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+              "editorMode": "code",
+              "expr": "{app=\"uber\", service=\"ride-service\"} |= \"\"",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "HTTP Request Rate (ride-service)",
+          "type": "timeseries",
+          "description": "Requests per second per endpoint, broken down by method and status. Identifies which ride-service routes are under peak load.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+          "fieldConfig": { "defaults": { "unit": "reqps" } },
+          "targets": [
+            {
+              "expr": "sum by (uri, method, status) (rate(http_server_requests_seconds_count{job=\"ride-service\"}[1m]))",
+              "legendFormat": "{{method}} {{uri}} {{status}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "HTTP Latency P50 / P95 / P99 (ride-service)",
+          "type": "timeseries",
+          "description": "Histogram percentile latency per endpoint. Surfaces slow Feign-enriched reads such as GET /api/rides/driver/{id}/summary.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m])))",
+              "legendFormat": "p50 {{uri}}",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m])))",
+              "legendFormat": "p95 {{uri}}",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m])))",
+              "legendFormat": "p99 {{uri}}",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "RabbitMQ Publish vs Consume (ride-service)",
+          "type": "timeseries",
+          "description": "Per-second rate of messages published by RabbitTemplate against rate consumed by @RabbitListener. Persistent gap indicates consumer lag on the ride choreography saga.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+          "fieldConfig": { "defaults": { "unit": "mps" } },
+          "targets": [
+            {
+              "expr": "sum(rate(spring_rabbit_template_seconds_count{job=\"ride-service\"}[1m]))",
+              "legendFormat": "published/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(spring_rabbit_listener_seconds_count{job=\"ride-service\"}[1m]))",
+              "legendFormat": "consumed/s",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Cache Hit / Miss Ratio (ride-service)",
+          "type": "timeseries",
+          "description": "Per-cache hit and miss rate plus rolling hit ratio. Verifies that S3-F1/F3/F5/F6/F9/F10/F12 caches are effective and that recent invalidations didn't tank the hit rate.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+          "fieldConfig": { "defaults": { "unit": "short" } },
+          "targets": [
+            {
+              "expr": "sum by (cache) (rate(cache_gets_total{job=\"ride-service\", result=\"hit\"}[5m]))",
+              "legendFormat": "hits {{cache}}",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (cache) (rate(cache_gets_total{job=\"ride-service\", result=\"miss\"}[5m]))",
+              "legendFormat": "misses {{cache}}",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(cache_gets_total{job=\"ride-service\", result=\"hit\"}[5m])) / clamp_min(sum(rate(cache_gets_total{job=\"ride-service\"}[5m])), 1) * 100",
+              "legendFormat": "overall hit %",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "HTTP Request Rate (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 42 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"location-service\"}[5m]))",
+              "legendFormat": "Requests/s"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "title": "HTTP Latency P99 (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 42 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m])) by (le, uri))",
+              "legendFormat": "P99 {{uri}}"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "title": "JVM Heap Usage (location-service)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 42 },
+          "targets": [
+            {
+              "expr": "jvm_memory_used_bytes{job=\"location-service\", area=\"heap\"}",
+              "legendFormat": "Heap used"
+            }
+          ]
+        }
+      ],
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {}
     }
   location-dashboard.json: |
     {

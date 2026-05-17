@@ -4,7 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.team01.uber.contracts.feign.UserServiceClient;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,16 +19,17 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
+    private final UserServiceClient userServiceClient;
 
-    public JwtAuthenticationFilter(JwtService jwtService, JdbcTemplate jdbcTemplate) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserServiceClient userServiceClient) {
         this.jwtService = jwtService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().equals("/api/drivers/health");
+        String path = request.getServletPath();
+        return path.equals("/api/drivers/health") || path.startsWith("/actuator/");
     }
 
     @Override
@@ -38,7 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         AuthHandler tokenExtractor = new TokenExtractionHandler();
         AuthHandler signatureValidator = new SignatureValidationHandler(jwtService);
-        AuthHandler userLoader = new UserLoaderHandler(jdbcTemplate);
+        AuthHandler userLoader = new UserLoaderHandler(userServiceClient);
         AuthHandler roleAuthorizer = new RoleAuthorizationHandler("USER");
 
         tokenExtractor.setNext(signatureValidator);

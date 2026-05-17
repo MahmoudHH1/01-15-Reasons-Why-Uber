@@ -14,6 +14,7 @@ public class AuthContext {
     private String token;
     private String email;
     private String role;
+    private Long userId;
 
     public AuthContext(HttpServletRequest request, HttpServletResponse response) {
         this.request = request;

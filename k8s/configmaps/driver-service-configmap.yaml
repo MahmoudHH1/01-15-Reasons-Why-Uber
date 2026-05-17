@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: driver-service-configmap
+  namespace: uber
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://driver-postgres:5432/uberdb-drivers
+  SPRING_DATASOURCE_USERNAME: postgres
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+  SPRING_PROFILES_ACTIVE: k8s
+  FEIGN_RIDE_SERVICE_URL: http://ride-service:8080
+  FEIGN_USER_SERVICE_URL: http://user-service:8080
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
