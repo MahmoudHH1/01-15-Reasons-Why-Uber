@@ -97,7 +97,29 @@ git fetch origin
 git checkout feat/M3/cc/bonus-testing-suite/55-24853
 ```
 
-### Run the fast suite (no Docker needed) — 12 tests, ~3 seconds
+### Run the whole bonus suite in one command (18 tests, ~1 minute)
+
+Needs Docker Desktop running (the Testcontainers IT pulls `rabbitmq:3-management` + `redis:7-alpine`).
+
+```powershell
+mvn -pl ride-service,location-service -am `
+  "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,LocationRideSagaConsumerIT" `
+  "-Dsurefire.failIfNoSpecifiedTests=false" `
+  test
+```
+
+Expected: `Tests run: 18, Failures: 0, Errors: 0` across the three test classes, BUILD SUCCESS.
+
+Or split it into a one-time refresh + a no-`-am` filter command:
+
+```powershell
+mvn install -DskipTests
+mvn -pl ride-service,location-service `
+  "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest,LocationRideSagaConsumerIT" `
+  test
+```
+
+### Run only the fast suite (no Docker needed) — 12 tests, ~3 seconds
 
 ```powershell
 mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
