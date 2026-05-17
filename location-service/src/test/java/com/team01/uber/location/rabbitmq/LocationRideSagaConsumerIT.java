@@ -9,23 +9,22 @@ import com.team01.uber.location.model.LocationTrackingEventKey;
 import com.team01.uber.location.observer.EntityObserver;
 import com.team01.uber.location.repository.LocationTrackingEventRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.TestPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -62,18 +61,26 @@ import static org.mockito.Mockito.when;
         "spring.cassandra.schema-action=none",
         "spring.cassandra.contact-points=127.0.0.1",
         "spring.data.mongodb.uri=mongodb://localhost:27017/test",
-        "spring.data.redis.host=localhost",
         "feign.driver-service.url=http://localhost:1",
         "feign.user-service.url=http://localhost:1"
 })
 @Testcontainers
-@Import(LocationRideSagaConsumerIT.TestObserverConfig.class)
 class LocationRideSagaConsumerIT {
 
     @Container
     @ServiceConnection
     static RabbitMQContainer rabbit =
             new RabbitMQContainer(DockerImageName.parse("rabbitmq:3-management"));
+
+    @Container
+    static GenericContainer<?> redis =
+            new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379);
+
+    @DynamicPropertySource
+    static void redisProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+    }
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -83,19 +90,6 @@ class LocationRideSagaConsumerIT {
 
     @MockitoBean(name = "mongoEventLogger")
     private EntityObserver mongoEventLogger;
-
-    @TestConfiguration
-    static class TestObserverConfig {
-        @Bean
-        public EntityObserver capturingObserver() {
-            return new EntityObserver() {
-                @Override
-                public void onEvent(String action, Object payload) {
-                    // exposed via @MockBean above
-                }
-            };
-        }
-    }
 
     @Test
     void ridePlaced_consumerFires_andNotifiesObserverWithLocationUpdated() {
@@ -110,8 +104,19 @@ class LocationRideSagaConsumerIT {
     }
 
     @Test
+    void ridePlaced_redelivered_redisIdempotency_secondDeliveryIsSkipped() {
+        RidePlacedEvent event = new RidePlacedEvent(9006L, 7006L, 8006L);
+
+        publish("ride.placed", event, "com.team01.uber.contracts.events.RidePlacedEvent");
+        publish("ride.placed", event, "com.team01.uber.contracts.events.RidePlacedEvent");
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+                verify(mongoEventLogger, times(1))
+                        .onEvent(eq("LOCATION_UPDATED"), any()));
+    }
+
+    @Test
     void rideCompleted_marksLatestTrackingRow_withRideId_perSection6() {
-        // Pre-seed: a previous tracking ping exists for driver 8002, rideId=null
         LocationTrackingEvent latest = new LocationTrackingEvent();
         latest.setKey(new LocationTrackingEventKey(8002L, Instant.now()));
         latest.setLatitude(30.0);
@@ -121,14 +126,58 @@ class LocationRideSagaConsumerIT {
         RideCompletedEvent event = new RideCompletedEvent(9002L, 7002L, 8002L, 42.5);
         publish("ride.completed", event, "com.team01.uber.contracts.events.RideCompletedEvent");
 
+        ArgumentCaptor<LocationTrackingEvent> saveCaptor = ArgumentCaptor.forClass(LocationTrackingEvent.class);
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             verify(trackingRepository, times(1)).findTopByKeyDriverId(8002L);
-            verify(trackingRepository, times(1)).save(any(LocationTrackingEvent.class));
-            verify(mongoEventLogger, times(1)).onEvent(eq("TRIP_COMPLETED"), any());
+            verify(trackingRepository, times(1)).save(saveCaptor.capture());
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
         });
-        assertThat(latest.getRideId())
-                .as("§6: 'Mark the most recent location for this driver with the rideId'")
+
+        LocationTrackingEvent saved = saveCaptor.getValue();
+        assertThat(saved.getRideId())
+                .as("§6: 'Mark the most recent location for this driver with the rideId' — must be the exact rideId from the event")
                 .isEqualTo(9002L);
+        assertThat(saved.getKey().getDriverId())
+                .as("the row mutated must be the LATEST row for the driver from the event")
+                .isEqualTo(8002L);
+    }
+
+    @Test
+    void rideCompleted_redelivered_isIdempotent_secondDeliveryIsNoOp() {
+        LocationTrackingEvent latest = new LocationTrackingEvent();
+        latest.setKey(new LocationTrackingEventKey(8004L, Instant.now()));
+        latest.setLatitude(30.0);
+        latest.setLongitude(31.0);
+        when(trackingRepository.findTopByKeyDriverId(8004L)).thenReturn(Optional.of(latest));
+
+        RideCompletedEvent event = new RideCompletedEvent(9004L, 7004L, 8004L, 42.5);
+        publish("ride.completed", event, "com.team01.uber.contracts.events.RideCompletedEvent");
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(trackingRepository, times(1)).save(any(LocationTrackingEvent.class));
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+        });
+
+        publish("ride.completed", event, "com.team01.uber.contracts.events.RideCompletedEvent");
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() ->
+                verify(trackingRepository, times(2)).findTopByKeyDriverId(8004L));
+        verify(trackingRepository, times(1)).save(any(LocationTrackingEvent.class));
+        verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+    }
+
+    @Test
+    void rideCompleted_noPriorPing_noSave_butObserverStillNotified() {
+        when(trackingRepository.findTopByKeyDriverId(8005L)).thenReturn(Optional.empty());
+
+        RideCompletedEvent event = new RideCompletedEvent(9005L, 7005L, 8005L, 42.5);
+        publish("ride.completed", event, "com.team01.uber.contracts.events.RideCompletedEvent");
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(trackingRepository, times(1)).findTopByKeyDriverId(8005L);
+            verify(mongoEventLogger, times(1)).onEvent(eq("TRACKING_RECORDED"), any());
+        });
+        verify(trackingRepository, never()).save(any());
     }
 
     @Test

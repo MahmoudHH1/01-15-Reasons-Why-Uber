@@ -21,6 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,7 +89,7 @@ class RideServiceSagaPrechecksTest {
     }
 
     @Test
-    @DisplayName("happy path: all 3 pre-checks pass -> ride saved, ride.completed published (§2.11 publish-after-commit)")
+    @DisplayName("happy path: all 3 pre-checks pass -> exact ride saved with COMPLETED+completedAt; published instance matches saved; §2.11 commit-then-publish order")
     void happyPath_allPrechecksPass_publishesRideCompleted() {
         when(rideRepository.findById(10L)).thenReturn(Optional.of(inProgressRide));
         when(userServiceClient.getUser(1L)).thenReturn(activeUser(1L));
@@ -96,10 +99,30 @@ class RideServiceSagaPrechecksTest {
 
         Ride result = rideService.completeRide(10L);
 
-        assertThat(result.getStatus()).isEqualTo(RideStatus.COMPLETED);
-        assertThat(result.getCompletedAt()).isNotNull();
-        verify(rideRepository).save(any(Ride.class));
-        verify(producer).publishRideCompleted(any(Ride.class));
+        ArgumentCaptor<Ride> savedCaptor = ArgumentCaptor.forClass(Ride.class);
+        verify(rideRepository).save(savedCaptor.capture());
+        Ride saved = savedCaptor.getValue();
+        assertThat(saved.getId()).isEqualTo(10L);
+        assertThat(saved.getStatus()).isEqualTo(RideStatus.COMPLETED);
+        assertThat(saved.getCompletedAt()).isNotNull();
+        assertThat(saved.getUserId()).isEqualTo(1L);
+        assertThat(saved.getDriverId()).isEqualTo(5L);
+
+        ArgumentCaptor<Ride> publishedCaptor = ArgumentCaptor.forClass(Ride.class);
+        verify(producer).publishRideCompleted(publishedCaptor.capture());
+        assertThat(publishedCaptor.getValue())
+                .as("§2.11: the published event must reference the same ride state that was just committed")
+                .isSameAs(saved);
+
+        assertThat(result).isSameAs(saved);
+
+        InOrder inOrder = inOrder(userServiceClient, driverServiceClient, locationServiceClient,
+                rideRepository, producer);
+        inOrder.verify(userServiceClient).getUser(1L);
+        inOrder.verify(driverServiceClient).getDriverAvailability(5L);
+        inOrder.verify(locationServiceClient).getRecentLocationForDriver(5L);
+        inOrder.verify(rideRepository).save(any(Ride.class));
+        inOrder.verify(producer).publishRideCompleted(any(Ride.class));
     }
 
     @Test
@@ -118,7 +141,7 @@ class RideServiceSagaPrechecksTest {
     }
 
     @Test
-    @DisplayName("§8.3 pre-check 1: user 404 from Feign -> 400 'User not found'")
+    @DisplayName("§8.3 pre-check 1: user 404 from Feign -> 400 'User not found'; downstream Feign + publish must be skipped")
     void preCheck1_userNotFound_throws400() {
         when(rideRepository.findById(10L)).thenReturn(Optional.of(inProgressRide));
         when(userServiceClient.getUser(1L)).thenThrow(notFound());
@@ -127,10 +150,13 @@ class RideServiceSagaPrechecksTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("User not found");
         verify(rideRepository, never()).save(any());
+        verify(producer, never()).publishRideCompleted(any());
+        verify(driverServiceClient, never()).getDriverAvailability(anyLong());
+        verify(locationServiceClient, never()).getRecentLocationForDriver(anyLong());
     }
 
     @Test
-    @DisplayName("§8.3 pre-check 2: driver not BUSY -> 400, no save")
+    @DisplayName("§8.3 pre-check 2: driver not BUSY -> 400, no save, no publish, location check skipped")
     void preCheck2_driverNotBusy_throws400() {
         when(rideRepository.findById(10L)).thenReturn(Optional.of(inProgressRide));
         when(userServiceClient.getUser(1L)).thenReturn(activeUser(1L));
@@ -141,6 +167,7 @@ class RideServiceSagaPrechecksTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Driver is not currently active");
         verify(rideRepository, never()).save(any());
+        verify(producer, never()).publishRideCompleted(any());
         verify(locationServiceClient, never()).getRecentLocationForDriver(anyLong());
     }
 

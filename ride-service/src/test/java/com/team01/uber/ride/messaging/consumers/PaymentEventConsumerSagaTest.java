@@ -11,12 +11,17 @@ import com.team01.uber.ride.service.RideService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +58,7 @@ class PaymentEventConsumerSagaTest {
         consumer.onPaymentInitiated(event);
 
         verify(rideService).markRideStatus(10L, RideStatus.PAYMENT_PENDING);
-        verify(publisherService, never()).publishRideCancelled(any(), any());
+        verify(publisherService, never()).publishRideCancelled(any(Ride.class), anyString());
     }
 
     @Test
@@ -64,11 +69,11 @@ class PaymentEventConsumerSagaTest {
         consumer.onPaymentCompleted(event);
 
         verify(rideService).markRideStatus(10L, RideStatus.PAID);
-        verify(publisherService, never()).publishRideCancelled(any(), any());
+        verify(publisherService, never()).publishRideCancelled(any(Ride.class), anyString());
     }
 
     @Test
-    @DisplayName("§8.2 step 6b + §8.4 compensation: payment.failed -> ride.status = PAYMENT_FAILED AND ride.cancelled(reason=payment_failed) published")
+    @DisplayName("§8.2 step 6b + §8.4 compensation: payment.failed -> ride.status = PAYMENT_FAILED AND ride.cancelled(reason=payment_failed) published; commit-then-publish order")
     void onPaymentFailed_compensationCascadeFires() {
         Ride paymentFailedRide = new Ride();
         paymentFailedRide.setId(10L);
@@ -79,13 +84,28 @@ class PaymentEventConsumerSagaTest {
 
         consumer.onPaymentFailed(new PaymentFailedEvent(1L, 10L, "card declined"));
 
-        // (1) state is updated locally first (§2.11 publish-after-commit)
-        verify(rideService).markRideStatus(10L, RideStatus.PAYMENT_FAILED);
-        // (2) ride.cancelled is then published with the spec-mandated reason
-        //     per §8.4: "After the local UPDATE, publish ride.cancelled — driver-service
-        //     consumes it and flips its own driver row to AVAILABLE; payment-service
-        //     consumes it and refunds any pre-existing payment."
-        verify(publisherService).publishRideCancelled(eq(paymentFailedRide), eq("payment_failed"));
+        InOrder order = inOrder(rideService, publisherService);
+        order.verify(rideService).markRideStatus(10L, RideStatus.PAYMENT_FAILED);
+        order.verify(publisherService).publishRideCancelled(eq(paymentFailedRide), eq("payment_failed"));
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test
+    @DisplayName("§8.6 saga idempotency: re-delivered payment.failed -> markRideStatus called twice, but ride.cancelled published only once")
+    void onPaymentFailed_redeliveredEvent_compensationFiresOnlyOnce() {
+        Ride paymentFailedRide = new Ride();
+        paymentFailedRide.setId(10L);
+        paymentFailedRide.setStatus(RideStatus.PAYMENT_FAILED);
+        when(rideService.markRideStatus(10L, RideStatus.PAYMENT_FAILED))
+                .thenReturn(paymentFailedRide)
+                .thenReturn(null);
+
+        PaymentFailedEvent event = new PaymentFailedEvent(1L, 10L, "card declined");
+        consumer.onPaymentFailed(event);
+        consumer.onPaymentFailed(event);
+
+        verify(rideService, times(2)).markRideStatus(10L, RideStatus.PAYMENT_FAILED);
+        verify(publisherService, times(1)).publishRideCancelled(eq(paymentFailedRide), eq("payment_failed"));
     }
 
     @Test
@@ -98,7 +118,7 @@ class PaymentEventConsumerSagaTest {
         consumer.onPaymentFailed(new PaymentFailedEvent(1L, 10L, "card declined"));
 
         verify(rideService).markRideStatus(10L, RideStatus.PAYMENT_FAILED);
-        verify(publisherService, never()).publishRideCancelled(any(), any());
+        verify(publisherService, never()).publishRideCancelled(any(Ride.class), anyString());
     }
 
     @Test
@@ -107,8 +127,6 @@ class PaymentEventConsumerSagaTest {
         consumer.onPaymentRefunded(new PaymentRefundedEvent(1L, 10L, 200.0));
 
         verify(rideService).markRideStatus(10L, RideStatus.REFUNDED);
-        verify(publisherService, never()).publishRideCancelled(any(), any());
+        verify(publisherService, never()).publishRideCancelled(any(Ride.class), anyString());
     }
-
-    private static <T> T any() { return org.mockito.ArgumentMatchers.any(); }
 }
