@@ -100,7 +100,7 @@ git checkout feat/M3/cc/bonus-testing-suite/55-24853
 ### Run the fast suite (no Docker needed) — 12 tests, ~3 seconds
 
 ```powershell
-mvn -pl ride-service "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
+mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
 ```
 
 Expected:
@@ -115,7 +115,7 @@ Expected:
 ### Run the integration test (needs Docker Desktop running) — 6 tests, ~50 seconds
 
 ```powershell
-mvn -pl location-service "-Dtest=LocationRideSagaConsumerIT" test
+mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" test
 ```
 
 First run pulls `rabbitmq:3-management` and `redis:7-alpine` from Docker Hub. Subsequent runs are faster (~30 s).
@@ -148,7 +148,7 @@ PowerShell split the `-D` argument on the dot. Either:
 3. Or drop the flag — it only matters when the test filter matches **zero** classes; since we name real classes, omit it:
 
    ```powershell
-   mvn -pl ride-service "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
+   mvn -pl ride-service -am "-Dtest=RideServiceSagaPrechecksTest,PaymentEventConsumerSagaTest" test
    ```
 
 ### `RideServiceApplicationTests.contextLoads` fails with `UnknownHostException: ride-postgres`
@@ -161,6 +161,24 @@ That's the **default Spring Boot skeleton test** generated at project init. It t
 ### `Testcontainers could not find a valid Docker environment`
 
 Docker Desktop is not running. Start it and retry.
+
+### `NoClassDefFoundError: com/team01/uber/contracts/security/JwtConfigurationManager`
+
+Stale `contracts-1.0-SNAPSHOT.jar` in your local `.m2` cache. `mvn -pl <svc>` on its own does not rebuild upstream Maven modules — you keep whatever `contracts` jar was last installed. Two fixes:
+
+1. **Add `-am` (also-make)** so Maven rebuilds `contracts` before the target service:
+
+   ```powershell
+   mvn -pl location-service -am "-Dtest=LocationRideSagaConsumerIT" test
+   ```
+
+2. **Or refresh everything once**:
+
+   ```powershell
+   mvn install -DskipTests
+   ```
+
+   Then run the tests normally. Re-run `mvn install -DskipTests` whenever `contracts/` (or any other module the service depends on) changes on `main`.
 
 ## Dependencies introduced
 
