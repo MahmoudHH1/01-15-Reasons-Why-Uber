@@ -58,6 +58,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = "SELECT * FROM users WHERE preferences->>:key = :value", nativeQuery = true)
     List<User> findByPreference(@Param("key") String key, @Param("value") String value);
 
+    // §2.12 candidate-set cap at the local-DB query stage (LIMIT 100).
+    // Used by S1-F6 top-riders flow before the per-user Feign fan-out to payment-service.
+    @Query(value = "SELECT * FROM users LIMIT 100", nativeQuery = true)
+    List<User> findCandidateUsersCapped();
+
+    // §2.12 candidate-set cap at the local-DB query stage (LIMIT 100).
+    // Used by S1-F9 language-preference flow before the per-user Feign fan-out to ride-service.
+    @Query(value = "SELECT * FROM users WHERE preferences->>:key = :value LIMIT 100", nativeQuery = true)
+    List<User> findByPreferenceCapped(@Param("key") String key, @Param("value") String value);
+
     @Query(value = "SELECT COUNT(*) FROM rides WHERE user_id = :userId AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')", nativeQuery = true)
     int countActiveRides(@Param("userId") Long userId);
 
