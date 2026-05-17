@@ -33,24 +33,23 @@ public class RideEventConsumer {
         this.userRepository = userRepository;
     }
 
-    /**
-     * Handle ride.completed event.
-     * Increment user's totalRides and totalSpent.
-     */
     @RabbitListener(queues = "user.ride.saga-listener")
-    public void onRideCompleted(Map<String, Object> event) {
+    public void onRideEvent(Map<String, Object> event) {
         String routingKey = (String) event.get("routingKey");
-        if (!"ride.completed".equals(routingKey)) {
-            return; // Not for us
+        if ("ride.completed".equals(routingKey)) {
+            handleRideCompleted(event);
+        } else if ("ride.cancelled".equals(routingKey)) {
+            handleRideCancelled(event);
         }
+    }
 
+    private void handleRideCompleted(Map<String, Object> event) {
         Long userId = ((Number) event.get("userId")).longValue();
         Long rideId = ((Number) event.get("rideId")).longValue();
         Double fare = ((Number) event.get("fare")).doubleValue();
 
-        // ADD MDC HERE
         MDC.put("userId", userId.toString());
-        MDC.put("routingKey", routingKey);
+        MDC.put("routingKey", "ride.completed");
 
         try {
             log.info("Consuming ride.completed for userId={}, rideId={}", userId, rideId);
@@ -61,41 +60,27 @@ public class RideEventConsumer {
                 return;
             }
 
-            // Idempotency: Simple approach - just increment
-            // In production, track processed rideIds in JSONB or separate table
             user.setTotalRides((user.getTotalRides() == null ? 0L : user.getTotalRides()) + 1);
             user.setTotalSpent((user.getTotalSpent() == null ? 0.0 : user.getTotalSpent()) + fare);
-            
+
             userRepository.save(user);
             log.info("Processed ride.completed for userId={}, newTotal={}", userId, user.getTotalRides());
         } catch (Exception e) {
             log.error("Failed to process ride.completed for userId={}: {}", userId, e.getMessage());
-            throw e; // Propagate → retry → DLQ
+            throw e;
         } finally {
-            // ADD MDC CLEANUP HERE
             MDC.remove("userId");
             MDC.remove("routingKey");
         }
     }
 
-    /**
-     * Handle ride.cancelled event.
-     * Decrement user's totalRides and totalSpent (if ride was already counted).
-     */
-    @RabbitListener(queues = "user.ride.saga-listener")
-    public void onRideCancelled(Map<String, Object> event) {
-        String routingKey = (String) event.get("routingKey");
-        if (!"ride.cancelled".equals(routingKey)) {
-            return; // Not for us
-        }
-
+    private void handleRideCancelled(Map<String, Object> event) {
         Long userId = ((Number) event.get("userId")).longValue();
         Long rideId = ((Number) event.get("rideId")).longValue();
         Double fare = event.containsKey("fare") ? ((Number) event.get("fare")).doubleValue() : 0.0;
 
-        // ADD MDC HERE
         MDC.put("userId", userId.toString());
-        MDC.put("routingKey", routingKey);
+        MDC.put("routingKey", "ride.cancelled");
 
         try {
             log.info("Consuming ride.cancelled for userId={}, rideId={}", userId, rideId);
@@ -106,7 +91,6 @@ public class RideEventConsumer {
                 return;
             }
 
-            // Only decrement if user has rides counted (guard against negative)
             if (user.getTotalRides() != null && user.getTotalRides() > 0) {
                 user.setTotalRides(user.getTotalRides() - 1);
                 user.setTotalSpent((user.getTotalSpent() == null ? 0.0 : user.getTotalSpent()) - fare);
@@ -117,9 +101,8 @@ public class RideEventConsumer {
             }
         } catch (Exception e) {
             log.error("Failed to process ride.cancelled for userId={}: {}", userId, e.getMessage());
-            throw e; // Propagate → retry → DLQ
+            throw e;
         } finally {
-            // ADD MDC CLEANUP HERE
             MDC.remove("userId");
             MDC.remove("routingKey");
         }

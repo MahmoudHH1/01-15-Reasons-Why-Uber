@@ -9,7 +9,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -55,15 +56,23 @@ import static org.mockito.Mockito.when;
         "spring.data.mongodb.uri=mongodb://localhost:27017/test",
         "feign.user-service.url=http://localhost:1",
         "feign.ride-service.url=http://localhost:1",
-        "feign.payment-service.url=http://localhost:1"
+        "feign.payment-service.url=http://localhost:1",
+        "spring.amqp.deserialization.trust.all=true"
 })
 @Testcontainers
 class UserRideEventConsumerIT {
 
     @Container
-    @ServiceConnection
     static RabbitMQContainer rabbit =
             new RabbitMQContainer(DockerImageName.parse("rabbitmq:3-management"));
+
+    @DynamicPropertySource
+    static void rabbitProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.rabbitmq.host", rabbit::getHost);
+        registry.add("spring.rabbitmq.port", rabbit::getAmqpPort);
+        registry.add("spring.rabbitmq.username", rabbit::getAdminUsername);
+        registry.add("spring.rabbitmq.password", rabbit::getAdminPassword);
+    }
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
