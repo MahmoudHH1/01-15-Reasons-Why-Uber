@@ -1237,7 +1237,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (uri) (rate(http_server_requests_seconds_count{service=\"payment-service\"}[5m]))",
+              "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"payment-service\"}[5m]))",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -1269,7 +1269,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.50, sum by (uri, le) (rate(http_server_requests_seconds_bucket{service=\"payment-service\"}[5m])))",
+              "expr": "histogram_quantile(0.50, sum by (uri, le) (rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m])))",
               "legendFormat": "p50 {{uri}}",
               "datasource": {
                 "type": "prometheus",
@@ -1278,7 +1278,7 @@ data:
             },
             {
               "refId": "B",
-              "expr": "histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{service=\"payment-service\"}[5m])))",
+              "expr": "histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m])))",
               "legendFormat": "p95 {{uri}}",
               "datasource": {
                 "type": "prometheus",
@@ -1287,7 +1287,7 @@ data:
             },
             {
               "refId": "C",
-              "expr": "histogram_quantile(0.99, sum by (uri, le) (rate(http_server_requests_seconds_bucket{service=\"payment-service\"}[5m])))",
+              "expr": "histogram_quantile(0.99, sum by (uri, le) (rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m])))",
               "legendFormat": "p99 {{uri}}",
               "datasource": {
                 "type": "prometheus",
@@ -1319,7 +1319,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (area) (jvm_memory_used_bytes{service=\"payment-service\"})",
+              "expr": "sum by (area) (jvm_memory_used_bytes{job=\"payment-service\"})",
               "legendFormat": "{{area}}",
               "datasource": {
                 "type": "prometheus",
