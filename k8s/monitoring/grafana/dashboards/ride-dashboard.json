@@ -34,7 +34,7 @@
       "id": 1,
       "title": "Ride Database Error Rate (LogQL)",
       "type": "timeseries",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "fieldConfig": {
         "defaults": {
@@ -65,7 +65,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
           "expr": "sum by (level) (rate({app=\"uber\", service=\"ride-service\"} |= \"ERROR\" [1m]))",
           "legendFormat": "Log Level: {{level}}",
@@ -78,7 +78,7 @@
       "id": 2,
       "title": "PostgreSQL Event Actions Distribution (LogQL)",
       "type": "piechart",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "fieldConfig": {
         "defaults": {
@@ -96,7 +96,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
           "expr": "sum by (level) (count_over_time({app=\"uber\", service=\"ride-service\"} [5m]))",
           "legendFormat": "{{level}} Operations",
@@ -109,7 +109,7 @@
       "id": 3,
       "title": "Live System Activity Log Stream (LogQL)",
       "type": "logs",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
       "options": {
         "dedupStrategy": "none",
@@ -123,7 +123,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
           "expr": "{app=\"uber\", service=\"ride-service\"} |= \"\"",
           "queryType": "range",
@@ -136,7 +136,7 @@
       "title": "HTTP Request Rate (ride-service)",
       "type": "timeseries",
       "description": "Requests per second per endpoint, broken down by method and status. Identifies which ride-service routes are under peak load.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
       "fieldConfig": { "defaults": { "unit": "reqps" } },
       "targets": [
@@ -152,7 +152,7 @@
       "title": "HTTP Latency P50 / P95 / P99 (ride-service)",
       "type": "timeseries",
       "description": "Histogram percentile latency per endpoint. Surfaces slow Feign-enriched reads such as GET /api/rides/driver/{id}/summary.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "fieldConfig": { "defaults": { "unit": "s" } },
       "targets": [
@@ -178,7 +178,7 @@
       "title": "RabbitMQ Publish vs Consume (ride-service)",
       "type": "timeseries",
       "description": "Per-second rate of messages published by RabbitTemplate against rate consumed by @RabbitListener. Persistent gap indicates consumer lag on the ride choreography saga.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
       "fieldConfig": { "defaults": { "unit": "mps" } },
       "targets": [
@@ -199,7 +199,7 @@
       "title": "Cache Hit / Miss Ratio (ride-service)",
       "type": "timeseries",
       "description": "Per-cache hit and miss rate plus rolling hit ratio. Verifies that S3-F1/F3/F5/F6/F9/F10/F12 caches are effective and that recent invalidations didn't tank the hit rate.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
