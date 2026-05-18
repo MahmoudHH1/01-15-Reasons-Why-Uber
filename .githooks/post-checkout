@@ -23,6 +23,11 @@ if echo "$BRANCH" | grep -qE "^(main|master|develop)$"; then
   exit 0
 fi
 
+# Allow local-only parallel-agent worktree branches (never pushed; orchestrator-managed).
+if echo "$BRANCH" | grep -qE "^worktree-agent-"; then
+  exit 0
+fi
+
 # M3 §13.1 branch format — the only accepted pattern from M3 onward.
 #   <type>/M3/<ID>/<student-id>
 #     e.g. feat/M3/S5-INFRA/55-24853

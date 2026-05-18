@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -41,6 +43,9 @@ public class RideEventConsumer {
 
     private final UserRepository userRepository;
     private final UserRideCompletionRepository completionRepository;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     public RideEventConsumer(UserRepository userRepository,
                              UserRideCompletionRepository completionRepository) {
@@ -81,6 +86,8 @@ public class RideEventConsumer {
             record.setFare(fare);
             record.setCompletedAt(LocalDateTime.now());
             completionRepository.save(record);
+
+            cacheManager.getCache("user-service::S1-F1").evict(userId);
 
             log.info("Processed ride.completed for userId={}, newTotal={}, newSpent={}",
                     userId, user.getTotalRides(), user.getTotalSpent());
@@ -125,6 +132,8 @@ public class RideEventConsumer {
 
             userRepository.save(user);
             completionRepository.delete(record);
+
+            cacheManager.getCache("user-service::S1-F1").evict(userId);
 
             log.info("Processed ride.cancelled for userId={}, newTotal={}, newSpent={}",
                     userId, user.getTotalRides(), user.getTotalSpent());
