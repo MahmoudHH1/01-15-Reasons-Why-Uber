@@ -10,14 +10,12 @@
             <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
         </http>
         <labels>
-            <pattern>
-                app=uber
-                service=${spring.application.name}
-                level=%level
-                env=k8s
-            </pattern>
+            app=uber
+            service=${spring.application.name}
+            level=%level
+            env=k8s
         </labels>
-        <message>
+        <message class="ch.qos.logback.classic.PatternLayout">
             <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${spring.application.name}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","userId":"%X{userId:-}","paymentId":"%X{paymentId:-}","rideId":"%X{rideId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
         </message>
     </appender>

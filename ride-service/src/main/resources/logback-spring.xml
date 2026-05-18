@@ -6,30 +6,13 @@
             <url>${LOKI_URL:-http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push}</url>
         </http>
         <labels>
-            <pattern>
-                app=uber
-                service=${appName}
-                level=%level
-                env=k8s
-            </pattern>
+            app=uber
+            service=${appName}
+            level=%level
+            env=k8s
         </labels>
-        <message>
-            <pattern>
-                {
-                "timestamp": "%d{ISO8601}",
-                "level": "%level",
-                "service": "${appName}",
-                "thread": "%thread",
-                "logger": "%logger{36}",
-                "correlationId": "%X{correlationId:-}",
-                "userId": "%X{userId:-}",
-                "driverId": "%X{driverId:-}",
-                "rideId": "%X{rideId:-}",
-                "paymentId": "%X{paymentId:-}",
-                "routingKey": "%X{routingKey:-}",
-                "message": "%msg"
-                }
-            </pattern>
+        <message class="ch.qos.logback.classic.PatternLayout">
+            <pattern>{"timestamp":"%d{ISO8601}","level":"%level","service":"${appName}","thread":"%thread","logger":"%logger{36}","correlationId":"%X{correlationId:-}","userId":"%X{userId:-}","driverId":"%X{driverId:-}","rideId":"%X{rideId:-}","paymentId":"%X{paymentId:-}","routingKey":"%X{routingKey:-}","message":"%msg"}</pattern>
         </message>
     </appender>
 
