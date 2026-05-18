@@ -34,7 +34,7 @@
       "title": "Error Rate (driver-service)",
       "type": "timeseries",
       "description": "Count of ERROR-level logs per minute — spike detection for driver-service failures",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\", level=\"ERROR\"}[1m]))",
@@ -49,7 +49,7 @@
       "title": "Feign Call Outcomes (driver-service)",
       "type": "timeseries",
       "description": "Successful Feign responses vs FeignException catches — detect ride-service or user-service degradation",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"FeignException\" [5m]))",
@@ -69,7 +69,7 @@
       "title": "Correlation ID Trace (driver-service)",
       "type": "logs",
       "description": "Filter all log lines by a specific X-Correlation-ID to trace a single request through driver-service",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "expr": "{app=\"uber\", service=\"driver-service\"} | json | correlationId=~\".+\"",
@@ -89,7 +89,7 @@
       "title": "Driver Availability Updates (driver-service)",
       "type": "stat",
       "description": "Count of AVAILABILITY_UPDATED events logged — shows how often drivers change status",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"AVAILABILITY_UPDATED\" [1h]))",
@@ -104,7 +104,7 @@
       "title": "Driver Rating Events (driver-service)",
       "type": "stat",
       "description": "Count of RATING_RECORDED events — shows driver rating activity",
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"RATING_RECORDED\" [1h]))",
@@ -119,7 +119,7 @@
       "title": "HTTP Request Rate (driver-service)",
       "type": "timeseries",
       "description": "Prometheus — HTTP request rate per minute for driver-service",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "rate(http_server_requests_seconds_count{job=\"driver-service\"}[1m])",
@@ -134,7 +134,7 @@
       "title": "HTTP Latency p95 (driver-service)",
       "type": "timeseries",
       "description": "Prometheus — 95th percentile HTTP request latency for driver-service",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"driver-service\"}[5m])) by (le, uri))",
@@ -149,7 +149,7 @@
       "title": "JVM Heap Usage (driver-service)",
       "type": "timeseries",
       "description": "Prometheus — JVM heap memory used vs committed for driver-service",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "jvm_memory_used_bytes{job=\"driver-service\", area=\"heap\"}",
@@ -169,7 +169,7 @@
       "title": "RabbitMQ Publish Rate (driver-service)",
       "type": "timeseries",
       "description": "Prometheus — driver-service AMQP publish rate by exchange (driver.events publishers: driver.status-changed, driver.rated, driver.document.verified)",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "sum by (exchange) (rate(rabbitmq_acknowledged_published_total{job=\"driver-service\"}[5m]))",
@@ -189,7 +189,7 @@
       "title": "RabbitMQ Consumer Throughput — driver.ride.saga-listener",
       "type": "timeseries",
       "description": "Prometheus — ride-event consumer rate on driver.ride.saga-listener queue (ride.placed / ride.completed / ride.cancelled handlers)",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "sum by (queue) (rate(rabbitmq_consumed_total{job=\"driver-service\"}[5m]))",
@@ -209,7 +209,7 @@
       "title": "RabbitMQ Listener Failures → DLQ (driver-service)",
       "type": "timeseries",
       "description": "Prometheus — Spring listener invocations that threw, rate by queue. After max-attempts: 3 the broker routes to driver.ride.saga-listener.dlq via x-dead-letter-exchange.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "sum by (queue, exception) (rate(rabbitmq_listener_seconds_count{job=\"driver-service\", result=\"failure\"}[5m]))",
