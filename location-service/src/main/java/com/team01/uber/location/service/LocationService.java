@@ -360,10 +360,9 @@ public class LocationService {
                 .build();
     }
 
-    @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
-    public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
-        // Rows are persisted with LocalDateTime.now() (no zone); align the window cutoff
-        // with the same local clock so the >= :since predicate stays correctly anchored.
+    @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes + ':' + #page + ':' + #size")
+    public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes, int page, int size) {
+        int effectiveSize = Math.min(size, 100);
         LocalDateTime since = LocalDateTime.now().minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDriversLocal(maxSpeed, since);
 
@@ -387,11 +386,18 @@ public class LocationService {
                 MDC.remove("driverId");
             }
         }
-        return stationaryDrivers;
+
+        int fromIndex = page * effectiveSize;
+        if (fromIndex >= stationaryDrivers.size()) {
+            return List.of();
+        }
+        int toIndex = Math.min(fromIndex + effectiveSize, stationaryDrivers.size());
+        return stationaryDrivers.subList(fromIndex, toIndex);
     }
 
-    @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm")
-    public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm) {
+    @Cacheable(value = "location-service::S4-F3", key = "#lat + ':' + #lon + ':' + #radiusKm + ':' + #page + ':' + #size")
+    public List<NearbyDriverDTO> findNearbyDrivers(Double lat, Double lon, Double radiusKm, int page, int size) {
+        int effectiveSize = Math.min(size, 100);
         List<Object[]> results = locationRepository.findNearbyDriversLocal(lat, lon, radiusKm);
 
         List<NearbyDriverDTO> nearbyDrivers = new ArrayList<>();
@@ -415,7 +421,13 @@ public class LocationService {
                 MDC.remove("driverId");
             }
         }
-        return nearbyDrivers;
+
+        int fromIndex = page * effectiveSize;
+        if (fromIndex >= nearbyDrivers.size()) {
+            return List.of();
+        }
+        int toIndex = Math.min(fromIndex + effectiveSize, nearbyDrivers.size());
+        return nearbyDrivers.subList(fromIndex, toIndex);
     }
 
     @Cacheable(value = "location-service::S4-F12",
