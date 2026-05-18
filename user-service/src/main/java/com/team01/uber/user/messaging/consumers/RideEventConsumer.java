@@ -10,6 +10,8 @@ import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import org.springframework.cache.CacheManager;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /*
  * Spec: M3 §15.2 (consumer ITs) + §16 rule 11 (idempotent consumers) + §8 saga.
@@ -36,6 +38,9 @@ public class RideEventConsumer {
     private static final Logger log = LoggerFactory.getLogger(RideEventConsumer.class);
 
     private final UserRepository userRepository;
+    
+    @Autowired
+    private CacheManager cacheManager;
 
     public RideEventConsumer(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -63,6 +68,9 @@ public class RideEventConsumer {
             user.setTotalSpent((user.getTotalSpent() == null ? 0.0 : user.getTotalSpent()) + fare);
 
             userRepository.save(user);
+            
+            cacheManager.getCache("user-service::S1-F1").evict(userId);
+            
             log.info("Processed ride.completed for userId={}, newTotal={}", userId, user.getTotalRides());
         } catch (Exception e) {
             log.error("Failed to process ride.completed for userId={}: {}", userId, e.getMessage());
@@ -93,6 +101,8 @@ public class RideEventConsumer {
             if (user.getTotalRides() != null && user.getTotalRides() > 0) {
                 user.setTotalRides(user.getTotalRides() - 1);
                 userRepository.save(user);
+                cacheManager.getCache("user-service::S1-F1").evict(userId);
+
                 log.info("Processed ride.cancelled for userId={}, newTotal={}", userId, user.getTotalRides());
             } else {
                 log.warn("User {} has no rides to cancel, skipping decrement", userId);
