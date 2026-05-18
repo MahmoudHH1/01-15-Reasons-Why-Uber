@@ -1,9 +1,9 @@
 package com.team01.uber.user.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 
 /**
  * RabbitMQ consumer topology for user-service.
@@ -43,14 +43,48 @@ public class RabbitMQConsumerConfig {
     public static final String RIDE_EVENTS_EXCHANGE = "ride.events";
 
 
+    /*
+     * Fix #1 — no custom CachingConnectionFactory @Bean.
+     *
+     * Spec quote (uber-m3.md §2 Inter-Service Communication):
+     *   "All inter-service connection details flow through application.yml
+     *    so the same image boots in compose, MiniKube, and local-dev unchanged."
+     *
+     * Why: this file previously declared a CachingConnectionFactory @Bean
+     * with factory.setHost("rabbitmq"). That hardcoded the broker DNS name
+     * and shadowed Spring Boot's auto-config — user-service only worked
+     * inside docker-compose (where "rabbitmq" resolves) and was unusable
+     * in MiniKube or local-dev despite application.yml already carrying
+     * ${SPRING_RABBITMQ_HOST:rabbitmq}.
+     *
+     * Fix: deleted the bean. Spring Boot auto-config now binds the
+     * ConnectionFactory from spring.rabbitmq.* in application.yml. Aligned
+     * with ride/driver/location/payment-service — none declare a custom CF.
+     */
+
+    /*
+     * Fix #2 — Jackson2JsonMessageConverter @Bean.
+     *
+     * Spec quote (uber-m3.md §2):
+     *   "Event payload records cross the wire as JSON (Jackson2-based
+     *    converter on both publisher and consumer sides)."
+     *
+     * Why: this file previously declared no message converter, so Spring
+     * AMQP fell back to SimpleMessageConverter (Java native serialization
+     * with a strict deny-list). When ride-service published JSON
+     * RideCompletedEvent / RideCancelledEvent records, user-service tried
+     * to Java-deserialize them as HashMap and bounced every inbound
+     * message to the DLQ with SecurityException — User.totalRides /
+     * User.totalSpent were never updated in production.
+     *
+     * Fix: register the same Jackson2JsonMessageConverter bean ride /
+     * location / payment-service already have. Consumer now deserializes
+     * JSON payloads correctly and the saga ride.completed/.cancelled path
+     * mutates user stats end-to-end.
+     */
     @Bean
-    public CachingConnectionFactory connectionFactory() {
-        CachingConnectionFactory factory = new CachingConnectionFactory();
-        factory.setHost("rabbitmq");
-        factory.setPort(5672);
-        factory.setUsername("guest");
-        factory.setPassword("guest");
-        return factory;
+    public Jackson2JsonMessageConverter messageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 
     /**

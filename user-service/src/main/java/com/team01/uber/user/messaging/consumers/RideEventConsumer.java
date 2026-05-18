@@ -11,6 +11,24 @@ import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+/*
+ * Spec: M3 §15.2 (consumer ITs) + §16 rule 11 (idempotent consumers) + §8 saga.
+ * Quote (uber-m3.md §2): "Event payload records cross the wire as JSON
+ * (Jackson2-based converter on both publisher and consumer sides)."
+ *
+ * Why: prior to fix this class declared TWO @RabbitListener methods on the
+ * same queue (user.ride.saga-listener), each filtering by a payload field
+ * and silently returning when it didn't match. Spring AMQP creates one
+ * SimpleMessageListenerContainer per @RabbitListener, so two consumers
+ * raced for each message; RabbitMQ round-robined ~50% of events into the
+ * "wrong" handler that just ack'd and dropped them. User.totalRides /
+ * totalSpent updates landed only half the time.
+ *
+ * Fix: one class-level @RabbitListener (single consumer on the queue) +
+ * @RabbitHandler methods dispatched in-process by deserialized record
+ * type (RideCompletedEvent vs RideCancelledEvent). Same shape as
+ * payment-service/PaymentEventConsumer.
+ */
 @Component
 @RabbitListener(queues = "user.ride.saga-listener")
 public class RideEventConsumer {

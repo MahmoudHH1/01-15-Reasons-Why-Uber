@@ -1,0 +1,49 @@
+<!--
+  Test-only logback config. Applies when running mvn test for location-service.
+  Production logback-spring.xml is untouched.
+
+  Purpose: silence the noise that fires during context teardown when Testcontainers
+  stops the RabbitMQ and Redis containers while Spring's resilient listeners are
+  still trying to reconnect. None of these are test failures — they happen after
+  every assertion has already passed.
+-->
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- App / framework: keep INFO on what we care about -->
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+    <logger name="com.team01.uber" level="INFO"/>
+    <logger name="org.springframework.boot" level="INFO"/>
+
+    <!-- Noise from container shutdown (Testcontainers stops Redis/RabbitMQ
+         before Spring's resilient clients have noticed) -->
+    <logger name="io.lettuce.core" level="OFF"/>
+    <logger name="io.lettuce.core.protocol" level="OFF"/>
+    <logger name="org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer" level="OFF"/>
+    <logger name="org.springframework.amqp.rabbit.connection.CachingConnectionFactory" level="OFF"/>
+    <logger name="com.rabbitmq.client.impl.AMQConnection" level="OFF"/>
+
+    <!-- Loki4J tries to push to loki.monitoring.svc.cluster.local which is K8s-only.
+         Outside K8s every push errors out. Not relevant to test pass/fail. -->
+    <logger name="com.github.loki4j" level="OFF"/>
+
+    <!-- MongoDB driver chatter during cluster discovery -->
+    <logger name="org.mongodb.driver" level="WARN"/>
+
+    <!-- Cassandra driver chatter — teardown reconnect storms after the container stops -->
+    <logger name="com.datastax.oss.driver" level="ERROR"/>
+    <logger name="com.datastax.oss.driver.internal.core.pool" level="OFF"/>
+    <logger name="com.datastax.oss.driver.internal.core.channel" level="OFF"/>
+
+    <!-- Testcontainers — keep the container-lifecycle lines (start/stop are useful) -->
+    <logger name="org.testcontainers" level="INFO"/>
+    <logger name="tc" level="INFO"/>
+
+</configuration>
