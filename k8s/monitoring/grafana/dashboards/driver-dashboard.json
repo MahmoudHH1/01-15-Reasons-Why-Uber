@@ -52,7 +52,7 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
-          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |= \"FeignException\" [5m]))",
+          "expr": "sum(count_over_time({app=\"uber\", service=\"driver-service\"} |~ \"Feign call to|Circuit breaker open\" [5m]))",
           "legendFormat": "feign errors/5m",
           "refId": "A"
         },
