@@ -27,9 +27,6 @@ public class PaymentClient {
             return feignClient.getUserTotalPayments(userId, startDate, endDate);
         } catch (FeignException.NotFound e) {
             return BigDecimal.ZERO;
-        } catch (FeignException e) {
-            log.error("Feign call to payment-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Payment service unavailable");
         }
     }
 

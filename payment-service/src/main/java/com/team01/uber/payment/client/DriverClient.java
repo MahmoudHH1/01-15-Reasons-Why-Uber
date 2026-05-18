@@ -27,9 +27,6 @@ public class DriverClient {
         } catch (FeignException.NotFound e) {
             log.warn("Driver not found for driverId={}", driverId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        } catch (FeignException e) {
-            log.error("Feign call to driver-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Driver service unavailable");
         }
     }
 

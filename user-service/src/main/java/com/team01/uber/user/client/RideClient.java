@@ -26,10 +26,7 @@ public class RideClient {
             return feignClient.getUserRideSummary(userId);
         } catch (FeignException.NotFound e) {
             log.warn("Ride summary not found for userId={}", userId);
-            throw e; // Let UserService handle 404
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride summary not found");
         }
     }
 
@@ -43,9 +40,6 @@ public class RideClient {
         try {
             log.info("Calling ride-service.getActiveRideCount for userId={}", userId);
             return feignClient.getActiveRideCount(userId);
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 
@@ -62,9 +56,6 @@ public class RideClient {
             return feignClient.getCompletedRideCount(userId);
         } catch (FeignException.NotFound e) {
             return 0L;
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 

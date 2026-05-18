@@ -27,9 +27,6 @@ public class LocationClient {
         } catch (FeignException.NotFound e) {
             log.warn("Recent location not found for driverId={}", driverId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Recent location not found");
-        } catch (FeignException e) {
-            log.error("Feign call to location-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location service unavailable");
         }
     }
 

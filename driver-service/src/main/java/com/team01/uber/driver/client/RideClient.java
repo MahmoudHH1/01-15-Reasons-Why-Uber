@@ -28,9 +28,6 @@ public class RideClient {
         } catch (FeignException.NotFound e) {
             log.warn("Ride not found for rideId={}", rideId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 
@@ -44,9 +41,6 @@ public class RideClient {
         try {
             log.info("Calling ride-service.countActiveRidesForDriver for driverId={}", driverId);
             return feignClient.countActiveRidesForDriver(driverId);
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 
@@ -61,9 +55,6 @@ public class RideClient {
         try {
             log.info("Calling ride-service.getDriverRideSummary for driverId={}", driverId);
             return feignClient.getDriverRideSummary(driverId, startDate, endDate);
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 
@@ -77,9 +68,6 @@ public class RideClient {
         try {
             log.info("Calling ride-service.getDriverStats for driverId={}", driverId);
             return feignClient.getDriverStats(driverId);
-        } catch (FeignException e) {
-            log.error("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 

@@ -27,9 +27,6 @@ public class UserClient {
         } catch (FeignException.NotFound e) {
             log.warn("User not found for userId={}", userId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-        } catch (FeignException e) {
-            log.error("Feign call to user-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service unavailable");
         }
     }
 
