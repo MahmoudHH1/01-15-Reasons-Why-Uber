@@ -16,17 +16,12 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$^^
 
-DO $$ BEGIN
-    ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
-EXCEPTION WHEN others THEN null;
-END $$^^
-
 CREATE TABLE IF NOT EXISTS payments (
     id                    BIGSERIAL PRIMARY KEY,
     ride_id               BIGINT NOT NULL,
     user_id               BIGINT NOT NULL,
     amount                DOUBLE PRECISION NOT NULL,
-    method                payment_method,
+    method                payment_method NOT NULL,
     status                payment_status NOT NULL,
     transaction_details   JSONB,
     created_at            TIMESTAMP NOT NULL

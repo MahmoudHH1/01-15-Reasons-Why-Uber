@@ -626,6 +626,7 @@ public class PaymentService {
             payment.setRideId(event.rideId());
             payment.setUserId(event.userId());
             payment.setAmount(event.fare() != null ? event.fare() : 0.0);
+            payment.setMethod(PaymentMethod.CASH);
             payment.setStatus(PaymentStatus.PENDING);
             payment.setCreatedAt(LocalDateTime.now());
 
