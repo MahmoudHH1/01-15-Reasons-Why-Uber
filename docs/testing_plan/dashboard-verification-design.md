@@ -236,14 +236,16 @@ for i in 1 2 3; do
 done
 ```
 
-| # | Panel | Spec ref | Compliance (after §7.1 patch) | Trigger | Expected reading | Pass criteria | Negative test |
-|---|---|---|---|---|---|---|---|
-| 1 | Error Rate | §11.3 Panel 1 | OK | Trigger B | Time series rises within 5 s | Loki instant `count_over_time({service="user-service",level="ERROR"}[1m]) > 0` | Stop triggering → series returns to 0 within 1 min |
-| 2 | RabbitMQ Event Audit by Routing Key | §11.3 Panel 3 | OK | `seed-user.sh` (publishes user.created) | `user.created` routingKey appears | Loki query for `routingKey="user.created"` returns ≥3 lines | — |
-| 3 | Feign Call Outcomes | §11.3 Panel 4 | OK | Trigger A (user→ride summary) | Empty under Tier 1 (failure); green under Tier 2 + ride-service | Tier 1: `\|= "Feign call.*failed"` returns lines. Tier 2: `\|= "Feign call.*returned successfully"` returns lines | Scale ride-service to 0 → success line drops, failure line spikes |
-| 4 | HTTP Request Rate per Endpoint | §11.4 Panel 1 | OK | Trigger A | One line per `uri`, > 3 req/s during Trigger A | `rate(http_server_requests_seconds_count{job="user-service"}[1m]) > 0` | — |
-| 5 | HTTP Latency P99 | §11.4 Panel 2 | OK | Trigger A | P99 < 1 s under no-load, spikes under contention | `histogram_quantile(0.99, ...) returns a number > 0` | Hit `/api/users/{id}/ride-summary` (S1-F3, slowest Feign-enriched) and watch P99 climb |
-| 6 | JVM Heap Usage | §11.4 Panel 3 | OK | (passive) | Heap line visible from cold start | `jvm_memory_used_bytes{job="user-service",area="heap"} > 0` | Drive heap up with `for i in {1..1000}; do curl ... done` — see growth before GC |
+Queries below are the **current (broken) verbatim** from `user-dashboard.json` — they target ride-service. After applying the §7.1 patch the queries target user-service and the trigger commands light up the panels.
+
+| # | Panel | Spec ref | Query (verbatim, current JSON) | Compliance | Trigger | Expected reading | Pass criteria | Negative test |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Error Rate | §11.3 Panel 1 | `sum by (level) (rate({app="uber", service="ride-service", level="ERROR"} [1m]))` | BROKEN — `service=` wrong | Trigger B | Pre-patch: empty. Post-patch: time series rises within 5 s | Post-patch Loki instant: `count_over_time({service="user-service",level="ERROR"}[1m]) > 0` | Stop triggering → series returns to 0 within 1 min |
+| 2 | RabbitMQ Event Audit by Routing Key | §11.3 Panel 3 | `sum by (routingKey) (rate({app="uber", service="ride-service"} \|= "routingKey" [5m]))` | BROKEN — `service=` wrong | `seed-user.sh` (publishes `user.created`) | Pre-patch: empty. Post-patch: `routingKey="user.created"` line | Loki query for `routingKey="user.created"` returns ≥3 lines | — |
+| 3 | Feign Call Outcomes | §11.3 Panel 4 | `sum by (status) (rate({app="uber", service="ride-service"} \|= "Feign call" [5m]))` | BROKEN — `service=` wrong | Trigger A (user→ride summary) | Pre-patch: empty. Post-patch Tier 1: failure-only line. Tier 2+ride-service: success line | Post-patch Tier 1: `\|= "Feign call.*failed"` returns lines. Tier 2: `\|= "returned successfully"` returns lines | Scale ride-service to 0 → success drops, failure spikes |
+| 4 | HTTP Request Rate per Endpoint | §11.4 Panel 1 | `sum(rate(http_server_requests_seconds_count{job="ride-service"}[5m])) by (uri)` | BROKEN — `job=` wrong | Trigger A | Pre-patch: empty (or shows ride-service traffic). Post-patch: line per `uri` | Post-patch: `rate(http_server_requests_seconds_count{job="user-service"}[1m]) > 0` | — |
+| 5 | HTTP Latency P99 | §11.4 Panel 2 | `histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="ride-service"}[5m])) by (le, uri))` | BROKEN — `job=` wrong | Trigger A | Post-patch: P99 < 1 s under no-load, spikes under contention | Post-patch: `histogram_quantile(0.99, sum(rate(...{job="user-service"}[5m])) by (le, uri)) > 0` | Hit `/api/users/{id}/ride-summary` (S1-F3) and watch P99 climb |
+| 6 | JVM Heap Usage | §11.4 Panel 3 | `jvm_memory_used_bytes{job="ride-service", area="heap"}` | BROKEN — `job=` wrong | (passive) | Post-patch: heap line visible from cold start | Post-patch: `jvm_memory_used_bytes{job="user-service",area="heap"} > 0` | Drive heap up with curl loop — see growth before GC |
 
 ### 4.3 driver-service dashboard (11 panels)
 
@@ -270,19 +272,19 @@ done
   --invalid-payload --correlationId=$DLQ_CORRELATION_ID
 ```
 
-| # | Panel | Spec ref | Compliance | Trigger | Expected | Pass | Negative |
-|---|---|---|---|---|---|---|---|
-| 1 | Error Rate | §11.3 Panel 1 | OK | Trigger A then hit `/api/drivers/99999` 3× | ERROR line spike | `count_over_time({service="driver-service",level="ERROR"}[1m]) > 0` | — |
-| 2 | Feign Call Outcomes | §11.3 Panel 4 | OK | Trigger A under Tier 1 | `FeignException` series rises | `\|= "FeignException"` returns lines | Tier 2 + ride-service → `\|= "FeignException"` returns 0 |
-| 3 | Correlation ID Trace | §11.3 Panel 2 | OK | Trigger A with fixed `$HAPPY_CORRELATION_ID` | Multi-line log stream filtered by that ID | `{service="driver-service"} \| json \| correlationId="$HAPPY"` returns ≥5 lines | — |
-| 4 | Driver Availability Updates (stat) | not in §11.3 list — **AT_RISK** | AT_RISK — custom panel, not one of the 6 spec options | Trigger A | Stat panel shows 10 | Best-effort; spec compliance counted by the 3+3 panels above | — |
-| 5 | Driver Rating Events (stat) | not in §11.3 list — **AT_RISK** | AT_RISK — custom | `seed-driver.sh` inserts 5 ratings | Stat shows 5 | Best-effort | — |
-| 6 | HTTP Request Rate | §11.4 Panel 1 | OK | Trigger A | `rate(...{job="driver-service"}[1m]) > 0` | — | — |
-| 7 | HTTP Latency p95 | §11.4 Panel 2 | OK | Trigger A | P95 line visible | — | — |
-| 8 | JVM Heap Usage | §11.4 Panel 3 | OK | passive | Heap visible | — | — |
-| 9 | RabbitMQ Publish Rate | §11.4 Panel 6 | **AT_RISK** — uses `rabbitmq_acknowledged_published_total` which is not a standard Spring AMQP metric | Trigger A | Panel may be empty | See §7.4 patch; replace with `spring_rabbit_template_seconds_count` | — |
-| 10 | RabbitMQ Consumer Throughput | §11.4 Panel 6 | AT_RISK — uses `rabbitmq_consumed_total` (non-standard) | Trigger B repeated valid publishes | Panel may be empty | See §7.4 | — |
-| 11 | RabbitMQ Listener Failures → DLQ | §11.4 Panel 6 | AT_RISK — uses `rabbitmq_rejected_total` (non-standard); Spring-AMQP exposes `spring_rabbit_listener_seconds_count{result="failure"}` instead | Trigger B (malformed payload, retried 3× → DLQ) | Failure series ticks | After §7.4 patch, `rate(spring_rabbit_listener_seconds_count{job="driver-service",result="failure"}[1m]) > 0` | — |
+| # | Panel | Spec ref | Query (verbatim from driver-dashboard.json) | Compliance | Trigger | Expected reading | Pass criteria | Negative test |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Error Rate | §11.3 Panel 1 | `sum(count_over_time({app="uber", service="driver-service", level="ERROR"}[1m]))` | OK | Trigger A then hit `/api/drivers/99999` 3× | ERROR line spike within 5 s | `count_over_time({service="driver-service",level="ERROR"}[1m]) > 0` | Stop triggering → series returns to 0 |
+| 2 | Feign Call Outcomes | §11.3 Panel 4 | refA: `sum(count_over_time({app="uber", service="driver-service"} \|= "FeignException" [5m]))` <br> refB: `sum(count_over_time({app="uber", service="driver-service"} \|= "ride-service unavailable" [5m]))` | OK | Trigger A under Tier 1 (downstreams down) | `FeignException` series rises | `\|= "FeignException"` returns lines | Tier 2 + ride-service → `\|= "FeignException"` returns 0 |
+| 3 | Correlation ID Trace | §11.3 Panel 2 | `{app="uber", service="driver-service"} \| json \| correlationId=~".+"` | OK | Trigger A with fixed `$HAPPY_CORRELATION_ID` | Multi-line log stream filtered by that ID | `{service="driver-service"} \| json \| correlationId="$HAPPY"` returns ≥5 lines | — |
+| 4 | Driver Availability Updates (stat) | not in §11.3 list — **AT_RISK** | `sum(count_over_time({app="uber", service="driver-service"} \|= "AVAILABILITY_UPDATED" [1h]))` | AT_RISK — custom panel, not one of the 6 spec options (extra; doesn't count toward 3-LogQL minimum) | Trigger A | Stat panel shows 10 | Best-effort; spec compliance counted by panels 1/2/3 above | — |
+| 5 | Driver Rating Events (stat) | not in §11.3 list — **AT_RISK** | `sum(count_over_time({app="uber", service="driver-service"} \|= "RATING_RECORDED" [1h]))` | AT_RISK — custom | `seed-driver.sh` inserts 5 ratings | Stat shows 5 | Best-effort | — |
+| 6 | HTTP Request Rate | §11.4 Panel 1 | `rate(http_server_requests_seconds_count{job="driver-service"}[1m])` | OK | Trigger A | Series broken down by `{method, uri, status}` | `rate(http_server_requests_seconds_count{job="driver-service"}[1m]) > 0` | — |
+| 7 | HTTP Latency p95 | §11.4 Panel 2 | `histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="driver-service"}[5m])) by (le, uri))` | OK | Trigger A | P95 line visible per `uri` | `histogram_quantile(0.95, ...) > 0` | — |
+| 8 | JVM Heap Usage | §11.4 Panel 3 | refA: `jvm_memory_used_bytes{job="driver-service", area="heap"}` <br> refB: `jvm_memory_committed_bytes{job="driver-service", area="heap"}` | OK | passive (any traffic) | Heap-used + heap-committed both visible | both metrics non-empty | — |
+| 9 | RabbitMQ Publish Rate | §11.4 Panel 6 | refA: `sum by (exchange) (rate(rabbitmq_acknowledged_published_total{job="driver-service"}[5m]))` <br> refB: `sum by (exchange) (rate(rabbitmq_failed_to_publish_total{job="driver-service"}[5m]))` | **AT_RISK** — metric names not standard Spring AMQP (see §7.4) | Trigger A (publishes `driver.status-changed`) | Panel likely empty pre-patch | Post-§7.4: `rate(spring_rabbit_template_seconds_count{job="driver-service"}[1m]) > 0` | — |
+| 10 | RabbitMQ Consumer Throughput | §11.4 Panel 6 | refA: `sum by (queue) (rate(rabbitmq_consumed_total{job="driver-service"}[5m]))` <br> refB: `sum by (queue) (rate(rabbitmq_acknowledged_total{job="driver-service"}[5m]))` | AT_RISK — non-standard metric (see §7.4) | Trigger B (valid `ride.completed` fake-publishes) | Panel likely empty pre-patch | Post-§7.4: `rate(spring_rabbit_listener_seconds_count{job="driver-service",result="success"}[1m]) > 0` | — |
+| 11 | RabbitMQ Listener Failures → DLQ | §11.4 Panel 6 | refA: `sum by (queue, exception) (rate(rabbitmq_listener_seconds_count{job="driver-service", result="failure"}[5m]))` <br> refB: `sum by (queue) (rate(rabbitmq_rejected_total{job="driver-service"}[5m]))` | refA: OK (canonical metric) <br> refB: AT_RISK (`rabbitmq_rejected_total` non-standard) | Trigger B (malformed payload → 3 retries → DLQ) | refA series ticks within 30 s; refB stays flat pre-patch | refA: `rate(spring_rabbit_listener_seconds_count{job="driver-service",result="failure"}[5m]) > 0` | — |
 
 ### 4.4 ride-service dashboard (7 panels)
 
@@ -309,28 +311,28 @@ curl -X POST -H "Authorization: Bearer $USER1_TOKEN" \
      http://$GATEWAY_URL/api/rides/1/complete
 ```
 
-| # | Panel | Spec ref | Compliance | Trigger | Expected | Pass | Negative |
-|---|---|---|---|---|---|---|---|
-| 1 | Ride Database Error Rate | §11.3 Panel 1 | OK | Hit non-existent ride 3× | Spike | `rate({service="ride-service"} \|= "ERROR" [1m]) > 0` | — |
-| 2 | Postgres Event Actions Distribution | none — **BROKEN against spec** | BROKEN — not one of the 6 LogQL options | n/a | n/a | Patch per §7.3 to a Correlation ID trace panel | — |
-| 3 | Live System Activity Log Stream | none — **BROKEN against spec** | BROKEN — raw stream, not a Correlation ID trace | n/a | n/a | Patch per §7.3 to a Feign Call Outcomes panel | — |
-| 4 | HTTP Request Rate | §11.4 Panel 1 | OK | Trigger A | rate > 0 | — | — |
-| 5 | HTTP Latency P50/P95/P99 | §11.4 Panel 2 | OK | Trigger A | P50/P95/P99 lines | — | Hit `/api/rides/driver/{id}/summary` (Feign-enriched) and watch P99 climb |
-| 6 | RabbitMQ Publish vs Consume | §11.4 Panel 6 | OK — uses `spring_rabbit_*_seconds_count` (canonical Spring AMQP metric) | Trigger B | publish-rate line spikes; consume-rate matches | `rate(spring_rabbit_template_seconds_count{job="ride-service"}[1m]) > 0` | Disable RabbitMQ briefly → publish rate drops to 0 |
-| 7 | Cache Hit / Miss Ratio | §11.4 Panel 5 | AT_RISK — requires Micrometer `CacheMetrics` binding registered for each named cache; verify with `curl -s http://localhost:8083/actuator/prometheus \| grep cache_gets_total` | Trigger A (same ride id twice) | Hit ratio rises toward 100% | `cache_gets_total{job="ride-service",result="hit"}` non-empty | Invalidate by PUT/DELETE then re-query → miss spikes |
+| # | Panel | Spec ref | Query (verbatim from ride-dashboard.json) | Compliance | Trigger | Expected | Pass | Negative |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Ride Database Error Rate | §11.3 Panel 1 | `sum by (level) (rate({app="uber", service="ride-service"} \|= "ERROR" [1m]))` | OK | Hit non-existent ride 3× | ERROR series spike | `rate({service="ride-service"} \|= "ERROR" [1m]) > 0` | — |
+| 2 | Postgres Event Actions Distribution | none — **not a spec option** | `sum by (level) (count_over_time({app="uber", service="ride-service"} [5m]))` (a log-level piechart) | BROKEN — not one of the 6 LogQL options in §11.3 | n/a | n/a (panel produces a piechart but the chart isn't on the spec list) | Replace per §7.3 with a Correlation ID Trace panel | — |
+| 3 | Live System Activity Log Stream | none — **not a spec option** | `{app="uber", service="ride-service"} \|= ""` (raw log stream, no filter) | BROKEN — not a Correlation ID Trace (no `correlationId` filter), not any other spec option | n/a | n/a | Replace per §7.3 with a Feign Call Outcomes panel | — |
+| 4 | HTTP Request Rate | §11.4 Panel 1 | `sum by (uri, method, status) (rate(http_server_requests_seconds_count{job="ride-service"}[1m]))` | OK | Trigger A | One series per `{uri,method,status}`, rate > 0 | `rate(http_server_requests_seconds_count{job="ride-service"}[1m]) > 0` | — |
+| 5 | HTTP Latency P50/P95/P99 | §11.4 Panel 2 | refA: `histogram_quantile(0.50, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job="ride-service"}[5m])))` <br> refB: `histogram_quantile(0.95, ...)` <br> refC: `histogram_quantile(0.99, ...)` | OK | Trigger A | 3 lines (p50/p95/p99) per `uri` | `histogram_quantile(0.99, ...) > 0` | Hit `/api/rides/driver/{id}/summary` (Feign-enriched) and watch P99 climb |
+| 6 | RabbitMQ Publish vs Consume | §11.4 Panel 6 | refA: `sum(rate(spring_rabbit_template_seconds_count{job="ride-service"}[1m]))` <br> refB: `sum(rate(spring_rabbit_listener_seconds_count{job="ride-service"}[1m]))` | OK — canonical Spring AMQP metrics | Trigger B (saga completes → publish + consume) | publish-rate spikes; consume-rate matches within 1 scrape | `rate(spring_rabbit_template_seconds_count{job="ride-service"}[1m]) > 0` AND `rate(spring_rabbit_listener_seconds_count{job="ride-service"}[1m]) > 0` | Disable RabbitMQ briefly → publish rate drops to 0 |
+| 7 | Cache Hit / Miss Ratio | §11.4 Panel 5 | refA: `sum by (cache) (rate(cache_gets_total{job="ride-service", result="hit"}[5m]))` <br> refB: `sum by (cache) (rate(cache_gets_total{job="ride-service", result="miss"}[5m]))` <br> refC: `sum(rate(cache_gets_total{job="ride-service", result="hit"}[5m])) / clamp_min(sum(rate(cache_gets_total{job="ride-service"}[5m])), 1) * 100` | AT_RISK — requires Micrometer `CacheMetrics` binding per named cache; verify with `curl -s http://localhost:8083/actuator/prometheus \| grep cache_gets_total` | Trigger A (same ride id twice → 1 miss + 1 hit) | refA rises; refC % climbs toward 100 on repeats | `cache_gets_total{job="ride-service",result="hit"}` non-empty after second curl | Invalidate by PUT then re-query → refB (miss) spikes |
 
 ### 4.5 location-service dashboard (6 panels)
 
 Required tier: Tier 1. Seed: `seed-location.sh`.
 
-| # | Panel | Spec ref | Compliance | Trigger | Expected | Pass | Negative |
-|---|---|---|---|---|---|---|---|
-| 1 | Error Rate Panel (Errors/min) | §11.3 Panel 1 | OK | `seed-location.sh` then hit `/api/locations/99999` | Spike | `count_over_time({service="location-service",level="ERROR"}[1m]) > 0` | — |
-| 2 | Correlation ID Trace Panel | §11.3 Panel 2 | OK | `curl ... -H "X-Correlation-ID: $HAPPY"` 10× | Filtered log stream | `\| json \| correlationId=~".+"` returns lines | — |
-| 3 | RabbitMQ Event Audit Panel (last hour) | §11.3 Panel 3 | OK | `./scripts/fake-publish.sh ride.events ride.placed ...` 5× | `routingKey="ride.placed"` time series | `sum by (routingKey) (count_over_time(...))` ≥ 5 | — |
-| 4 | HTTP Request Rate | §11.4 Panel 1 | OK | Trigger A | rate > 0 | — | — |
-| 5 | HTTP Latency P99 | §11.4 Panel 2 | OK | Trigger A | P99 visible | — | — |
-| 6 | JVM Heap Usage | §11.4 Panel 3 | OK | passive | Heap visible | — | — |
+| # | Panel | Spec ref | Query (verbatim from location-dashboard.json) | Compliance | Trigger | Expected | Pass | Negative |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Error Rate Panel (Errors/min) | §11.3 Panel 1 | `count_over_time({app="uber", service="location-service", level="ERROR"} [1m])` | OK | `seed-location.sh` then hit `/api/locations/99999` 3× | ERROR spike within 5 s | `count_over_time({service="location-service",level="ERROR"}[1m]) > 0` | Stop triggering → series returns to 0 |
+| 2 | Correlation ID Trace Panel | §11.3 Panel 2 | `{app="uber", service="location-service"} \| json \| correlationId =~ ".+"` | OK | `curl ... -H "X-Correlation-ID: $HAPPY_CORRELATION_ID"` 10× | Filtered log stream, ≥10 lines with same `correlationId` | `\| json \| correlationId="$HAPPY_CORRELATION_ID"` returns ≥10 lines | — |
+| 3 | RabbitMQ Event Audit Panel (last hour) | §11.3 Panel 3 | `sum by (routingKey) (count_over_time({app="uber", service="location-service"} \| json \| routingKey =~ ".+" [1h]))` | OK | `./scripts/fake-publish.sh ride.events ride.placed ...` 5× | `routingKey="ride.placed"` time series | `sum by (routingKey) (count_over_time(...))` ≥ 5 | — |
+| 4 | HTTP Request Rate | §11.4 Panel 1 | `sum(rate(http_server_requests_seconds_count{job="location-service"}[5m]))` | OK | Trigger A | Single aggregate rate line > 0 | `rate(http_server_requests_seconds_count{job="location-service"}[5m]) > 0` | — |
+| 5 | HTTP Latency P99 | §11.4 Panel 2 | `histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="location-service"}[5m])) by (le, uri))` | OK | Trigger A | P99 line per `uri` | `histogram_quantile(0.99, ...) > 0` | — |
+| 6 | JVM Heap Usage | §11.4 Panel 3 | `jvm_memory_used_bytes{job="location-service", area="heap"}` | OK | passive | Heap-used line visible | `jvm_memory_used_bytes{job="location-service",area="heap"} > 0` | — |
 
 ### 4.6 payment-service dashboard (6 panels)
 
@@ -355,14 +357,14 @@ done
   --rideId=42 --userId=1 --driverId=1 --fare=15.00
 ```
 
-| # | Panel | Spec ref | Compliance (after §7.2 patch) | Trigger | Expected | Pass | Negative |
-|---|---|---|---|---|---|---|---|
-| 1 | Error rate | §11.3 Panel 1 | OK | Trigger A + bad id | Spike | `count_over_time({service="payment-service",level="ERROR"}[1m]) > 0` | — |
-| 2 | RabbitMQ event audit (payment.* + ride.completed/cancelled) | §11.3 Panel 3 | OK | Trigger B | `routingKey="ride.completed"` line; subsequent `payment.initiated` publish line | `\| json \| routingKey=~"payment\\..*\|ride\\.(completed\|cancelled)"` returns ≥2 lines | — |
-| 3 | Slow operation warnings (>1s) | §11.3 Panel 6 | OK | Drive S5-F10 revenue aggregation: `curl ... /api/payments/admin/revenue?byVehicleType=true` | WARN "Slow ... took ..." line | `\|~ "Slow .* took"` returns lines | — |
-| 4 | HTTP request rate per endpoint | §11.4 Panel 1 | OK (after `service=` → `job=` patch) | Trigger A | rate > 0 | — | — |
-| 5 | HTTP latency P50/P95/P99 | §11.4 Panel 2 | OK (after patch) | Trigger A | 3 series visible | — | — |
-| 6 | JVM heap usage | §11.4 Panel 3 | OK (after patch) | passive | Heap line | — | — |
+| # | Panel | Spec ref | Query (verbatim from payment-dashboard.json) | Compliance | Trigger | Expected | Pass | Negative |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Error rate | §11.3 Panel 1 | `sum by (service) (count_over_time({app="uber",service="payment-service",level="ERROR"} [1m]))` | OK — LogQL `service=` label is correct | Trigger A + bad id | ERROR spike within 5 s | `count_over_time({service="payment-service",level="ERROR"}[1m]) > 0` | — |
+| 2 | RabbitMQ event audit (payment.* + ride.completed/cancelled) | §11.3 Panel 3 | `{app="uber",service="payment-service"} \| json \| routingKey =~ "payment\\..*\|ride\\.completed\|ride\\.cancelled"` | OK | Trigger B | `routingKey="ride.completed"` line + subsequent `payment.initiated` publish line | `\| json \| routingKey=~"payment\\..*\|ride\\.(completed\|cancelled)"` returns ≥2 lines | — |
+| 3 | Slow operation warnings (>1s) | §11.3 Panel 6 | `sum by (service) (count_over_time({app="uber",service="payment-service",level="WARN"} \|~ "Slow .* took" [5m]))` | OK | Drive S5-F10 revenue aggregation: `curl ... /api/payments/admin/revenue?byVehicleType=true` | WARN "Slow ... took ..." line | `\|~ "Slow .* took"` returns lines | — |
+| 4 | HTTP request rate per endpoint | §11.4 Panel 1 | `sum by (uri) (rate(http_server_requests_seconds_count{service="payment-service"}[5m]))` | **BROKEN — `service=` should be `job=`** (see §7.2). Prometheus scrape config emits only `job` label | Trigger A | Pre-patch: empty. Post-patch: line per `uri` | Post-patch: `rate(http_server_requests_seconds_count{job="payment-service"}[5m]) > 0` | — |
+| 5 | HTTP latency P50/P95/P99 | §11.4 Panel 2 | refA: `histogram_quantile(0.50, sum by (uri, le) (rate(http_server_requests_seconds_bucket{service="payment-service"}[5m])))` <br> refB: `histogram_quantile(0.95, ...)` <br> refC: `histogram_quantile(0.99, ...)` | **BROKEN — `service=` should be `job=`** (see §7.2) | Trigger A | Pre-patch: empty. Post-patch: 3 series visible per `uri` | Post-patch: `histogram_quantile(0.99, sum by (uri, le) (rate(...{job="payment-service"}[5m]))) > 0` | — |
+| 6 | JVM heap usage | §11.4 Panel 3 | `sum by (area) (jvm_memory_used_bytes{service="payment-service"})` | **BROKEN — `service=` should be `job=`** (see §7.2) | passive | Pre-patch: empty. Post-patch: heap-line by `area` | Post-patch: `jvm_memory_used_bytes{job="payment-service",area="heap"} > 0` | — |
 
 ---
 
