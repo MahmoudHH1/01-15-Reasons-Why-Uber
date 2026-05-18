@@ -162,4 +162,11 @@ public class RideEventConfig {
     public Queue rideSagaFeedbackDlq() {
         return new Queue("ride.saga-feedback.dlq", true);
     }
+
+    @Bean
+    public Binding rideSagaFeedbackBinding() {
+        return BindingBuilder.bind(rideSagaFeedbackQueue())
+                .to(rideEventsExchange())
+                .with("ride.saga.failed.#");
+    }
 }
