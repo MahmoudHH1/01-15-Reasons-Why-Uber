@@ -33,8 +33,20 @@ public class PaymentEventPublisher {
         };
     }
 
+    private void setPaymentEventMdc(String routingKey, Long paymentId, Long rideId) {
+        MDC.put("routingKey", routingKey);
+        if (paymentId != null) MDC.put("paymentId", String.valueOf(paymentId));
+        if (rideId != null)    MDC.put("rideId",    String.valueOf(rideId));
+    }
+
+    private void clearPaymentEventMdc() {
+        MDC.remove("routingKey");
+        MDC.remove("paymentId");
+        MDC.remove("rideId");
+    }
+
     public void publishInitiated(PaymentInitiatedEvent event) {
-        MDC.put("routingKey", PaymentEventConfig.ROUTING_PAYMENT_INITIATED);
+        setPaymentEventMdc(PaymentEventConfig.ROUTING_PAYMENT_INITIATED, event.paymentId(), event.rideId());
         try {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
@@ -43,12 +55,12 @@ public class PaymentEventPublisher {
                     correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_INITIATED, event.paymentId());
         } finally {
-            MDC.remove("routingKey");
+            clearPaymentEventMdc();
         }
     }
 
     public void publishCompleted(PaymentCompletedEvent event) {
-        MDC.put("routingKey", PaymentEventConfig.ROUTING_PAYMENT_COMPLETED);
+        setPaymentEventMdc(PaymentEventConfig.ROUTING_PAYMENT_COMPLETED, event.paymentId(), event.rideId());
         try {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
@@ -57,12 +69,12 @@ public class PaymentEventPublisher {
                     correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_COMPLETED, event.paymentId());
         } finally {
-            MDC.remove("routingKey");
+            clearPaymentEventMdc();
         }
     }
 
     public void publishFailed(PaymentFailedEvent event) {
-        MDC.put("routingKey", PaymentEventConfig.ROUTING_PAYMENT_FAILED);
+        setPaymentEventMdc(PaymentEventConfig.ROUTING_PAYMENT_FAILED, event.paymentId(), event.rideId());
         try {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
@@ -71,12 +83,12 @@ public class PaymentEventPublisher {
                     correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_FAILED, event.paymentId());
         } finally {
-            MDC.remove("routingKey");
+            clearPaymentEventMdc();
         }
     }
 
     public void publishRefunded(PaymentRefundedEvent event) {
-        MDC.put("routingKey", PaymentEventConfig.ROUTING_PAYMENT_REFUNDED);
+        setPaymentEventMdc(PaymentEventConfig.ROUTING_PAYMENT_REFUNDED, event.paymentId(), event.rideId());
         try {
             rabbitTemplate.convertAndSend(
                     PaymentEventConfig.PAYMENT_EVENTS_EXCHANGE,
@@ -85,7 +97,7 @@ public class PaymentEventPublisher {
                     correlationIdPostProcessor());
             log.info("Published {} for paymentId={}", PaymentEventConfig.ROUTING_PAYMENT_REFUNDED, event.paymentId());
         } finally {
-            MDC.remove("routingKey");
+            clearPaymentEventMdc();
         }
     }
 }
