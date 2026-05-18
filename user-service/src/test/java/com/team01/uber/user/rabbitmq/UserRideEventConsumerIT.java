@@ -1,13 +1,13 @@
 package com.team01.uber.user.rabbitmq;
 
-import com.team01.uber.contracts.dto.RideDTO;
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
-import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.user.config.RabbitMQConsumerConfig;
 import com.team01.uber.user.model.User;
+import com.team01.uber.user.model.UserRideCompletion;
 import com.team01.uber.user.model.UserStatus;
 import com.team01.uber.user.repository.UserRepository;
+import com.team01.uber.user.repository.UserRideCompletionRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -42,8 +42,9 @@ import static org.mockito.Mockito.when;
  *
  * Verifies:
  *   1. ride.completed -> userRepository.save called with totalRides+1, totalSpent+fare
+ *      AND a UserRideCompletion ledger row written.
  *   2. ride.cancelled -> userRepository.save called with totalRides-1, totalSpent-fare
- *      (fare is looked up via RideServiceClient since the event omits it)
+ *      (fare read from the local UserRideCompletion ledger; the event omits it).
  *   3. user-not-found -> save never called (graceful skip)
  */
 @SpringBootTest(properties = {
@@ -84,25 +85,34 @@ class UserRideEventConsumerIT {
     private UserRepository userRepository;
 
     @MockitoBean
-    private RideServiceClient rideServiceClient;
+    private UserRideCompletionRepository completionRepository;
 
     @Test
     void rideCompleted_overTheWire_incrementsUserStats() {
         User u = activeUser(1001L, 4L, 200.0);
         when(userRepository.findById(1001L)).thenReturn(Optional.of(u));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(completionRepository.existsById(5001L)).thenReturn(false);
 
         publish("ride.completed",
                 new RideCompletedEvent(5001L, 1001L, 7001L, 50.0),
                 "com.team01.uber.contracts.events.RideCompletedEvent");
 
         ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
-                verify(userRepository, times(1)).save(savedCaptor.capture()));
+        ArgumentCaptor<UserRideCompletion> recordCaptor = ArgumentCaptor.forClass(UserRideCompletion.class);
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(userRepository, times(1)).save(savedCaptor.capture());
+            verify(completionRepository, times(1)).save(recordCaptor.capture());
+        });
 
         User saved = savedCaptor.getValue();
         assertThat(saved.getTotalRides()).isEqualTo(5L);
         assertThat(saved.getTotalSpent()).isEqualTo(250.0);
+
+        UserRideCompletion record = recordCaptor.getValue();
+        assertThat(record.getRideId()).isEqualTo(5001L);
+        assertThat(record.getUserId()).isEqualTo(1001L);
+        assertThat(record.getFare()).isEqualTo(50.0);
     }
 
     @Test
@@ -110,16 +120,22 @@ class UserRideEventConsumerIT {
         User u = activeUser(1002L, 3L, 150.0);
         when(userRepository.findById(1002L)).thenReturn(Optional.of(u));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(rideServiceClient.getRide(5002L))
-                .thenReturn(new RideDTO(5002L, 1002L, 7002L, "PAYMENT_FAILED", 50.0));
+
+        UserRideCompletion ledgerRow = new UserRideCompletion();
+        ledgerRow.setRideId(5002L);
+        ledgerRow.setUserId(1002L);
+        ledgerRow.setFare(50.0);
+        when(completionRepository.findById(5002L)).thenReturn(Optional.of(ledgerRow));
 
         publish("ride.cancelled",
                 new RideCancelledEvent(5002L, 1002L, 7002L, "user_requested"),
                 "com.team01.uber.contracts.events.RideCancelledEvent");
 
         ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
-                verify(userRepository, times(1)).save(savedCaptor.capture()));
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            verify(userRepository, times(1)).save(savedCaptor.capture());
+            verify(completionRepository, times(1)).delete(ledgerRow);
+        });
 
         User saved = savedCaptor.getValue();
         assertThat(saved.getTotalRides()).isEqualTo(2L);
