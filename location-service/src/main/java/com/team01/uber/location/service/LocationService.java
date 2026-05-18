@@ -108,10 +108,12 @@ public class LocationService {
 
     @Caching(evict = {
             @CacheEvict(value = "location-service::S4-F1", allEntries = true),
-            @CacheEvict(value = "location-service::S4-F3", allEntries = true),
-            @CacheEvict(value = "location-service::S4-F10", allEntries = true)
+            @CacheEvict(value = "location-service::S4-F3", allEntries = true)
     })
     public Location create(Location location) {
+        // Generic PG-only write: does not fire an Observer write to location_events,
+        // so it does NOT bust the S4-F10 analytics cache (which is invalidated only
+        // by Mongo-touching writes per the cache matrix).
         return locationRepository.save(location);
     }
 

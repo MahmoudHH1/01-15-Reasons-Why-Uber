@@ -209,6 +209,13 @@ public class PaymentService {
             ));
 
             cacheInvalidationService.invalidateAllPaymentFeatureCaches(saved.getId());
+
+            final long refundedPaymentId = saved.getId();
+            final long refundedRideId = saved.getRideId();
+            final double refundedAmount = saved.getAmount();
+            publishAfterCommit(() -> paymentEventPublisher.publishRefunded(
+                    new PaymentRefundedEvent(refundedPaymentId, refundedRideId, refundedAmount)));
+
             return saved;
         } finally {
             MDC.remove("paymentId");
@@ -228,7 +235,17 @@ public class PaymentService {
         RefundContext ctx = new RefundContext(paymentRepository, this::notifyObservers, cacheInvalidationService);
         RefundStrategy strategy = strategySelector.select(payment, request);
         RefundResult result = strategy.calculateRefund(payment, request);
-        return result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
+        Payment saved = result.apply(payment, request, ctx, strategy.getClass().getSimpleName());
+
+        if (saved.getStatus() == PaymentStatus.REFUNDED) {
+            final long refundedPaymentId = saved.getId();
+            final long refundedRideId = saved.getRideId();
+            final double refundedAmount = result.getAmount() > 0 ? result.getAmount() : saved.getAmount();
+            publishAfterCommit(() -> paymentEventPublisher.publishRefunded(
+                    new PaymentRefundedEvent(refundedPaymentId, refundedRideId, refundedAmount)));
+        }
+
+        return saved;
     }
 
     @Cacheable(value = "payment-service::payment", key = "#id")
