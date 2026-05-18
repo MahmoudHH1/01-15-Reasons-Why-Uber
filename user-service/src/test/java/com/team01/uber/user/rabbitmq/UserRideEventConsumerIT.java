@@ -1,7 +1,9 @@
 package com.team01.uber.user.rabbitmq;
 
+import com.team01.uber.contracts.dto.RideDTO;
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.user.config.RabbitMQConsumerConfig;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.model.UserStatus;
@@ -40,8 +42,8 @@ import static org.mockito.Mockito.when;
  *
  * Verifies:
  *   1. ride.completed -> userRepository.save called with totalRides+1, totalSpent+fare
- *   2. ride.cancelled -> userRepository.save called with totalRides-1
- *      (RideCancelledEvent carries no fare, so totalSpent is unchanged per spec)
+ *   2. ride.cancelled -> userRepository.save called with totalRides-1, totalSpent-fare
+ *      (fare is looked up via RideServiceClient since the event omits it)
  *   3. user-not-found -> save never called (graceful skip)
  */
 @SpringBootTest(properties = {
@@ -81,6 +83,9 @@ class UserRideEventConsumerIT {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private RideServiceClient rideServiceClient;
+
     @Test
     void rideCompleted_overTheWire_incrementsUserStats() {
         User u = activeUser(1001L, 4L, 200.0);
@@ -105,6 +110,8 @@ class UserRideEventConsumerIT {
         User u = activeUser(1002L, 3L, 150.0);
         when(userRepository.findById(1002L)).thenReturn(Optional.of(u));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(rideServiceClient.getRide(5002L))
+                .thenReturn(new RideDTO(5002L, 1002L, 7002L, "PAYMENT_FAILED", 50.0));
 
         publish("ride.cancelled",
                 new RideCancelledEvent(5002L, 1002L, 7002L, "user_requested"),
@@ -116,8 +123,7 @@ class UserRideEventConsumerIT {
 
         User saved = savedCaptor.getValue();
         assertThat(saved.getTotalRides()).isEqualTo(2L);
-        // RideCancelledEvent has no fare field — totalSpent stays at 150.0.
-        assertThat(saved.getTotalSpent()).isEqualTo(150.0);
+        assertThat(saved.getTotalSpent()).isEqualTo(100.0);
     }
 
     @Test

@@ -1,9 +1,12 @@
 package com.team01.uber.user.messaging.consumers;
 
+import com.team01.uber.contracts.dto.RideDTO;
 import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
+import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.user.model.User;
 import com.team01.uber.user.repository.UserRepository;
+import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -36,9 +39,12 @@ public class RideEventConsumer {
     private static final Logger log = LoggerFactory.getLogger(RideEventConsumer.class);
 
     private final UserRepository userRepository;
+    private final RideServiceClient rideServiceClient;
 
-    public RideEventConsumer(UserRepository userRepository) {
+    public RideEventConsumer(UserRepository userRepository,
+                             RideServiceClient rideServiceClient) {
         this.userRepository = userRepository;
+        this.rideServiceClient = rideServiceClient;
     }
 
     @RabbitHandler
@@ -92,8 +98,17 @@ public class RideEventConsumer {
 
             if (user.getTotalRides() != null && user.getTotalRides() > 0) {
                 user.setTotalRides(user.getTotalRides() - 1);
+
+                // RideCancelledEvent payload has no fare, so look it up.
+                Double fare = lookupFare(rideId);
+                if (fare != null && fare > 0.0) {
+                    double current = user.getTotalSpent() == null ? 0.0 : user.getTotalSpent();
+                    user.setTotalSpent(Math.max(0.0, current - fare));
+                }
+
                 userRepository.save(user);
-                log.info("Processed ride.cancelled for userId={}, newTotal={}", userId, user.getTotalRides());
+                log.info("Processed ride.cancelled for userId={}, newTotal={}, newSpent={}",
+                        userId, user.getTotalRides(), user.getTotalSpent());
             } else {
                 log.warn("User {} has no rides to cancel, skipping decrement", userId);
             }
@@ -103,6 +118,17 @@ public class RideEventConsumer {
         } finally {
             MDC.remove("userId");
             MDC.remove("routingKey");
+        }
+    }
+
+    private Double lookupFare(Long rideId) {
+        try {
+            RideDTO ride = rideServiceClient.getRide(rideId);
+            return ride == null ? null : ride.fare();
+        } catch (FeignException e) {
+            log.warn("Feign getRide({}) failed during cancel reversal: {} — skipping totalSpent subtraction",
+                    rideId, e.getMessage());
+            return null;
         }
     }
 }
