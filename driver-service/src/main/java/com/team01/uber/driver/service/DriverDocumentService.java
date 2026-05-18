@@ -1,7 +1,7 @@
 package com.team01.uber.driver.service;
 
 import com.team01.uber.contracts.dto.UserDTO;
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.driver.client.UserClient;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDocumentAlertDTO;
 import com.team01.uber.driver.messaging.DriverEventPublisher;
@@ -38,7 +38,7 @@ public class DriverDocumentService {
     private final DriverService driverService;
     private final CacheInvalidator cacheInvalidator;
     private final MongoEventLogger mongoEventLogger;
-    private final UserServiceClient userServiceClient;
+    private final UserClient userClient;
     private final DriverEventPublisher driverEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -46,13 +46,13 @@ public class DriverDocumentService {
                                  DriverService driverService,
                                  CacheInvalidator cacheInvalidator,
                                  MongoEventLogger mongoEventLogger,
-                                 UserServiceClient userServiceClient,
+                                 UserClient userClient,
                                  DriverEventPublisher driverEventPublisher) {
         this.driverDocumentRepository = driverDocumentRepository;
         this.driverService = driverService;
         this.cacheInvalidator = cacheInvalidator;
         this.mongoEventLogger = mongoEventLogger;
-        this.userServiceClient = userServiceClient;
+        this.userClient = userClient;
         this.driverEventPublisher = driverEventPublisher;
     }
 
@@ -141,16 +141,9 @@ public class DriverDocumentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is expired");
         }
 
-        try {
-            UserDTO verifier = userServiceClient.getUser(verifiedBy);
-            if (!"ADMIN".equals(verifier.role())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
-            }
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user not found");
-        } catch (FeignException e) {
-            log.warn("user-service unavailable for admin check userId {}: {}", verifiedBy, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service temporarily unavailable");
+        UserDTO verifier = userClient.getUser(verifiedBy);
+        if (!"ADMIN".equals(verifier.role())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "verifiedBy user is not an admin");
         }
 
         document.setVerified(true);

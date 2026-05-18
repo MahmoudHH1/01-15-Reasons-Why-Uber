@@ -1,6 +1,6 @@
 package com.team01.uber.ride.security;
 
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.ride.client.UserClient;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -8,10 +8,10 @@ import org.slf4j.LoggerFactory;
 
 public class UserLoaderHandler extends AuthHandler {
     private static final Logger log = LoggerFactory.getLogger(UserLoaderHandler.class);
-    private final UserServiceClient userServiceClient;
+    private final UserClient userClient;
 
-    public UserLoaderHandler(UserServiceClient userServiceClient) {
-        this.userServiceClient = userServiceClient;
+    public UserLoaderHandler(UserClient userClient) {
+        this.userClient = userClient;
     }
 
     @Override
@@ -22,21 +22,20 @@ public class UserLoaderHandler extends AuthHandler {
             return false;
         }
 
-        log.info("Calling {}.{} with args={}", "UserServiceClient", "getUser", ctx.getUserId());
+        log.info("Calling {}.{} with args={}", "UserClient", "getUser", ctx.getUserId());
         try {
-            userServiceClient.getUser(ctx.getUserId());
-            log.info("{}.{} returned successfully", "UserServiceClient", "getUser");
+            userClient.getUser(ctx.getUserId());
+            log.info("{}.{} returned successfully", "UserClient", "getUser");
             return true;
         } catch (FeignException.NotFound e) {
-            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
+            log.warn("Resilient call to {} failed: {}", "user-service", e.getMessage());
             ctx.getResponse().setStatus(HttpServletResponse.SC_NOT_FOUND);
             ctx.getResponse().getWriter().write("caller user not found");
             return false;
-        } catch (FeignException e) {
-            log.warn("Feign call to {} failed: {}", "user-service", e.getMessage());
-            ctx.getResponse().setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-            ctx.getResponse().getWriter().write("User service temporarily unavailable");
-            return false;
+        } catch (Exception e) {
+            log.warn("Resilient call to {} failed with error: {}", "user-service", e.getMessage());
+            // Fallback handled by client, allowing to proceed if not 404
+            return true;
         }
     }
 }
