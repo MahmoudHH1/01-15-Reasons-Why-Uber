@@ -7,6 +7,7 @@ import com.team01.uber.payment.service.PaymentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.handler.annotation.Header;
@@ -19,9 +20,11 @@ public class PaymentEventConsumer {
     private static final Logger log = LoggerFactory.getLogger(PaymentEventConsumer.class);
 
     private final PaymentService paymentService;
+    private final SagaFeedbackPublisher feedbackPublisher;
 
-    public PaymentEventConsumer(PaymentService paymentService) {
+    public PaymentEventConsumer(PaymentService paymentService, SagaFeedbackPublisher feedbackPublisher) {
         this.paymentService = paymentService;
+        this.feedbackPublisher = feedbackPublisher;
     }
 
     @RabbitHandler
@@ -31,9 +34,13 @@ public class PaymentEventConsumer {
         MDC.put("correlationId", correlationId != null ? correlationId : "");
         try {
             paymentService.processRideCompleted(event);
-        } catch (Exception e) {
-            log.error("Failed to process ride.completed: {}", e.getMessage());
-            throw new RuntimeException(e);
+        } catch (RuntimeException terminal) {
+            log.error("Terminal failure on ride.completed rideId={}: {}",
+                    event.rideId(), terminal.getMessage(), terminal);
+            feedbackPublisher.publish(
+                    event.rideId(), "ride.completed", "completed",
+                    classifyReason(terminal), terminal.getMessage(), correlationId);
+            throw new AmqpRejectAndDontRequeueException("NACK published to ride.saga-feedback", terminal);
         } finally {
             MDC.remove("routingKey");
             MDC.remove("correlationId");
@@ -47,12 +54,24 @@ public class PaymentEventConsumer {
         MDC.put("correlationId", correlationId != null ? correlationId : "");
         try {
             paymentService.processRideCancelled(event);
-        } catch (Exception e) {
-            log.error("Failed to process ride.cancelled: {}", e.getMessage());
-            throw new RuntimeException(e);
+        } catch (RuntimeException terminal) {
+            log.error("Terminal failure on ride.cancelled rideId={} - anti-recursion path: {}",
+                    event.rideId(), terminal.getMessage(), terminal);
+            feedbackPublisher.publish(
+                    event.rideId(), "ride.cancelled", "cancelled",
+                    classifyReason(terminal), terminal.getMessage(), correlationId);
+            throw new AmqpRejectAndDontRequeueException("NACK published to ride.saga-feedback (compensation failed)", terminal);
         } finally {
             MDC.remove("routingKey");
             MDC.remove("correlationId");
         }
+    }
+
+    private String classifyReason(Throwable t) {
+        String name = t.getClass().getSimpleName().toLowerCase();
+        if (name.contains("optimisticlock")) return "payment_lock_conflict";
+        if (name.contains("dataintegrity") || name.contains("constraintviolation")) return "payment_db_conflict";
+        if (name.contains("notfound")) return "payment_target_not_found";
+        return "payment_handler_failure";
     }
 }

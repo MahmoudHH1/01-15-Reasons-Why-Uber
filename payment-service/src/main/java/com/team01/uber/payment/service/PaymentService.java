@@ -24,6 +24,7 @@ import com.team01.uber.payment.dto.ProcessPaymentRequest;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team01.uber.payment.model.Payment;
+import com.team01.uber.payment.model.PaymentMethod;
 import com.team01.uber.payment.model.PaymentStatus;
 import com.team01.uber.payment.observer.EntityObserver;
 import com.team01.uber.payment.repository.PaymentRepository;
@@ -606,6 +607,7 @@ public class PaymentService {
             payment.setRideId(event.rideId());
             payment.setUserId(event.userId());
             payment.setAmount(event.fare() != null ? event.fare() : 0.0);
+            payment.setMethod(PaymentMethod.CASH);
             payment.setStatus(PaymentStatus.PENDING);
             payment.setCreatedAt(LocalDateTime.now());
 

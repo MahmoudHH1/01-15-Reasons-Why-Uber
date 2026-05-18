@@ -671,6 +671,40 @@ public class RideService {
         return rideRepository.save(ride);
     }
 
+    /**
+     * Saga-safe state transition. Only mutates the ride when its current status is in {@code allowedFrom}.
+     *
+     * @return saved Ride if the transition fired; null if the ride was not found, was already at
+     *         {@code newStatus} (idempotent duplicate), or was in a state not present in {@code allowedFrom}
+     *         (out-of-order event — caller MUST NOT cascade side-effects in that case).
+     */
+    @Caching(evict = {
+            @CacheEvict(value = "ride-service::ride", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F1", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F6", allEntries = true),
+            @CacheEvict(value = "ride-service::S3-F9", key = "#rideId"),
+            @CacheEvict(value = "ride-service::S3-F10", allEntries = true)
+    })
+    @Transactional
+    public Ride transitionRideStatus(Long rideId, java.util.EnumSet<RideStatus> allowedFrom, RideStatus newStatus) {
+        Ride ride = rideRepository.findById(rideId).orElse(null);
+        if (ride == null) {
+            log.warn("transitionRideStatus: ride {} not found (target={})", rideId, newStatus);
+            return null;
+        }
+        if (ride.getStatus() == newStatus) {
+            log.info("transitionRideStatus: ride {} already at {} (idempotent duplicate)", rideId, newStatus);
+            return null;
+        }
+        if (!allowedFrom.contains(ride.getStatus())) {
+            log.warn("transitionRideStatus: ride {} in {} cannot transition to {} (allowed={})",
+                    rideId, ride.getStatus(), newStatus, allowedFrom);
+            return null;
+        }
+        ride.setStatus(newStatus);
+        return rideRepository.save(ride);
+    }
+
     private Map<String, Object> buildRidePayload(Ride ride) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("rideId", ride.getId());

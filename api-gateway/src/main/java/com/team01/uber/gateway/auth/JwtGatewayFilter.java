@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -84,8 +85,16 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
         }
     }
 
+    private static final Set<String> HEALTH_PATHS = Set.of(
+            "/api/users/health",
+            "/api/drivers/health",
+            "/api/rides/health",
+            "/api/locations/health",
+            "/api/payments/health");
+
     private boolean isPublicPath(String path) {
         return path.startsWith("/api/auth/")
-                || path.startsWith("/actuator/");
+                || path.startsWith("/actuator/")
+                || HEALTH_PATHS.contains(path);
     }
 }
