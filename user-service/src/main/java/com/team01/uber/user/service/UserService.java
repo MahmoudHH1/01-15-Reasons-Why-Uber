@@ -16,8 +16,8 @@ import com.team01.uber.user.repository.UserRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
-import com.team01.uber.contracts.feign.PaymentServiceClient;
-import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.user.client.PaymentClient;
+import com.team01.uber.user.client.RideClient;
 import com.team01.uber.contracts.dto.RideSummaryDTO;
 import com.team01.uber.user.messaging.publishers.UserEventPublisher;
 import java.math.BigDecimal;
@@ -45,22 +45,22 @@ public class UserService implements Observable {
     private final List<EntityObserver> observers = new ArrayList<>();
     private final ObjectArrayDtoAdapter objectArrayDtoAdapter = new ObjectArrayDtoAdapter();
     private final UserEventPublisher userEventPublisher;       
-    private final RideServiceClient rideServiceClient;             
-    private final PaymentServiceClient paymentServiceClient;       
+    private final RideClient rideClient;             
+    private final PaymentClient paymentClient;       
 
     public UserService(UserRepository userRepository,
                        SavedAddressRepository savedAddressRepository,
                        MongoEventLogger mongoEventLogger,
                        AuthEventRepository authEventRepository,
                         UserEventPublisher userEventPublisher,
-                        RideServiceClient rideServiceClient,
-                        PaymentServiceClient paymentServiceClient) {
+                        RideClient rideClient,
+                        PaymentClient paymentClient) {
         this.savedAddressRepository = savedAddressRepository;
         this.userRepository = userRepository;
         this.authEventRepository = authEventRepository;
         this.userEventPublisher = userEventPublisher;
-        this.rideServiceClient = rideServiceClient;
-        this.paymentServiceClient = paymentServiceClient; 
+        this.rideClient = rideClient;
+        this.paymentClient = paymentClient; 
         registerObserver(mongoEventLogger);
     }
 
@@ -166,7 +166,7 @@ public class UserService implements Observable {
         User user = getUserById(userId);
         
         try {
-            RideSummaryDTO summary = rideServiceClient.getUserRideSummary(userId);
+            RideSummaryDTO summary = rideClient.getUserRideSummary(userId);
             return UserRideSummaryDTO.builder()
                     .userId(userId)
                     .name(user.getName())
@@ -187,9 +187,6 @@ public class UserService implements Observable {
                     .totalSpent(0.0)
                     .averageFare(0.0)
                     .build();
-        } catch (feign.FeignException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, 
-                    "Ride service unavailable: " + e.getMessage());
         }
     }
 
@@ -234,26 +231,21 @@ public class UserService implements Observable {
                     "startDate must not be after endDate");
         }
         
-        // Fetch all users (cap at 100 to avoid N+1 explosion)
-        List<User> candidates = userRepository.findAll().stream().limit(100).toList();
+        // §2.12: cap the candidate set at the local-DB query stage (LIMIT 100)
+        // before the per-user Feign fan-out to payment-service.
+        List<User> candidates = userRepository.findCandidateUsersCapped();
         
         // Per-user Feign calls to payment-service
         List<TopRiderDTO> riders = new ArrayList<>();
         for (User user : candidates) {
-            try {
-                BigDecimal totalSpent = paymentServiceClient.getUserTotalPayments(
-                        user.getId(), startDate, endDate);
-                if (totalSpent.compareTo(BigDecimal.ZERO) > 0) {
-                    riders.add(TopRiderDTO.builder()
-                            .userId(user.getId())
-                            .name(user.getName())
-                            .totalSpent(totalSpent.doubleValue())
-                            .build());
-                }
-            } catch (feign.FeignException.NotFound e) {
-                // User has no payments in this period, skip
-            } catch (feign.FeignException e) {
-                // Log warning but continue with other users
+            BigDecimal totalSpent = paymentClient.getUserTotalPayments(
+                    user.getId(), startDate, endDate);
+            if (totalSpent.compareTo(BigDecimal.ZERO) > 0) {
+                riders.add(TopRiderDTO.builder()
+                        .userId(user.getId())
+                        .name(user.getName())
+                        .totalSpent(totalSpent.doubleValue())
+                        .build());
             }
         }
         
@@ -289,15 +281,10 @@ public class UserService implements Observable {
         }
         
         // Feign call to check active rides
-        try {
-            int activeRideCount = rideServiceClient.getActiveRideCount(userId);
-            if (activeRideCount > 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "User has active rides and cannot be deactivated");
-            }
-        } catch (feign.FeignException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Cannot verify ride status: " + e.getMessage());
+        int activeRideCount = rideClient.getActiveRideCount(userId);
+        if (activeRideCount > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "User has active rides and cannot be deactivated");
         }
         
         user.setStatus(UserStatus.DEACTIVATED);
@@ -338,21 +325,16 @@ public class UserService implements Observable {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
         }
         
-        // Fetch users by language preference (cap at 100)
-        List<User> candidates =userRepository.findByPreference("language", lang).stream().limit(100).toList();
+        // §2.12: cap the candidate set at the local-DB query stage (LIMIT 100)
+        // before the per-user Feign fan-out to ride-service.
+        List<User> candidates = userRepository.findByPreferenceCapped("language", lang);
         
         // Per-user Feign calls to ride-service
         List<User> qualified = new ArrayList<>();
         for (User user : candidates) {
-            try {
-                long completedCount = rideServiceClient.getCompletedRideCount(user.getId());
-                if (completedCount >= minRides) {
-                    qualified.add(user);
-                }
-            } catch (feign.FeignException.NotFound e) {
-                // User has no rides, skip
-            } catch (feign.FeignException e) {
-                // Log warning but continue with other users
+            long completedCount = rideClient.getCompletedRideCount(user.getId());
+            if (completedCount >= minRides) {
+                qualified.add(user);
             }
         }
         

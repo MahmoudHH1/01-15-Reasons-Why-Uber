@@ -34,15 +34,10 @@ The users table being accessible to driver-service (shared PG DB — should be f
 The verify logic correctly setting verified = true and saving
 If TC239 is fixed (Group 2 exception handling), TC238 may also become unblocked if the current 500 is coming from the same exception propagation issue. Otherwise this is isolated to the verify business logic.
 
-Group 5 (Independent): Dashboard — TC48
-Root cause: GET /api/drivers/{id}/dashboard must return a DTO with totalRides (or total_rides) and totalRevenue (or total_revenue). The DriverDashboardDTO uses totalRides and totalEarnings — note the field is totalEarnings not totalRevenue. The grader accepts total_revenue OR totalRevenue, so if the actual field name is totalEarnings, neither camelCase variant matches. That alone would cause TC48 to fail regardless of business logic.
-
-
 Recommended Fix Order
 Priority	Group	TCs Fixed	Why First
 1	Group 1 — ES Indexing	TC44, TC45	Upstream of all search tests; broken data blocks TC38/TC39/TC42
 2	Group 1 — ES Query	TC38, TC39, TC42	Once data is correct, fix filters + boosting
 3	Group 2 — 404 Handling	TC239, TC370	One-line fix; two tests freed
 4	Group 3 — Input Validation	TC243, TC244	Two validations, same pattern
-5	Group 5 — Dashboard field name	TC48	Rename totalEarnings → totalRevenue in DTO
-6	Group 4 — Document Verify	TC238	Unblock after Group 2 fix; verify business logic
+5	Group 4 — Document Verify	TC238	Unblock after Group 2 fix; verify business logic

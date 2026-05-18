@@ -11,6 +11,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.team01.uber.payment.client.UserClient;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -18,9 +20,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserClient userClient;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserClient userClient) {
         this.jwtService = jwtService;
+        this.userClient = userClient;
     }
 
     @Override
@@ -38,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         AuthHandler head = new TokenExtractionHandler();
         head.setNext(new SignatureValidationHandler(jwtService))
-            .setNext(new UserLoaderHandler())
+            .setNext(new UserLoaderHandler(userClient))
             .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
         try {

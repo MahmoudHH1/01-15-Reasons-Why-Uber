@@ -2,7 +2,7 @@ package com.team01.uber.driver.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.team01.uber.contracts.dto.DriverRideSummaryDTO;
-import com.team01.uber.contracts.feign.RideServiceClient;
+import com.team01.uber.driver.client.RideClient;
 import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.dto.DriverDashboardDTO;
@@ -53,7 +53,7 @@ public class DriverService {
     private final ElasticsearchHitAdapter searchHitAdapter;
     private final DriverIndexerService driverIndexerService;
     private final CacheManager cacheManager;
-    private final RideServiceClient rideServiceClient;
+    private final RideClient rideClient;
     private final DriverEventPublisher driverEventPublisher;
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -65,7 +65,7 @@ public class DriverService {
                          ElasticsearchHitAdapter searchHitAdapter,
                          DriverIndexerService driverIndexerService,
                          CacheManager cacheManager,
-                         RideServiceClient rideServiceClient,
+                         RideClient rideClient,
                          DriverEventPublisher driverEventPublisher) {
         this.driverRepository = driverRepository;
         this.mongoEventLogger = mongoEventLogger;
@@ -75,7 +75,7 @@ public class DriverService {
         this.searchHitAdapter = searchHitAdapter;
         this.driverIndexerService = driverIndexerService;
         this.cacheManager = cacheManager;
-        this.rideServiceClient = rideServiceClient;
+        this.rideClient = rideClient;
         this.driverEventPublisher = driverEventPublisher;
     }
 
@@ -232,12 +232,7 @@ public class DriverService {
     public void updateAvailability(Long id, DriverStatus status) {
         Driver driver = getDriverById(id);
         if (status == DriverStatus.OFFLINE) {
-            long activeRides = 0;
-            try {
-                activeRides = rideServiceClient.countActiveRidesForDriver(id);
-            } catch (FeignException e) {
-                log.warn("ride-service unavailable checking active rides for driver {}: {}", id, e.getMessage());
-            }
+            long activeRides = rideClient.countActiveRidesForDriver(id);
             if (activeRides > 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot go OFFLINE with active rides");
             }
@@ -298,15 +293,9 @@ public class DriverService {
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-        com.team01.uber.contracts.dto.RideDTO ride;
-        try {
-            ride = rideServiceClient.getRide(rideId);
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        } catch (FeignException e) {
-            log.warn("ride-service unavailable for rideId {}: {}", rideId, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
-        }
+        
+        com.team01.uber.contracts.dto.RideDTO ride = rideClient.getRide(rideId);
+        
         if (!driverId.equals(ride.driverId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride does not belong to this driver");
         }
@@ -405,13 +394,10 @@ public class DriverService {
                 log.info("Driver {} already reversed rideId={}, skipping duplicate ride.cancelled", driverId, rideId);
                 return;
             }
-            Double fareToReverse = null;
-            try {
-                com.team01.uber.contracts.dto.RideDTO ride = rideServiceClient.getRide(rideId);
-                fareToReverse = ride.fare();
-            } catch (FeignException e) {
-                log.warn("ride-service unavailable for ride {} reversal: {}", rideId, e.getMessage());
-            }
+            
+            com.team01.uber.contracts.dto.RideDTO ride = rideClient.getRide(rideId);
+            Double fareToReverse = ride.fare();
+            
             driver.setTotalCompletedRides(Math.max(0, driver.getTotalCompletedRides() - 1));
             if (fareToReverse != null) {
                 driver.setTotalEarnings(Math.max(0.0, driver.getTotalEarnings() - fareToReverse));
@@ -432,16 +418,9 @@ public class DriverService {
     @Cacheable(value = "driver-service::S2-F3", key = "#driverId + ':' + #startDate + ':' + #endDate")
     public DriverEarningsDTO getEarningsSummary(Long driverId, LocalDate startDate, LocalDate endDate) {
         Driver driver = getDriverById(driverId);
-        DriverRideSummaryDTO summary;
-        try {
-            summary = rideServiceClient.getDriverRideSummary(
+        DriverRideSummaryDTO summary = rideClient.getDriverRideSummary(
                     driverId, startDate.toString(), endDate.toString());
-        } catch (FeignException.NotFound e) {
-            summary = DriverRideSummaryDTO.empty(driverId);
-        } catch (FeignException e) {
-            log.warn("ride-service unavailable for driver {} earnings: {}", driverId, e.getMessage());
-            summary = DriverRideSummaryDTO.empty(driverId);
-        }
+        
         return DriverEarningsDTO.builder()
                 .driverId(driver.getId())
                 .name(driver.getName())
@@ -480,13 +459,7 @@ public class DriverService {
         }
 
         // Fetch ride aggregation via Feign → ride-service
-        DriverRideSummaryDTO stats;
-        try {
-            stats = rideServiceClient.getDriverStats(id);
-        } catch (FeignException e) {
-            log.warn("ride-service unavailable for dashboard stats driver {}: {}", id, e.getMessage());
-            stats = DriverRideSummaryDTO.empty(id);
-        }
+        DriverRideSummaryDTO stats = rideClient.getDriverStats(id);
 
         long totalRides = stats.totalRides();
         double totalEarnings = stats.totalEarnings();
@@ -496,7 +469,7 @@ public class DriverService {
                 .driverId(id)
                 .name(driver.getName())
                 .totalRides(totalRides)
-                .totalRevenue(totalEarnings)
+                .totalEarnings(totalEarnings)
                 .averageRideFare(averageRideFare)
                 .averageRating(driver.getRating())
                 .totalRatings(driver.getTotalRatings())

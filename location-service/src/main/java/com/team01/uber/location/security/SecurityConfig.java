@@ -1,9 +1,9 @@
 package com.team01.uber.location.security;
 
+import com.team01.uber.contracts.feign.UserServiceClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,17 +16,17 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
+    private final UserServiceClient userServiceClient;
 
-    public SecurityConfig(JwtService jwtService, JdbcTemplate jdbcTemplate) {
+    public SecurityConfig(JwtService jwtService, UserServiceClient userServiceClient) {
         this.jwtService = jwtService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.userServiceClient = userServiceClient;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService, jdbcTemplate);
+
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService, userServiceClient);
 
         http
             .csrf(AbstractHttpConfigurer::disable)

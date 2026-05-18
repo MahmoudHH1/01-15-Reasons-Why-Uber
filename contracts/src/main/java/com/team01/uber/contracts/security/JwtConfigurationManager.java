@@ -1,4 +1,4 @@
-package com.team01.uber.driver.security;
+package com.team01.uber.contracts.security;
 
 public class JwtConfigurationManager {
 
