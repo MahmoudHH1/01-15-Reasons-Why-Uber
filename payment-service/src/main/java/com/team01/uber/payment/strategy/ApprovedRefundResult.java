@@ -41,7 +41,7 @@ public class ApprovedRefundResult extends RefundResult {
 
         ctx.notifier.notify("REFUNDED", Map.of(
                 "paymentId", saved.getId(),
-                "method", saved.getMethod().name(),
+                "method", saved.getMethod() != null ? saved.getMethod().name() : "UNKNOWN",
                 "amount", saved.getAmount(),
                 "strategyName", strategyName,
                 "reason", request.getReason() == null ? "" : request.getReason(),

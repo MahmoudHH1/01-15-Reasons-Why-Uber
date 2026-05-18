@@ -1,17 +1,14 @@
 package com.team01.uber.payment.service;
 
 import com.team01.uber.contracts.dto.UserDTO;
-import com.team01.uber.contracts.feign.DriverServiceClient;
-import com.team01.uber.contracts.feign.RideServiceClient;
-import com.team01.uber.contracts.feign.UserServiceClient;
 import com.team01.uber.payment.adapter.MongoDocumentAdapter;
+import com.team01.uber.payment.client.DriverClient;
+import com.team01.uber.payment.client.RideClient;
+import com.team01.uber.payment.client.UserClient;
 import com.team01.uber.payment.dto.UserPaymentSummaryDTO;
 import com.team01.uber.payment.messaging.PaymentEventPublisher;
 import com.team01.uber.payment.repository.PaymentRepository;
 import com.team01.uber.payment.strategy.RefundStrategySelector;
-import feign.FeignException;
-import feign.Request;
-import feign.RequestTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,10 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,7 +34,7 @@ import static org.mockito.Mockito.when;
  * Focus: PaymentService.getUserPaymentSummary (S5-F9) — the Feign-gated read path.
  * §2.10 caller existence: if user-service Feign returns 404, payment-service must throw 404.
  *
- * All Feign clients (UserServiceClient, RideServiceClient, DriverServiceClient) are
+ * All Feign clients (UserClient, RideClient, DriverClient) are
  * @Mock'd — no Spring context, no HTTP, no DB.
  */
 @ExtendWith(MockitoExtension.class)
@@ -50,9 +47,9 @@ class PaymentServiceFeignTest {
     @Mock private MongoTemplate mongoTemplate;
     @Mock private MongoDocumentAdapter mongoDocumentAdapter;
     @Mock private PaymentEventPublisher paymentEventPublisher;
-    @Mock private UserServiceClient userServiceClient;
-    @Mock private RideServiceClient rideServiceClient;
-    @Mock private DriverServiceClient driverServiceClient;
+    @Mock private UserClient userClient;
+    @Mock private RideClient rideClient;
+    @Mock private DriverClient driverClient;
 
     private PaymentService paymentService;
 
@@ -61,14 +58,14 @@ class PaymentServiceFeignTest {
         paymentService = new PaymentService(
                 paymentRepository, strategySelector, cacheInvalidationService,
                 mongoTemplate, mongoDocumentAdapter, paymentEventPublisher,
-                userServiceClient, rideServiceClient, driverServiceClient);
+                userClient, rideClient, driverClient);
     }
 
     @Test
     @DisplayName("S5-F9 happy path: user exists, aggregator returns breakdown across payment methods")
     void getUserPaymentSummary_happyPath_returnsAggregatedBreakdown() {
         Long userId = 10L;
-        when(userServiceClient.getUser(userId)).thenReturn(activeUser(userId));
+        when(userClient.getUser(userId)).thenReturn(activeUser(userId));
         when(paymentRepository.findCompletedPaymentsSummaryByUser(userId)).thenReturn(List.of(
                 new Object[] { "CREDIT_CARD", 3L, 195.0 },
                 new Object[] { "CASH",        1L, 50.0  },
@@ -88,7 +85,7 @@ class PaymentServiceFeignTest {
     @Test
     @DisplayName("S5-F9: empty result still returns 200 with totals=0 (per §7 spec wording)")
     void getUserPaymentSummary_noPaymentsButUserExists_returnsEmptyTotals() {
-        when(userServiceClient.getUser(20L)).thenReturn(activeUser(20L));
+        when(userClient.getUser(20L)).thenReturn(activeUser(20L));
         when(paymentRepository.findCompletedPaymentsSummaryByUser(20L)).thenReturn(List.of());
 
         UserPaymentSummaryDTO summary = paymentService.getUserPaymentSummary(20L);
@@ -99,9 +96,11 @@ class PaymentServiceFeignTest {
     }
 
     @Test
-    @DisplayName("§2.10: Feign 404 from user-service → 404 'User not found', no DB query")
+    @DisplayName("§2.10: wrapper-converted 404 from user-service → 404 'User not found', no DB query")
     void getUserPaymentSummary_userNotFound_throws404_noDbQuery() {
-        when(userServiceClient.getUser(999L)).thenThrow(notFound());
+        // UserClient wrapper converts FeignException.NotFound → ResponseStatusException(404).
+        when(userClient.getUser(999L)).thenThrow(
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
         assertThatThrownBy(() -> paymentService.getUserPaymentSummary(999L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -111,30 +110,20 @@ class PaymentServiceFeignTest {
     }
 
     @Test
-    @DisplayName("§2.10: Feign 503 from user-service → 503, no DB query")
+    @DisplayName("§2.10: wrapper-converted 503 from user-service → 503, no DB query")
     void getUserPaymentSummary_userServiceUnavailable_throws503_noDbQuery() {
-        when(userServiceClient.getUser(40L)).thenThrow(serviceUnavailable());
+        // UserClient wrapper converts other FeignException → ResponseStatusException(503).
+        when(userClient.getUser(40L)).thenThrow(
+                new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service unavailable"));
 
         assertThatThrownBy(() -> paymentService.getUserPaymentSummary(40L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("User service temporarily unavailable");
+                .hasMessageContaining("User service unavailable");
 
         verify(paymentRepository, never()).findCompletedPaymentsSummaryByUser(anyLong());
     }
 
     private static UserDTO activeUser(Long id) {
         return new UserDTO(id, "Tester", "u@x.io", "RIDER", "ACTIVE");
-    }
-
-    private static FeignException notFound() {
-        Request req = Request.create(Request.HttpMethod.GET, "/x", Map.of(),
-                Request.Body.empty(), new RequestTemplate());
-        return new FeignException.NotFound("not found", req, new byte[0], Map.of());
-    }
-
-    private static FeignException serviceUnavailable() {
-        Request req = Request.create(Request.HttpMethod.GET, "/x", Map.of(),
-                Request.Body.empty(), new RequestTemplate());
-        return new FeignException.ServiceUnavailable("503", req, new byte[0], Map.of());
     }
 }

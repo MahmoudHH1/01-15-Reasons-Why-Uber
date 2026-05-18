@@ -3,7 +3,7 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "__grafana__" },
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -19,7 +19,6 @@
   "links": [],
   "liveNow": false,
   "panels": [
-
     {
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": {
@@ -56,7 +55,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (level) (rate({app=\"uber\", service=\"ride-service\", level=\"ERROR\"} [1m]))",
+          "expr": "sum by (level) (rate({app=\"uber\", service=\"user-service\", level=\"ERROR\"} [1m]))",
           "legendFormat": "Error Rate",
           "queryType": "range",
           "refId": "A"
@@ -65,7 +64,6 @@
       "title": "Error Rate (LogQL §11.3 Panel 1)",
       "type": "timeseries"
     },
-
     {
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": {
@@ -102,7 +100,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (routingKey) (rate({app=\"uber\", service=\"ride-service\"} |= \"routingKey\" [5m]))",
+          "expr": "sum by (routingKey) (rate({app=\"uber\", service=\"user-service\"} |= \"routingKey\" [5m]))",
           "legendFormat": "{{routingKey}} Events",
           "queryType": "range",
           "refId": "A"
@@ -111,7 +109,6 @@
       "title": "RabbitMQ Event Audit by Routing Key (LogQL §11.3 Panel 3)",
       "type": "timeseries"
     },
-
     {
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": {
@@ -148,7 +145,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (status) (rate({app=\"uber\", service=\"ride-service\"} |= \"Feign call\" [5m]))",
+          "expr": "sum by (status) (rate({app=\"uber\", service=\"user-service\"} |= \"Feign call\" [5m]))",
           "legendFormat": "Feign {{status}}",
           "queryType": "range",
           "refId": "A"
@@ -157,7 +154,6 @@
       "title": "Feign Call Outcomes (LogQL §11.3 Panel 4)",
       "type": "timeseries"
     },
-
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -195,7 +191,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(http_server_requests_seconds_count{job=\"ride-service\"}[5m])) by (uri)",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"user-service\"}[5m])) by (uri)",
           "legendFormat": "{{uri}}",
           "range": true,
           "refId": "A"
@@ -204,7 +200,6 @@
       "title": "HTTP Request Rate per Endpoint (PromQL §11.4 Panel 1)",
       "type": "timeseries"
     },
-
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -242,7 +237,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m])) by (le, uri))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])) by (le, uri))",
           "legendFormat": "P99 {{uri}}",
           "range": true,
           "refId": "A"
@@ -251,7 +246,6 @@
       "title": "HTTP Latency P99 per Endpoint (PromQL §11.4 Panel 2)",
       "type": "timeseries"
     },
-
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -289,7 +283,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "jvm_memory_used_bytes{job=\"ride-service\", area=\"heap\"}",
+          "expr": "jvm_memory_used_bytes{job=\"user-service\", area=\"heap\"}",
           "legendFormat": "Heap Used",
           "range": true,
           "refId": "A"
@@ -298,17 +292,16 @@
       "title": "JVM Heap Usage (PromQL §11.4 Panel 3)",
       "type": "timeseries"
     }
-
   ],
   "refresh": "10s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["ride-service", "observability", "m3"],
+  "tags": ["user-service", "observability", "m3"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "Ride Service Dashboard",
-  "uid": "ride-service",
+  "title": "User Service Dashboard",
+  "uid": "user-service",
   "version": 1
 }

@@ -5,9 +5,9 @@ import com.team01.uber.contracts.dto.DriverDTO;
 import com.team01.uber.contracts.dto.DriverRideSummaryDTO;
 import com.team01.uber.contracts.dto.RideSummaryDTO;
 import com.team01.uber.contracts.dto.UserDTO;
-import com.team01.uber.contracts.feign.DriverServiceClient;
-import com.team01.uber.contracts.feign.LocationServiceClient;
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.ride.client.DriverClient;
+import com.team01.uber.ride.client.LocationClient;
+import com.team01.uber.ride.client.UserClient;
 import com.team01.uber.ride.dto.*;
 import com.team01.uber.ride.enums.RideStatus;
 import com.team01.uber.ride.enums.RideStopStatus;
@@ -57,9 +57,9 @@ public class RideService {
     private final UserNodeRepository userNodeRepository;
     private final DriverNodeRepository driverNodeRepository;
     private final RideEventPublisher rideEventPublisher;
-    private final DriverServiceClient driverServiceClient;
-    private final UserServiceClient userServiceClient;
-    private final LocationServiceClient locationServiceClient;
+    private final DriverClient driverClient;
+    private final UserClient userClient;
+    private final LocationClient locationClient;
     private final RideEventPublisherService producer;
 
     public RideService(RideRepository rideRepository,
@@ -67,18 +67,18 @@ public class RideService {
             UserNodeRepository userNodeRepository,
             DriverNodeRepository driverNodeRepository,
             RideEventPublisher rideEventPublisher,
-            DriverServiceClient driverServiceClient,
-            UserServiceClient userServiceClient,
-            LocationServiceClient locationServiceClient,
+            DriverClient driverClient,
+            UserClient userClient,
+            LocationClient locationClient,
             RideEventPublisherService producer) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
         this.driverNodeRepository = driverNodeRepository;
         this.rideEventPublisher = rideEventPublisher;
-        this.driverServiceClient = driverServiceClient;
-        this.userServiceClient = userServiceClient;
-        this.locationServiceClient = locationServiceClient;
+        this.driverClient = driverClient;
+        this.userClient = userClient;
+        this.locationClient = locationClient;
         this.producer = producer;
     }
 
@@ -230,18 +230,9 @@ public class RideService {
                     "Only rides with status REQUESTED can be assigned a driver");
         }
 
-        log.info("Calling driverServiceClient.getDriver with args={}", driverId);
-        DriverDTO driver;
-        try {
-            driver = driverServiceClient.getDriver(driverId);
-            log.info("driverServiceClient.getDriver returned successfully");
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        } catch (FeignException e) {
-            log.warn("Feign call to driver-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Driver service temporarily unavailable");
-        }
+        log.info("Calling driverClient.getDriver with args={}", driverId);
+        DriverDTO driver = driverClient.getDriver(driverId);
+        log.info("driverClient.getDriver returned successfully");
 
         if (!"AVAILABLE".equals(driver.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
@@ -354,54 +345,26 @@ public class RideService {
         }
 
         // Pre-saga Feign check 1: user must be ACTIVE (§8.3)
-        log.info("Calling userServiceClient.getUser with args={}", ride.getUserId());
-        try {
-            UserDTO user = userServiceClient.getUser(ride.getUserId());
-            log.info("userServiceClient.getUser returned successfully");
-            if (!"ACTIVE".equals(user.status())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User account is not active");
-            }
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User not found");
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (FeignException e) {
-            log.warn("Feign call to user-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "User service temporarily unavailable");
+        log.info("Calling userClient.getUser with args={}", ride.getUserId());
+        UserDTO user = userClient.getUser(ride.getUserId());
+        log.info("userClient.getUser returned successfully");
+        if (!"ACTIVE".equals(user.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User account is not active");
         }
 
         // Pre-saga Feign check 2: driver must be BUSY (§8.3)
-        log.info("Calling driverServiceClient.getDriverAvailability with args={}", ride.getDriverId());
-        try {
-            DriverAvailabilityDTO availability = driverServiceClient.getDriverAvailability(ride.getDriverId());
-            log.info("driverServiceClient.getDriverAvailability returned successfully");
-            if (!"BUSY".equals(availability.status())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Driver is not currently active for this ride");
-            }
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver not found");
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (FeignException e) {
-            log.warn("Feign call to driver-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Driver service temporarily unavailable");
+        log.info("Calling driverClient.getDriverAvailability with args={}", ride.getDriverId());
+        DriverAvailabilityDTO availability = driverClient.getDriverAvailability(ride.getDriverId());
+        log.info("driverClient.getDriverAvailability returned successfully");
+        if (!"BUSY".equals(availability.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Driver is not currently active for this ride");
         }
 
         // Pre-saga Feign check 3: driver must have recent GPS ping (§8.3)
-        log.info("Calling locationServiceClient.getRecentLocationForDriver with args={}", ride.getDriverId());
-        try {
-            locationServiceClient.getRecentLocationForDriver(ride.getDriverId());
-            log.info("locationServiceClient.getRecentLocationForDriver returned successfully");
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver not actively tracked");
-        } catch (FeignException e) {
-            log.warn("Feign call to location-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Location service temporarily unavailable");
-        }
+        log.info("Calling locationClient.getRecentLocationForDriver with args={}", ride.getDriverId());
+        locationClient.getRecentLocationForDriver(ride.getDriverId());
+        log.info("locationClient.getRecentLocationForDriver returned successfully");
 
         // Commit local state then publish (§2.11 publish-after-commit)
         ride.setStatus(RideStatus.COMPLETED);
@@ -498,29 +461,29 @@ public class RideService {
         }
 
         // M3: Feign → user-service replaces findUserNameById()
-        log.info("Calling userServiceClient.getUser with args={}", userId);
+        log.info("Calling userClient.getUser with args={}", userId);
         String userName;
         try {
-            UserDTO user = userServiceClient.getUser(userId);
-            log.info("userServiceClient.getUser returned successfully");
+            UserDTO user = userClient.getUser(userId);
+            log.info("userClient.getUser returned successfully");
             userName = user.name();
-        } catch (FeignException e) {
-            log.warn("Feign call to user-service failed: {}", e.getMessage());
+        } catch (Exception e) {
+            log.warn("Resilient call to user-service failed: {}", e.getMessage());
             userName = "Unknown";
         }
 
         // M3: Feign → driver-service replaces findDriverNameById() +
         // findDriverVehicleTypeById()
-        log.info("Calling driverServiceClient.getDriver with args={}", driverId);
+        log.info("Calling driverClient.getDriver with args={}", driverId);
         String driverName;
         String vehicleType;
         try {
-            DriverDTO driver = driverServiceClient.getDriver(driverId);
-            log.info("driverServiceClient.getDriver returned successfully");
+            DriverDTO driver = driverClient.getDriver(driverId);
+            log.info("driverClient.getDriver returned successfully");
             driverName = driver.name();
             vehicleType = (String) driver.vehicleDetails().getOrDefault("vehicleType", "");
-        } catch (FeignException e) {
-            log.warn("Feign call to driver-service failed: {}", e.getMessage());
+        } catch (Exception e) {
+            log.warn("Resilient call to driver-service failed: {}", e.getMessage());
             driverName = "Unknown";
             vehicleType = "";
         }
