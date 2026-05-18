@@ -169,6 +169,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- ── Circuit Breaker bonus (§15) ── -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+        </dependency>
+
         <!-- Loki4J (§11.1) — structured log shipping to Loki -->
         <dependency>
             <groupId>com.github.loki4j</groupId>

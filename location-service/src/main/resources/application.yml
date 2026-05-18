@@ -56,11 +56,24 @@ feign:
   user-service:
     url: ${FEIGN_USER_SERVICE_URL:http://user-service:8080}
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      driver-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: "prometheus,health,info"
+        include: "prometheus,health,info,circuitbreakers"
+  health:
+    circuitbreakers:
+      enabled: true
   metrics:
     distribution:
       percentiles-histogram:

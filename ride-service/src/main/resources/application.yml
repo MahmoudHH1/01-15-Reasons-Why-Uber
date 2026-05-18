@@ -64,11 +64,36 @@ feign:
   payment-service:
     url: ${FEIGN_PAYMENT_SERVICE_URL:http://payment-service:8080}
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+      driver-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+      location-service:
+        sliding-window-size: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: "prometheus,health,info"
+        include: "prometheus,health,info,circuitbreakers"
+  health:
+    circuitbreakers:
+      enabled: true
   endpoint:
     health:
       probes:

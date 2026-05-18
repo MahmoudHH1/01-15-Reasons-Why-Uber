@@ -1,7 +1,7 @@
 package com.team01.uber.driver.service;
 
-import com.team01.uber.contracts.feign.RideServiceClient;
 import com.team01.uber.driver.adapter.ElasticsearchHitAdapter;
+import com.team01.uber.driver.client.RideClient;
 import com.team01.uber.driver.cache.CacheInvalidator;
 import com.team01.uber.driver.messaging.DriverEventPublisher;
 import com.team01.uber.driver.model.Driver;
@@ -9,9 +9,6 @@ import com.team01.uber.driver.model.DriverStatus;
 import com.team01.uber.driver.observer.MongoEventLogger;
 import com.team01.uber.driver.repository.DriverRepository;
 import com.team01.uber.driver.repository.DriverSearchEsRepository;
-import feign.FeignException;
-import feign.Request;
-import feign.RequestTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +19,6 @@ import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,10 +33,10 @@ import static org.mockito.Mockito.when;
  * §15 Bonus item (1) — Unit tests for service business logic with mocked Feign clients.
  *
  * Focus: driver-service's S2-F4 updateAvailability (the spec-named Feign hot path).
- * RideServiceClient.countActiveRidesForDriver gates the OFFLINE transition: if active
+ * RideClient.countActiveRidesForDriver gates the OFFLINE transition: if active
  * rides exist, going OFFLINE must be refused (§4 / §8.3 saga consistency).
  *
- * All collaborators (RideServiceClient, repositories, ES, Redis, publishers) are
+ * All collaborators (RideClient, repositories, ES, Redis, publishers) are
  * @Mock'd — no Spring context, no HTTP, no DB.
  */
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +51,7 @@ class DriverServiceFeignTest {
     @Mock private ElasticsearchHitAdapter searchHitAdapter;
     @Mock private DriverIndexerService driverIndexerService;
     @Mock private CacheManager cacheManager;
-    @Mock private RideServiceClient rideServiceClient;
+    @Mock private RideClient rideClient;
     @Mock private DriverEventPublisher driverEventPublisher;
 
     private DriverService driverService;
@@ -65,7 +61,7 @@ class DriverServiceFeignTest {
         driverService = new DriverService(
                 driverRepository, mongoEventLogger, redisTemplate, cacheInvalidator,
                 searchEsRepository, searchHitAdapter, driverIndexerService, cacheManager,
-                rideServiceClient, driverEventPublisher);
+                rideClient, driverEventPublisher);
     }
 
     @Test
@@ -73,7 +69,7 @@ class DriverServiceFeignTest {
     void updateAvailability_offlineWithZeroActiveRides_persists() {
         Driver d = driver(5L, DriverStatus.BUSY);
         when(driverRepository.findById(5L)).thenReturn(Optional.of(d));
-        when(rideServiceClient.countActiveRidesForDriver(5L)).thenReturn(0L);
+        when(rideClient.countActiveRidesForDriver(5L)).thenReturn(0L);
         when(driverRepository.save(any(Driver.class))).thenAnswer(inv -> inv.getArgument(0));
 
         driverService.updateAvailability(5L, DriverStatus.OFFLINE);
@@ -87,7 +83,7 @@ class DriverServiceFeignTest {
     void updateAvailability_offlineWithActiveRides_throws400_noPublish() {
         Driver d = driver(5L, DriverStatus.BUSY);
         when(driverRepository.findById(5L)).thenReturn(Optional.of(d));
-        when(rideServiceClient.countActiveRidesForDriver(5L)).thenReturn(1L);
+        when(rideClient.countActiveRidesForDriver(5L)).thenReturn(1L);
 
         assertThatThrownBy(() ->
                 driverService.updateAvailability(5L, DriverStatus.OFFLINE))
@@ -108,18 +104,19 @@ class DriverServiceFeignTest {
         driverService.updateAvailability(7L, DriverStatus.BUSY);
 
         assertThat(d.getStatus()).isEqualTo(DriverStatus.BUSY);
-        verify(rideServiceClient, never()).countActiveRidesForDriver(anyLong());
+        verify(rideClient, never()).countActiveRidesForDriver(anyLong());
         verify(driverEventPublisher).publishStatusChanged(7L, "AVAILABLE", "BUSY");
     }
 
     @Test
-    @DisplayName("§8.3 graceful degradation: Feign throws → treated as 0 active rides, OFFLINE persists")
+    @DisplayName("§8.3 graceful degradation: wrapper hides Feign failure → 0 active rides, OFFLINE persists")
     void updateAvailability_feignFailure_treatedAsZeroActive() {
-        // The production code logs the FeignException and proceeds as if 0 active rides.
-        // This protects against ride-service outages from blocking legitimate OFFLINE.
+        // The RideClient wrapper hides Feign/CB details from DriverService. The wrapper's
+        // FeignException handling is covered separately in RideClientCircuitBreakerTest;
+        // here we model the wrapper's externally-visible "no active rides" outcome.
         Driver d = driver(9L, DriverStatus.BUSY);
         when(driverRepository.findById(9L)).thenReturn(Optional.of(d));
-        when(rideServiceClient.countActiveRidesForDriver(9L)).thenThrow(serviceUnavailable());
+        when(rideClient.countActiveRidesForDriver(9L)).thenReturn(0L);
         when(driverRepository.save(any(Driver.class))).thenAnswer(inv -> inv.getArgument(0));
 
         driverService.updateAvailability(9L, DriverStatus.OFFLINE);
@@ -133,11 +130,5 @@ class DriverServiceFeignTest {
         d.setId(id);
         d.setStatus(status);
         return d;
-    }
-
-    private static FeignException serviceUnavailable() {
-        Request req = Request.create(Request.HttpMethod.GET, "/x", Map.of(),
-                Request.Body.empty(), new RequestTemplate());
-        return new FeignException.ServiceUnavailable("503", req, new byte[0], Map.of());
     }
 }

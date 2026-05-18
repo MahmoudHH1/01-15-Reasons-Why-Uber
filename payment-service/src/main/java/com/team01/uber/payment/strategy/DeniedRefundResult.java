@@ -17,7 +17,7 @@ public class DeniedRefundResult extends RefundResult {
     public Payment apply(Payment payment, RefundSurgeRequest request, RefundContext ctx, String strategyName) {
         ctx.notifier.notify("REFUND_DENIED", Map.of(
                 "paymentId", payment.getId(),
-                "method", payment.getMethod().name(),
+                "method", payment.getMethod() != null ? payment.getMethod().name() : "UNKNOWN",
                 "amount", payment.getAmount(),
                 "details", Map.of(
                         "strategyName", strategyName,

@@ -10,7 +10,9 @@ import com.team01.uber.contracts.events.RideCancelledEvent;
 import com.team01.uber.contracts.events.RideCompletedEvent;
 import com.team01.uber.contracts.feign.DriverServiceClient;
 import com.team01.uber.contracts.feign.RideServiceClient;
-import com.team01.uber.contracts.feign.UserServiceClient;
+import com.team01.uber.payment.client.DriverClient;
+import com.team01.uber.payment.client.RideClient;
+import com.team01.uber.payment.client.UserClient;
 import feign.FeignException;
 import com.team01.uber.payment.adapter.MongoDocumentAdapter;
 import com.team01.uber.payment.dto.AppliedCouponDTO;
@@ -71,9 +73,9 @@ public class PaymentService {
     private final MongoTemplate mongoTemplate;
     private final MongoDocumentAdapter mongoDocumentAdapter;
     private final PaymentEventPublisher paymentEventPublisher;
-    private final UserServiceClient userServiceClient;
-    private final RideServiceClient rideServiceClient;
-    private final DriverServiceClient driverServiceClient;
+    private final UserClient userClient;
+    private final RideClient rideClient;
+    private final DriverClient driverClient;
 
     private final List<EntityObserver> observers = new ArrayList<>();
 
@@ -83,18 +85,18 @@ public class PaymentService {
                           MongoTemplate mongoTemplate,
                           MongoDocumentAdapter mongoDocumentAdapter,
                           PaymentEventPublisher paymentEventPublisher,
-                          UserServiceClient userServiceClient,
-                          RideServiceClient rideServiceClient,
-                          DriverServiceClient driverServiceClient) {
+                          UserClient userClient,
+                          RideClient rideClient,
+                          DriverClient driverClient) {
         this.paymentRepository = paymentRepository;
         this.strategySelector = strategySelector;
         this.cacheInvalidationService = cacheInvalidationService;
         this.mongoTemplate = mongoTemplate;
         this.mongoDocumentAdapter = mongoDocumentAdapter;
         this.paymentEventPublisher = paymentEventPublisher;
-        this.userServiceClient = userServiceClient;
-        this.rideServiceClient = rideServiceClient;
-        this.driverServiceClient = driverServiceClient;
+        this.userClient = userClient;
+        this.rideClient = rideClient;
+        this.driverClient = driverClient;
     }
 
     public void register(EntityObserver observer) {
@@ -124,16 +126,9 @@ public class PaymentService {
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
         MDC.put("userId", userId.toString());
         try {
-            try {
-                log.info("Calling UserServiceClient.getUser with args={}", userId);
-                userServiceClient.getUser(userId);
-                log.info("UserServiceClient.getUser returned successfully");
-            } catch (FeignException.NotFound e) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-            } catch (FeignException e) {
-                log.warn("Feign call to user-service failed: {}", e.getMessage());
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service temporarily unavailable");
-            }
+            log.info("Calling UserClient.getUser with args={}", userId);
+            userClient.getUser(userId);
+            log.info("UserClient.getUser returned successfully");
 
             List<Object[]> rows = paymentRepository.findCompletedPaymentsSummaryByUser(userId);
 
@@ -285,16 +280,9 @@ public class PaymentService {
     public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
         MDC.put("rideId", rideId.toString());
         RideDTO ride;
-        try {
-            log.info("Calling RideServiceClient.getRide with args={}", rideId);
-            ride = rideServiceClient.getRide(rideId);
-            log.info("RideServiceClient.getRide returned successfully");
-        } catch (FeignException.NotFound e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        } catch (FeignException e) {
-            log.warn("Feign call to ride-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
-        }
+        log.info("Calling rideClient.getRide with args={}", rideId);
+        ride = rideClient.getRide(rideId);
+        log.info("rideClient.getRide returned successfully");
 
         if (!"PAYMENT_PENDING".equals(ride.status()) && !"COMPLETED".equals(ride.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in a payable status");
@@ -509,28 +497,20 @@ public class PaymentService {
         // rideId → driverId via Feign (deduplicated)
         Map<Long, Long> rideToDriver = new HashMap<>();
         for (Long rideId : payments.stream().map(Payment::getRideId).filter(r -> r != null).collect(Collectors.toSet())) {
-            try {
-                log.info("Calling RideServiceClient.getRide with args={}", rideId);
-                RideDTO ride = rideServiceClient.getRide(rideId);
-                if (ride.driverId() != null) rideToDriver.put(rideId, ride.driverId());
-                log.info("RideServiceClient.getRide returned successfully");
-            } catch (FeignException e) {
-                log.warn("Feign call to ride-service failed for rideId {}: {}", rideId, e.getMessage());
-            }
+            log.info("Calling rideClient.getRide with args={}", rideId);
+            RideDTO ride = rideClient.getRide(rideId);
+            if (ride.driverId() != null) rideToDriver.put(rideId, ride.driverId());
+            log.info("rideClient.getRide returned successfully");
         }
 
         // driverId → vehicleType via Feign (deduplicated)
         Map<Long, String> driverToVehicleType = new HashMap<>();
         for (Long driverId : new HashSet<>(rideToDriver.values())) {
-            try {
-                log.info("Calling DriverServiceClient.getDriver with args={}", driverId);
-                com.team01.uber.contracts.dto.DriverDTO driver = driverServiceClient.getDriver(driverId);
-                String vt = driver.vehicleDetails() != null ? (String) driver.vehicleDetails().get("vehicleType") : null;
-                driverToVehicleType.put(driverId, vt != null ? vt : "UNKNOWN");
-                log.info("DriverServiceClient.getDriver returned successfully");
-            } catch (FeignException e) {
-                log.warn("Feign call to driver-service failed for driverId {}: {}", driverId, e.getMessage());
-            }
+            log.info("Calling driverClient.getDriver with args={}", driverId);
+            com.team01.uber.contracts.dto.DriverDTO driver = driverClient.getDriver(driverId);
+            String vt = driver.vehicleDetails() != null ? (String) driver.vehicleDetails().get("vehicleType") : null;
+            driverToVehicleType.put(driverId, vt != null ? vt : "UNKNOWN");
+            log.info("driverClient.getDriver returned successfully");
         }
 
         // Aggregate by vehicleType in Java
@@ -627,7 +607,7 @@ public class PaymentService {
             payment.setRideId(event.rideId());
             payment.setUserId(event.userId());
             payment.setAmount(event.fare() != null ? event.fare() : 0.0);
-            payment.setMethod(PaymentMethod.CREDIT_CARD);
+            payment.setMethod(PaymentMethod.CASH);
             payment.setStatus(PaymentStatus.PENDING);
             payment.setCreatedAt(LocalDateTime.now());
 
