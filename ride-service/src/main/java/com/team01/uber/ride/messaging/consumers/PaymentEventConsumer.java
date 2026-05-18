@@ -70,9 +70,17 @@ public class PaymentEventConsumer {
 
     @RabbitListener(queues = "ride.payment.refunded")
     public void onPaymentRefunded(PaymentRefundedEvent event) {
+        // A refund can arrive on two distinct paths:
+        //  (a) Saga B compensation: PAYMENT_FAILED → REFUNDED
+        //  (b) Saga C user-cancel / post-pay refund: PAID, PAYMENT_PENDING, CANCELLED, or COMPLETED → REFUNDED
         Ride ride = rideService.transitionRideStatus(
                 event.rideId(),
-                EnumSet.of(RideStatus.PAYMENT_FAILED),
+                EnumSet.of(
+                        RideStatus.PAYMENT_FAILED,
+                        RideStatus.PAID,
+                        RideStatus.PAYMENT_PENDING,
+                        RideStatus.CANCELLED,
+                        RideStatus.COMPLETED),
                 RideStatus.REFUNDED);
         if (ride == null) {
             log.info("payment.refunded dropped for ride {} (out-of-order or duplicate)", event.rideId());

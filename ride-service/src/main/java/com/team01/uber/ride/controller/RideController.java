@@ -172,6 +172,14 @@ public class RideController {
         return ResponseEntity.ok(rideService.getActiveRideCountForDriver(driverId));
     }
 
+    @GetMapping("/driver/{driverId}/stats")
+    public ResponseEntity<DriverRideSummaryDTO> getDriverStats(
+            @PathVariable Long driverId,
+            HttpServletRequest request) {
+        ensureCallerIsTargetOrAdmin(driverId, request, "driver");
+        return ResponseEntity.ok(rideService.getDriverRideSummary(driverId, null, null));
+    }
+
     @GetMapping("/driver/{driverId}/completed-count")
     public ResponseEntity<Long> getCompletedRideCountForDriver(@PathVariable Long driverId, HttpServletRequest request) {
         ensureCallerIsTargetOrAdmin(driverId, request, "driver");

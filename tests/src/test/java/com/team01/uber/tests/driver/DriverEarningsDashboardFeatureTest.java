@@ -41,10 +41,6 @@ class DriverEarningsDashboardFeatureTest extends BaseHttpTest {
     }
 
     @Test
-    @Disabled("SUT bug: ride-service is missing GET /api/rides/driver/{id}/stats (called by " +
-            "DriverService.getDriverDashboard line 485 via Feign). Endpoint returns 404 → " +
-            "FeignException → fallback DriverRideSummaryDTO.empty(id) → dashboard always reports " +
-            "totalRides=0 / totalEarnings=0. Re-enable after ride-service adds /stats endpoint.")
     @DisplayName("TC49 — Dashboard totalRides/totalRevenue match values aggregated from PG (uses pre-seed)")
     void tc49_dashboard_matchesAggregateValues() {
         // Cross-service aggregate: dashboard Feign-calls ride-service which authorises caller

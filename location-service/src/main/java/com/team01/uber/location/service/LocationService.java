@@ -125,7 +125,7 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
         }
 
-        // Driver existence check removed per M3 spec §6 (Page 25)
+        driverClient.getDriver(driverId);
 
         Double latitude = request.getLatitude();
         Double longitude = request.getLongitude();
@@ -213,7 +213,7 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "locations must not be null or empty");
         }
 
-        // Driver existence check removed per M3 spec §6 (Page 25)
+        driverClient.getDriver(driverId);
 
         LocalDateTime base = LocalDateTime.now();
         List<Location> toSave = new ArrayList<>();
@@ -289,7 +289,7 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F1", key = "#driverId")
     public Location getLatestByDriverId(Long driverId) {
-        // Driver existence check removed per M3 spec §6 (Page 25)
+        driverClient.getDriver(driverId);
 
         return locationRepository.findTopByDriverIdOrderByTimestampDescIdDesc(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No locations found for driver"));
@@ -360,7 +360,9 @@ public class LocationService {
 
     @Cacheable(value = "location-service::S4-F9", key = "#maxSpeed + ':' + #sinceMinutes")
     public List<StationaryDriverDTO> findStationaryDrivers(Double maxSpeed, int sinceMinutes) {
-        LocalDateTime since = LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(sinceMinutes);
+        // Rows are persisted with LocalDateTime.now() (no zone); align the window cutoff
+        // with the same local clock so the >= :since predicate stays correctly anchored.
+        LocalDateTime since = LocalDateTime.now().minusMinutes(sinceMinutes);
         List<Object[]> results = locationRepository.findStationaryDriversLocal(maxSpeed, since);
 
         List<StationaryDriverDTO> stationaryDrivers = new ArrayList<>();
@@ -417,7 +419,7 @@ public class LocationService {
     @Cacheable(value = "location-service::S4-F12",
                key = "#driverId + ':' + (#startTime == null ? '' : #startTime) + ':' + (#endTime == null ? '' : #endTime)")
     public List<LocationTrackingDTO> getTrackingTimeline(Long driverId, String startTime, String endTime) {
-        // Driver existence check removed per M3 spec §6 (Page 25)
+        driverClient.getDriver(driverId);
 
         List<LocationTrackingEvent> events;
         // Guard: Skip filter if either param is null or blank (A6-F12 fix)
@@ -573,8 +575,8 @@ public class LocationService {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body must not be null");
         }
-        
-        // Driver existence check removed per M3 spec §6 (Page 25)
+
+        driverClient.getDriver(driverId);
 
         if (request.getLatitude() == null || request.getLongitude() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude and longitude are required");
