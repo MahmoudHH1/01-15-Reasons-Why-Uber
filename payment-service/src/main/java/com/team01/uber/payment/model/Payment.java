@@ -34,9 +34,10 @@ public class Payment {
     @Column(nullable = false)
     private Double amount;
 
+    @NotNull(message = "Payment method is required")
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(nullable = true)
+    @Column(nullable = false)
     private PaymentMethod method;
 
     @NotNull(message = "Status is required")
