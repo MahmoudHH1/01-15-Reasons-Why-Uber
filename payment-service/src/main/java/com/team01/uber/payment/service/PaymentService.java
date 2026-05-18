@@ -612,8 +612,8 @@ public class PaymentService {
             payment.setCreatedAt(LocalDateTime.now());
 
             Payment saved = paymentRepository.save(payment);
-            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
             MDC.put("paymentId", saved.getId().toString());
+            log.info("{} {} saved with status={}", "Payment", saved.getId(), saved.getStatus());
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("paymentId", saved.getId());
