@@ -30,6 +30,7 @@ public class MongoEventLogger implements EntityObserver {
 
     @Override
     public void onEvent(String eventType, Object payload) {
+        log.info("Domain event: {} payload={}", eventType, payload);
         try {
             Map<String, Object> params = new HashMap<>();
             params.put("action", eventType);
