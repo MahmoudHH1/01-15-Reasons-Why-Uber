@@ -9,6 +9,8 @@ data:
 
     server:
       http_listen_port: 3100
+      grpc_server_max_recv_msg_size: 16777216
+      grpc_server_max_send_msg_size: 16777216
 
     ingester:
       wal:
@@ -47,6 +49,19 @@ data:
       enforce_metric_name: false
       reject_old_samples: true
       reject_old_samples_max_age: 168h
+      max_query_parallelism: 32
+      split_queries_by_interval: 0s
+      max_streams_per_user: 0
+      max_global_streams_per_user: 0
+
+    querier:
+      max_concurrent: 32
+
+    query_scheduler:
+      max_outstanding_requests_per_tenant: 4096
+
+    frontend:
+      max_outstanding_per_tenant: 4096
 
     compactor:
       working_directory: /loki/compactor
