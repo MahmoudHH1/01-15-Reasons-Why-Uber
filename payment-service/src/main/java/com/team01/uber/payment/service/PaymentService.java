@@ -276,7 +276,7 @@ public class PaymentService {
         notifyObservers("PAYMENT_DELETED", deletePayload);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public Payment processPaymentForRide(Long rideId, ProcessPaymentRequest request, boolean simulateFailure) {
         MDC.put("rideId", rideId.toString());
         RideDTO ride;
@@ -304,7 +304,26 @@ public class PaymentService {
                     return newPayment;
                 });
 
-        payment.setMethod(request.getMethod());
+        PaymentMethod parsedMethod;
+        try {
+            parsedMethod = PaymentMethod.valueOf(request.getMethod());
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            payment.setStatus(PaymentStatus.FAILED);
+            Map<String, Object> failDetails = payment.getTransactionDetails() != null
+                    ? payment.getTransactionDetails() : new HashMap<>();
+            failDetails.put("gatewayResponse", "declined");
+            failDetails.put("failureReason", "unsupported payment method: " + request.getMethod());
+            payment.setTransactionDetails(failDetails);
+            Payment savedFail = paymentRepository.save(payment);
+            MDC.put("paymentId", savedFail.getId().toString());
+            log.info("{} {} saved with status={}", "Payment", savedFail.getId(), savedFail.getStatus());
+            final long failPaymentId = savedFail.getId();
+            final String reason = "unsupported payment method: " + request.getMethod();
+            publishAfterCommit(() -> paymentEventPublisher.publishFailed(
+                    new PaymentFailedEvent(failPaymentId, rideId, reason)));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
+        }
+        payment.setMethod(parsedMethod);
 
         Map<String, Object> details = payment.getTransactionDetails() != null
                 ? payment.getTransactionDetails()
