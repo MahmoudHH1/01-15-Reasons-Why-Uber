@@ -32,6 +32,8 @@ public class PaymentEventConsumer {
                                 @Header(value = "correlationId", required = false) String correlationId) {
         MDC.put("routingKey", PaymentEventConfig.ROUTING_RIDE_COMPLETED);
         MDC.put("correlationId", correlationId != null ? correlationId : "");
+        MDC.put("rideId", String.valueOf(event.rideId()));
+        MDC.put("userId", String.valueOf(event.userId()));
         try {
             paymentService.processRideCompleted(event);
         } catch (RuntimeException terminal) {
@@ -44,6 +46,8 @@ public class PaymentEventConsumer {
         } finally {
             MDC.remove("routingKey");
             MDC.remove("correlationId");
+            MDC.remove("rideId");
+            MDC.remove("userId");
         }
     }
 
@@ -52,6 +56,8 @@ public class PaymentEventConsumer {
                                 @Header(value = "correlationId", required = false) String correlationId) {
         MDC.put("routingKey", PaymentEventConfig.ROUTING_RIDE_CANCELLED);
         MDC.put("correlationId", correlationId != null ? correlationId : "");
+        MDC.put("rideId", String.valueOf(event.rideId()));
+        MDC.put("userId", String.valueOf(event.userId()));
         try {
             paymentService.processRideCancelled(event);
         } catch (RuntimeException terminal) {
@@ -64,6 +70,8 @@ public class PaymentEventConsumer {
         } finally {
             MDC.remove("routingKey");
             MDC.remove("correlationId");
+            MDC.remove("rideId");
+            MDC.remove("userId");
         }
     }
 
