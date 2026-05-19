@@ -138,16 +138,20 @@ public class LocationController {
     @GetMapping("/stationary")
     public ResponseEntity<List<StationaryDriverDTO>> findStationaryDrivers(
             @RequestParam Double maxSpeed,
-            @RequestParam @Min(0) int sinceMinutes) {
-        return ResponseEntity.ok(locationService.findStationaryDrivers(maxSpeed, sinceMinutes));
+            @RequestParam @Min(0) int sinceMinutes,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size) {
+        return ResponseEntity.ok(locationService.findStationaryDrivers(maxSpeed, sinceMinutes, page, size));
     }
 
     @GetMapping("/nearby")
     public ResponseEntity<List<NearbyDriverDTO>> findNearbyDrivers(
             @RequestParam Double lat,
             @RequestParam Double lon,
-            @RequestParam @Min(0) Double radiusKm) {
-        return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm));
+            @RequestParam @Min(0) Double radiusKm,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size) {
+        return ResponseEntity.ok(locationService.findNearbyDrivers(lat, lon, radiusKm, page, size));
     }
 
     @GetMapping("/history")

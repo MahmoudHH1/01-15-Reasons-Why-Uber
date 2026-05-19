@@ -3,7 +3,6 @@ package com.team01.uber.location.client;
 import com.team01.uber.contracts.dto.DriverDTO;
 import com.team01.uber.contracts.feign.DriverServiceClient;
 import feign.FeignException;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ public class DriverClient {
         this.feignClient = feignClient;
     }
 
-    @CircuitBreaker(name = "driver-service", fallbackMethod = "getDriverFallback")
     public DriverDTO getDriver(Long driverId) {
         try {
             log.info("Calling driver-service.getDriver with args={}", driverId);
@@ -32,13 +30,8 @@ public class DriverClient {
             log.warn("Feign call to driver-service failed: {}", e.getMessage());
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found in driver-service");
         } catch (FeignException e) {
-            log.warn("Feign call to driver-service failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Driver service temporarily unavailable");
+            log.warn("driver-service unavailable for getDriver driverId={}: {}", driverId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Driver service unavailable");
         }
-    }
-
-    public DriverDTO getDriverFallback(Long driverId, Exception e) {
-        log.warn("Circuit breaker open — fallback for driver-service.getDriver driverId={}: {}", driverId, e.getMessage());
-        return new DriverDTO(driverId, "Unknown", "UNAVAILABLE", Map.of());
     }
 }

@@ -226,6 +226,15 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: redispass
+      # Align the container clock with the test-client wall clock. The
+      # stationary-window check (S4-F9) compares row.timestamp — written
+      # verbatim from the client's LocalDateTime.now() — against the
+      # server's own LocalDateTime.now(). Without an explicit TZ the
+      # container defaults to UTC and a non-UTC host writes rows that
+      # appear "fresh" to the UTC-anchored cutoff (tc358). Override via
+      # `TZ=… docker compose up` for a different host.
+      TZ: ${TZ:-Africa/Cairo}
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=${TZ:-Africa/Cairo}"
     ports:
       - "8084:8080"
     depends_on:
