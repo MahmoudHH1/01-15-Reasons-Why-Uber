@@ -44,21 +44,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             .setNext(new UserLoaderHandler(userServiceClient))
             .setNext(new RoleAuthorizationHandler(List.of("RIDER", "ADMIN")));
 
-        boolean authenticated = false;
         try {
-            if (head.handle(ctx)) {
-                var auth = new UsernamePasswordAuthenticationToken(
-                        ctx.getEmail(),
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
-                );
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
-                authenticated = true;
+            if (!head.handle(ctx)) {
+                // A handler in the chain already wrote a 401/403/404/503 status + body.
+                // Do NOT proceed to filterChain — that would let Spring's anyRequest().authenticated()
+                // translate the missing Authentication into a 403.
+                if (!response.isCommitted() && response.getStatus() == HttpServletResponse.SC_OK) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                }
+                return;
             }
+
+            var auth = new UsernamePasswordAuthenticationToken(
+                    ctx.getEmail(),
+                    null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + ctx.getRole()))
+            );
+            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(auth);
         } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write("Authentication processing error");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Invalid or unparseable token");
             return;
         }
 

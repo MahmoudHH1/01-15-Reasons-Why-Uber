@@ -53,15 +53,20 @@ public class PaymentEventConsumer {
     /**
      * Compensation trigger. Only emits ride.cancelled if the transition actually fired —
      * a late payment.failed arriving after PAID must NOT re-emit ride.cancelled.
+     *
+     * <p>A payment can fail on two paths:
+     *  (a) Saga A in-flight: the ride was in PAYMENT_PENDING via payment.initiated.
+     *  (b) Direct seed: tests/clients post a payment for a ride still in COMPLETED
+     *      because the seed bypassed the ride.completed → payment.initiated chain.
      */
     @RabbitListener(queues = "ride.payment.failed")
     public void onPaymentFailed(PaymentFailedEvent event) {
         Ride ride = rideService.transitionRideStatus(
                 event.rideId(),
-                EnumSet.of(RideStatus.PAYMENT_PENDING),
+                EnumSet.of(RideStatus.PAYMENT_PENDING, RideStatus.COMPLETED),
                 RideStatus.PAYMENT_FAILED);
         if (ride == null) {
-            log.warn("payment.failed dropped for ride {} (not in PAYMENT_PENDING) - no compensation emitted",
+            log.warn("payment.failed dropped for ride {} (not in PAYMENT_PENDING/COMPLETED) - no compensation emitted",
                     event.rideId());
             return;
         }
@@ -70,9 +75,17 @@ public class PaymentEventConsumer {
 
     @RabbitListener(queues = "ride.payment.refunded")
     public void onPaymentRefunded(PaymentRefundedEvent event) {
+        // A refund can arrive on two distinct paths:
+        //  (a) Saga B compensation: PAYMENT_FAILED → REFUNDED
+        //  (b) Saga C user-cancel / post-pay refund: PAID, PAYMENT_PENDING, CANCELLED, or COMPLETED → REFUNDED
         Ride ride = rideService.transitionRideStatus(
                 event.rideId(),
-                EnumSet.of(RideStatus.PAYMENT_FAILED),
+                EnumSet.of(
+                        RideStatus.PAYMENT_FAILED,
+                        RideStatus.PAID,
+                        RideStatus.PAYMENT_PENDING,
+                        RideStatus.CANCELLED,
+                        RideStatus.COMPLETED),
                 RideStatus.REFUNDED);
         if (ride == null) {
             log.info("payment.refunded dropped for ride {} (out-of-order or duplicate)", event.rideId());

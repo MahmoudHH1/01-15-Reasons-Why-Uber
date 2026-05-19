@@ -68,7 +68,7 @@ public class LocationServiceTest {
                 .thenReturn(new DriverDTO(2L, "Driver B", "BUSY", Map.of()));
 
         // Execute
-        List<NearbyDriverDTO> results = locationService.findNearbyDrivers(30.0, 31.0, 5.0);
+        List<NearbyDriverDTO> results = locationService.findNearbyDrivers(30.0, 31.0, 5.0, 0, 20);
 
         // Verify
         assertEquals(1, results.size());
@@ -89,7 +89,7 @@ public class LocationServiceTest {
                 .thenReturn(new DriverDTO(1L, "Driver A", "AVAILABLE", Map.of()));
 
         // Execute
-        List<StationaryDriverDTO> results = locationService.findStationaryDrivers(1.0, 30);
+        List<StationaryDriverDTO> results = locationService.findStationaryDrivers(1.0, 30, 0, 20);
 
         // Verify
         assertEquals(1, results.size());
