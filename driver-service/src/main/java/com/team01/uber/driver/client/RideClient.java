@@ -35,6 +35,11 @@ public class RideClient {
     }
 
     public RideDTO getRideFallback(Long rideId, Exception e) {
+        if (e instanceof ResponseStatusException rse
+                && rse.getStatusCode().value() == HttpStatus.NOT_FOUND.value()) {
+            log.warn("Surfacing 404 from CB fallback for ride-service.getRide rideId={}", rideId);
+            throw rse;
+        }
         log.warn("Circuit breaker open — fallback for ride-service.getRide rideId={}: {}", rideId, e.getMessage());
         return new RideDTO(rideId, null, null, "UNAVAILABLE", 0.0);
     }
